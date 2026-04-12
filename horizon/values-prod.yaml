@@ -7,6 +7,11 @@ image:
   repository: harbor.dyingstar-game.space/dyingstar/horizon
   pullPolicy: IfNotPresent
 
+pluginsImage:
+  enabled: true
+  repository: harbor.dyingstar-game.space/dyingstar/horizon-plugins
+  pullPolicy: IfNotPresent
+
 service:
   nodePort: 30000
 
