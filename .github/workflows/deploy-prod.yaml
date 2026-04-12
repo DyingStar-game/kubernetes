@@ -1,0 +1,54 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      chart:
+        description: "Chart to deploy (godotserver, horizon, service-resourcesdynamic)"
+        required: true
+        type: choice
+        options:
+          - godotserver
+          - horizon
+          - service-resourcesdynamic
+      image_tag:
+        description: "Image tag to deploy (e.g. v1.2.0)"
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate chart name
+        run: |
+          CHART="${{ inputs.chart }}"
+          if [[ ! "$CHART" =~ ^(godotserver|horizon|service-resourcesdynamic)$ ]]; then
+            echo "::error::Invalid chart name: $CHART"
+            exit 1
+          fi
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Set up kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Deploy with Helm
+        run: |
+          CHART="${{ inputs.chart }}"
+          IMAGE_TAG="${{ inputs.image_tag }}"
+          helm upgrade --install \
+            -n dyingstar-prod \
+            --create-namespace \
+            -f "${CHART}/values-prod.yaml" \
+            --set image.tag="${IMAGE_TAG}" \
+            "${CHART}" \
+            "./${CHART}"

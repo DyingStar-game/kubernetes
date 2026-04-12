@@ -1,0 +1,57 @@
+name: Deploy to Preprod
+
+on:
+  repository_dispatch:
+    types: [deploy-preprod]
+  workflow_dispatch:
+    inputs:
+      chart:
+        description: "Chart to restart (godotserver, horizon, service-resourcesdynamic)"
+        required: true
+        type: choice
+        options:
+          - godotserver
+          - horizon
+          - service-resourcesdynamic
+
+# repository_dispatch payload (sent by service repo after pushing image:develop):
+#   {
+#     "event_type": "deploy-preprod",
+#     "client_payload": {
+#       "chart": "godotserver"
+#     }
+#   }
+
+jobs:
+  deploy:
+    name: Restart Preprod Deployment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve inputs
+        id: inputs
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            echo "chart=${{ github.event.client_payload.chart }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "chart=${{ inputs.chart }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate chart name
+        run: |
+          CHART="${{ steps.inputs.outputs.chart }}"
+          if [[ ! "$CHART" =~ ^(godotserver|horizon|service-resourcesdynamic)$ ]]; then
+            echo "::error::Invalid chart name: $CHART"
+            exit 1
+          fi
+
+      - name: Set up kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Rollout restart
+        run: |
+          CHART="${{ steps.inputs.outputs.chart }}"
+          kubectl rollout restart deployment/"${CHART}" -n dyingstar-preprod
+          kubectl rollout status deployment/"${CHART}" -n dyingstar-preprod --timeout=300s
