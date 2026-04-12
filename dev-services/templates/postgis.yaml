@@ -65,10 +65,10 @@ spec:
             - name: POSTGRES_DB
               value: {{ .Values.postgis.auth.database | quote }}
             - name: PGDATA
-              value: /var/lib/postgresql/data/pgdata
+              value: /var/lib/postgresql/pgdata
           volumeMounts:
             - name: data
-              mountPath: /var/lib/postgresql/data
+              mountPath: /var/lib/postgresql
           {{- with .Values.postgis.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
