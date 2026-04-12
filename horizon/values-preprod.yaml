@@ -8,6 +8,12 @@ image:
   pullPolicy: Always
   tag: "develop"
 
+pluginsImage:
+  enabled: true
+  repository: harbor.dyingstar-game.space/dyingstar/horizon-plugins
+  pullPolicy: Always
+  tag: "develop"
+
 service:
   nodePort: 30100
 
