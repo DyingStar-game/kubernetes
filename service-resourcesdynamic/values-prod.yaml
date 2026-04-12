@@ -4,7 +4,7 @@
 replicaCount: 1
 
 image:
-  repository: harbor.dyingstar-game.space/dyingstar/resources-dynamic
+  repository: harbor.dyingstar-game.space/dyingstar/resourcesdynamic
   pullPolicy: IfNotPresent
 
 resources:
