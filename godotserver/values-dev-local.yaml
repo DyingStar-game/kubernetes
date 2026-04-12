@@ -1,0 +1,18 @@
+# Local dev overrides for godotserver (minikube)
+# Usage: helm upgrade --install -n dyingstar-dev-local godotserver ./godotserver -f godotserver/values-dev-local.yaml
+# Or via Skaffold: skaffold dev -p godotserver
+
+replicaCount: 1
+
+image:
+  repository: godotserver
+  pullPolicy: Never
+  tag: dev
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 128Mi

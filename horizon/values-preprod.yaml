@@ -1,0 +1,33 @@
+# Preprod overrides for horizon
+# Usage: helm upgrade --install -n dyingstar-preprod horizon ./horizon -f horizon/values-preprod.yaml
+
+replicaCount: 1
+
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/horizon
+  pullPolicy: Always
+  tag: "develop"
+
+service:
+  nodePort: 30100
+
+httpRoute:
+  enabled: true
+  hostnames:
+    - server-preprod.dyingstar-game.space
+  parentRefs:
+    - name: gateway
+      sectionName: http
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+
+resources:
+  requests:
+    cpu: 10
+    memory: 2Gi
+  limits:
+    cpu: 18
+    memory: 4Gi

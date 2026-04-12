@@ -1,0 +1,145 @@
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: dyingstar
+
+# Skaffold builds images using Dockerfiles from sibling service repos.
+# Each service repo must be cloned as a sibling directory.
+#
+# Required sibling repos:
+#   ../DyingStar     — godotserver (Dockerfile at .docker/Dockerfile)
+#   ../horizonserver — horizon     (Dockerfile at .docker/Dockerfile)
+#   ../services/resourcesDynamic — service-resourcesdynamic (Dockerfile at docker/Dockerfile)
+#
+# Examples:
+#   skaffold dev                          # deploy all services
+#   skaffold dev -p horizon               # deploy horizon only
+#   skaffold dev -p service-resourcesdynamic
+
+build:
+  local:
+    push: false
+    useBuildkit: true
+  artifacts:
+    - image: godotserver
+      context: ../DyingStar
+      docker:
+        dockerfile: .docker/Dockerfile
+    - image: horizon-server
+      context: ../horizonserver
+      docker:
+        dockerfile: .docker/Dockerfile.server
+    - image: horizon-plugins
+      context: ../horizonserver
+      docker:
+        dockerfile: .docker/Dockerfile.plugins
+    - image: service-resourcesdynamic
+      context: ../services/resourcesDynamic
+      docker:
+        dockerfile: docker/Dockerfile
+
+deploy:
+  helm:
+    releases:
+      - name: godotserver
+        chartPath: godotserver
+        namespace: dyingstar-dev-local
+        createNamespace: true
+        valuesFiles:
+          - godotserver/values.yaml
+          - godotserver/values-dev-local.yaml
+        setValueTemplates:
+          image.repository: "{{.IMAGE_REPO_godotserver}}"
+          image.tag: "{{.IMAGE_TAG_godotserver}}"
+      - name: horizon
+        chartPath: horizon
+        namespace: dyingstar-dev-local
+        createNamespace: true
+        valuesFiles:
+          - horizon/values.yaml
+          - horizon/values-dev-local.yaml
+        setValueTemplates:
+          image.repository: "{{.IMAGE_REPO_horizon_server}}"
+          image.tag: "{{.IMAGE_TAG_horizon_server}}"
+          pluginsImage.repository: "{{.IMAGE_REPO_horizon_plugins}}"
+          pluginsImage.tag: "{{.IMAGE_TAG_horizon_plugins}}"
+      - name: service-resourcesdynamic
+        chartPath: service-resourcesdynamic
+        namespace: dyingstar-dev-local
+        createNamespace: true
+        valuesFiles:
+          - service-resourcesdynamic/values.yaml
+          - service-resourcesdynamic/values-dev-local.yaml
+        setValueTemplates:
+          image.repository: "{{.IMAGE_REPO_service_resourcesdynamic}}"
+          image.tag: "{{.IMAGE_TAG_service_resourcesdynamic}}"
+
+profiles:
+  - name: godotserver
+    build:
+      artifacts:
+        - image: godotserver
+          context: ../DyingStar
+          docker:
+            dockerfile: .docker/Dockerfile
+    deploy:
+      helm:
+        releases:
+          - name: godotserver
+            chartPath: godotserver
+            namespace: dyingstar-dev-local
+            createNamespace: true
+            valuesFiles:
+              - godotserver/values.yaml
+              - godotserver/values-dev-local.yaml
+            setValueTemplates:
+              image.repository: "{{.IMAGE_REPO_godotserver}}"
+              image.tag: "{{.IMAGE_TAG_godotserver}}"
+
+  - name: horizon
+    build:
+      artifacts:
+        - image: horizon-server
+          context: ../horizonserver
+          docker:
+            dockerfile: .docker/Dockerfile.server
+        - image: horizon-plugins
+          context: ../horizonserver
+          docker:
+            dockerfile: .docker/Dockerfile.plugins
+    deploy:
+      helm:
+        releases:
+          - name: horizon
+            chartPath: horizon
+            namespace: dyingstar-dev-local
+            createNamespace: true
+            valuesFiles:
+              - horizon/values.yaml
+              - horizon/values-dev-local.yaml
+            setValueTemplates:
+              image.repository: "{{.IMAGE_REPO_horizon_server}}"
+              image.tag: "{{.IMAGE_TAG_horizon_server}}"
+              pluginsImage.repository: "{{.IMAGE_REPO_horizon_plugins}}"
+              pluginsImage.tag: "{{.IMAGE_TAG_horizon_plugins}}"
+
+  - name: service-resourcesdynamic
+    build:
+      artifacts:
+        - image: service-resourcesdynamic
+          context: ../services/resourcesDynamic
+          docker:
+            dockerfile: docker/Dockerfile
+    deploy:
+      helm:
+        releases:
+          - name: service-resourcesdynamic
+            chartPath: service-resourcesdynamic
+            namespace: dyingstar-dev-local
+            createNamespace: true
+            valuesFiles:
+              - service-resourcesdynamic/values.yaml
+              - service-resourcesdynamic/values-dev-local.yaml
+            setValueTemplates:
+              image.repository: "{{.IMAGE_REPO_service_resourcesdynamic}}"
+              image.tag: "{{.IMAGE_TAG_service_resourcesdynamic}}"

@@ -1,0 +1,16 @@
+# Production overrides for godotserver
+# Usage: helm upgrade --install -n dyingstar-prod godotserver ./godotserver -f godotserver/values-prod.yaml
+
+replicaCount: 30
+
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/godotserver
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 256Mi
+  limits:
+    cpu: 2
+    memory: 512Mi

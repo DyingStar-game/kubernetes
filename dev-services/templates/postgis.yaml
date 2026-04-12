@@ -1,0 +1,125 @@
+{{- if .Values.postgis.enabled }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "dev-services.fullname" . }}-postgis
+  labels:
+    {{- include "dev-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgis
+type: Opaque
+data:
+  password: {{ .Values.postgis.auth.password | b64enc | quote }}
+---
+{{- if .Values.postgis.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "dev-services.fullname" . }}-postgis
+  labels:
+    {{- include "dev-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgis
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.postgis.persistence.size }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dev-services.fullname" . }}-postgis
+  labels:
+    {{- include "dev-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "dev-services.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: postgis
+  template:
+    metadata:
+      labels:
+        {{- include "dev-services.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: postgis
+    spec:
+      containers:
+        - name: postgis
+          image: "{{ .Values.postgis.image.repository }}:{{ .Values.postgis.image.tag }}"
+          imagePullPolicy: {{ .Values.postgis.image.pullPolicy }}
+          ports:
+            - name: postgresql
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.postgis.auth.username | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "dev-services.fullname" . }}-postgis
+                  key: password
+            - name: POSTGRES_DB
+              value: {{ .Values.postgis.auth.database | quote }}
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          {{- with .Values.postgis.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - {{ .Values.postgis.auth.username | quote }}
+                - -d
+                - {{ .Values.postgis.auth.database | quote }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - {{ .Values.postgis.auth.username | quote }}
+                - -d
+                - {{ .Values.postgis.auth.database | quote }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: data
+          {{- if .Values.postgis.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "dev-services.fullname" . }}-postgis
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dev-services.fullname" . }}-postgis
+  labels:
+    {{- include "dev-services.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgis
+spec:
+  type: {{ .Values.postgis.service.type }}
+  ports:
+    - port: {{ .Values.postgis.service.port }}
+      targetPort: postgresql
+      protocol: TCP
+      name: postgresql
+      {{- if and (eq .Values.postgis.service.type "NodePort") .Values.postgis.service.nodePort }}
+      nodePort: {{ .Values.postgis.service.nodePort }}
+      {{- end }}
+  selector:
+    {{- include "dev-services.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: postgis
+{{- end }}

@@ -1,0 +1,33 @@
+# Preprod overrides for service-resourcesdynamic
+# Usage: helm upgrade --install -n dyingstar-preprod service-resourcesdynamic ./service-resourcesdynamic -f service-resourcesdynamic/values-preprod.yaml
+
+replicaCount: 1
+
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/resources-dynamic
+  pullPolicy: Always
+  tag: "develop"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+postgresql:
+  enabled: true
+  auth:
+    password: "CHANGE_ME_IN_PREPROD"
+  primary:
+    persistence:
+      enabled: true
+      size: 2Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi

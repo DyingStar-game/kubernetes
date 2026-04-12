@@ -1,0 +1,35 @@
+# Default values for dev-services.
+# Shared developer infrastructure deployed to the dyingstar-dev-shared namespace.
+
+# PostGIS — shared database for all developers
+postgis:
+  enabled: true
+  image:
+    repository: postgis/postgis
+    tag: "16-3.4"
+    pullPolicy: IfNotPresent
+  auth:
+    username: devuser
+    password: "changeme-dev"
+    database: devdb
+  extensions: "postgis,postgis_topology"
+  service:
+    type: NodePort
+    port: 5432
+    nodePort: 30432
+  persistence:
+    enabled: true
+    size: 5Gi
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1
+      memory: 1Gi
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""

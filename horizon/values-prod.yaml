@@ -1,0 +1,32 @@
+# Production overrides for horizon
+# Usage: helm upgrade --install -n dyingstar-prod horizon ./horizon -f horizon/values-prod.yaml
+
+replicaCount: 1
+
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/horizon
+  pullPolicy: IfNotPresent
+
+service:
+  nodePort: 30000
+
+httpRoute:
+  enabled: true
+  hostnames:
+    - server.dyingstar-game.space
+  parentRefs:
+    - name: gateway
+      sectionName: http
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+
+resources:
+  requests:
+    cpu: 20
+    memory: 4Gi
+  limits:
+    cpu: 36
+    memory: 8Gi

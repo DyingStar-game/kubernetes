@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "dev-services.fullname" . }}-test-connection"
+  labels:
+    {{- include "dev-services.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+    {{- if .Values.postgis.enabled }}
+    - name: test-postgis
+      image: busybox
+      command: ['sh', '-c', 'nc -zv {{ include "dev-services.fullname" . }}-postgis {{ .Values.postgis.service.port }}']
+    {{- end }}
+  restartPolicy: Never

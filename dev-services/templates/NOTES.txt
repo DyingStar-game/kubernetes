@@ -1,0 +1,14 @@
+Dev-services deployed to {{ .Release.Namespace }}.
+
+{{- if .Values.postgis.enabled }}
+
+PostGIS is available:
+{{- if eq .Values.postgis.service.type "NodePort" }}
+  Node:  <NodeIP>:{{ .Values.postgis.service.nodePort }}
+{{- else }}
+  ClusterIP: {{ include "dev-services.fullname" . }}-postgis:{{ .Values.postgis.service.port }}
+  Port-forward: kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "dev-services.fullname" . }}-postgis {{ .Values.postgis.service.port }}:{{ .Values.postgis.service.port }}
+{{- end }}
+  Database: {{ .Values.postgis.auth.database }}
+  User:     {{ .Values.postgis.auth.username }}
+{{- end }}

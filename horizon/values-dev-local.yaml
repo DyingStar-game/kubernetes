@@ -1,0 +1,27 @@
+# Local dev overrides for horizon (minikube)
+# Usage: helm upgrade --install -n dyingstar-dev-local horizon ./horizon -f horizon/values-dev-local.yaml
+# Or via Skaffold: skaffold dev -p horizon
+
+replicaCount: 1
+
+image:
+  repository: horizon-server
+  pullPolicy: Never
+  tag: dev
+
+pluginsImage:
+  enabled: true
+  repository: horizon-plugins
+  pullPolicy: Never
+  tag: dev
+
+service:
+  nodePort: 30000
+
+resources:
+  requests:
+    cpu: 1
+    memory: 512Mi
+  limits:
+    cpu: 4
+    memory: 2Gi

@@ -1,0 +1,33 @@
+# Local dev overrides for service-resourcesdynamic (minikube)
+# Usage: helm upgrade --install -n dyingstar-dev-local service-resourcesdynamic ./service-resourcesdynamic -f service-resourcesdynamic/values-dev-local.yaml
+# Or via Skaffold: skaffold dev -p service-resourcesdynamic
+
+replicaCount: 1
+
+image:
+  repository: service-resourcesdynamic
+  pullPolicy: Never
+  tag: dev
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 128Mi
+
+postgresql:
+  enabled: true
+  auth:
+    password: "devpassword"
+  primary:
+    persistence:
+      enabled: false
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
