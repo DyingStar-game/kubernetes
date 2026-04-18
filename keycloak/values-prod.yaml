@@ -1,0 +1,66 @@
+# Production overrides for keycloak
+# Usage:
+#   kubectl config use-context dyingstar
+#   helm upgrade --install --kube-context=dyingstar -n dyingstar-prod \
+#     keycloak ./keycloak -f keycloak/values-prod.yaml --set image.tag=<sha>
+#
+# Required pre-existing Secrets in dyingstar-prod (operator-managed,
+# do NOT commit to git):
+#   keycloak-admin    keys: KEYCLOAK_ADMIN, KEYCLOAK_ADMIN_PASSWORD
+#   keycloak-discord  keys: DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET
+#
+# Discord developer portal redirect URL to register:
+#   https://auth.dyingstar-game.com/realms/dyingstar/broker/discord/endpoint
+
+replicaCount: 2
+
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/keycloak
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 768Mi
+  limits:
+    cpu: 1
+    memory: 4Gi
+
+keycloak:
+  hostname: auth.dyingstar-game.com
+  existingSecret: keycloak-admin
+  discord:
+    enabled: true
+    existingSecret: keycloak-discord
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+  hosts:
+    - host: auth.dyingstar-game.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: keycloak-tls
+      hosts:
+        - auth.dyingstar-game.com
+
+postgresql:
+  enabled: true
+  auth:
+    password: "CHANGE_ME_IN_PRODUCTION"
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 1
+        memory: 1Gi

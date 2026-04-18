@@ -18,6 +18,7 @@ Helm charts for the **StarDeception** gaming platform microservices.
 | `godotserver` | Godot multiplayer game server (headless service) | `../StarDeception` |
 | `horizon` | Horizon game server (NodePort, high CPU) | `../network` |
 | `service-resourcesdynamic` | Dynamic resource manager API + WebSocket, with PostgreSQL | `../services/resourcesDynamic` |
+| `keycloak` | Keycloak identity provider (player auth + Discord IdP) | `../services/keycloak` |
 | `dev-services` | Shared developer infrastructure (PostGIS) | — |
 
 ## Repository Structure
@@ -31,8 +32,11 @@ Helm charts for the **StarDeception** gaming platform microservices.
 ├── godotserver/                   # Helm chart
 ├── horizon/                       # Helm chart
 ├── service-resourcesdynamic/      # Helm chart
+├── keycloak/                      # Helm chart
 ├── dev-services/                  # Helm chart (shared dev infra)
-└── skaffold.yaml                  # Local dev orchestration
+├── skaffold.yaml                  # Local dev orchestration
+├── dev.sh                         # Local dev wrapper script
+└── dev-local.conf.example         # Config template: Harbor vs local build
 ```
 
 Each chart contains:
@@ -62,16 +66,23 @@ For preprod, use `"event_type": "deploy-preprod"`.
 
 ### Manual Deployment
 
+> **Kube contexts**: this workspace has two kube-contexts — `dyingstar` (cluster
+> serving prod **and** preprod) and `minikube` (dev-local). Always select the
+> right one before running `helm`/`kubectl`. The examples below pin it via
+> `--kube-context=dyingstar`.
+
 ```bash
 # Production
-helm upgrade --install -n dyingstar-prod godotserver ./godotserver -f godotserver/values-prod.yaml --set image.tag=<tag>
-helm upgrade --install -n dyingstar-prod horizon ./horizon -f horizon/values-prod.yaml --set image.tag=<tag>
-helm upgrade --install -n dyingstar-prod service-resourcesdynamic ./service-resourcesdynamic -f service-resourcesdynamic/values-prod.yaml --set image.tag=<tag>
+helm upgrade --install --kube-context=dyingstar -n dyingstar-prod godotserver ./godotserver -f godotserver/values-prod.yaml --set image.tag=<tag>
+helm upgrade --install --kube-context=dyingstar -n dyingstar-prod horizon ./horizon -f horizon/values-prod.yaml --set image.tag=<tag>
+helm upgrade --install --kube-context=dyingstar -n dyingstar-prod service-resourcesdynamic ./service-resourcesdynamic -f service-resourcesdynamic/values-prod.yaml --set image.tag=<tag>
+helm upgrade --install --kube-context=dyingstar -n dyingstar-prod keycloak ./keycloak -f keycloak/values-prod.yaml --set image.tag=<tag>
 
 # Preprod
-helm upgrade --install -n dyingstar-preprod godotserver ./godotserver -f godotserver/values-preprod.yaml --set image.tag=<tag>
-helm upgrade --install -n dyingstar-preprod horizon ./horizon -f horizon/values-preprod.yaml --set image.tag=<tag>
-helm upgrade --install -n dyingstar-preprod service-resourcesdynamic ./service-resourcesdynamic -f service-resourcesdynamic/values-preprod.yaml --set image.tag=<tag>
+helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod godotserver ./godotserver -f godotserver/values-preprod.yaml --set image.tag=<tag>
+helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod horizon ./horizon -f horizon/values-preprod.yaml --set image.tag=<tag>
+helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod service-resourcesdynamic ./service-resourcesdynamic -f service-resourcesdynamic/values-preprod.yaml --set image.tag=<tag>
+helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod keycloak ./keycloak -f keycloak/values-preprod.yaml --set image.tag=<tag>
 ```
 
 ### Manual trigger via workflow_dispatch
@@ -91,21 +102,62 @@ You can also trigger deployments manually from the GitHub Actions UI, providing 
   - `../StarDeception` — godotserver
   - `../network` — horizon
   - `../services/resourcesDynamic` — service-resourcesdynamic
+  - `../services/keycloak` — keycloak
 
 ### Quick Start
 
 ```bash
 # Start minikube, the size is important because the docker images are built inside the minikube
-minikube start --disk-size=60g
+minikube start --disk-size=60g --extra-config=apiserver.service-node-port-range=1024-65535
 
 # Deploy all services
-skaffold dev
+./dev.sh
 
 # Or deploy a single service
-skaffold dev -p horizon
+./dev.sh horizon
 ```
 
 Skaffold builds Docker images using Dockerfiles from the sibling repos and deploys via Helm with `values-dev-local.yaml` into namespace `dyingstar-dev-local`.
+
+### Skip Building Unchanged Services
+
+To avoid rebuilding services you haven't modified, you can pull pre-built `develop` images from Harbor instead of building locally.
+
+**Setup (one-time):**
+
+```bash
+cp dev-local.conf.example dev-local.conf
+```
+
+**Edit `dev-local.conf`** — uncomment services you want to pull from Harbor:
+
+```conf
+# Services to pull from Harbor instead of building locally.
+#godotserver
+horizon
+#service-resourcesdynamic
+```
+
+In this example, `horizon` will be deployed using the Harbor `develop` image, while the other two are built from source.
+
+Then run:
+
+```bash
+./dev.sh                          # Deploy all services
+./dev.sh horizon                  # Deploy only horizon
+./dev.sh godotserver horizon      # Deploy specific services
+./dev.sh --tail=false             # Pass extra args to skaffold
+```
+
+> **Note**: minikube must be able to pull from Harbor. If Harbor requires authentication, create an `imagePullSecret` in the `dyingstar-dev-local` namespace.
+
+You can also use Skaffold modules directly without the wrapper:
+
+```bash
+skaffold dev -m godotserver,horizon,service-resourcesdynamic          # all local builds
+skaffold dev -m horizon                                               # single service
+skaffold dev -m godotserver,horizon-harbor,service-resourcesdynamic   # mix local + harbor
+```
 
 ---
 
@@ -136,6 +188,32 @@ PostGIS available via NodePort (default `30432`).
 - **Ports**: 3001 (HTTP API), 9200 (WebSocket)
 - **Database**: Bundled PostgreSQL (configurable per environment)
 - Environment variable `DATABASE_URL` is auto-configured from chart values
+
+### Keycloak
+- **Ports**: 8080 (HTTP), 9000 (management/health/metrics)
+- **Database**: Bundled PostgreSQL (single-pod, mirrors `service-resourcesdynamic`)
+- **Hostnames**: `auth.dyingstar-game.com` (prod), `auth-preprod.dyingstar-game.com` (preprod), NodePort `30180` (dev-local)
+- **Realm**: `dyingstar` — imported on every start from the JSON baked into the image
+- **Discord IdP** is registered/updated by a Helm post-install Job (`kcadm.sh` script shipped in `../services/keycloak`)
+- **Required Secrets** (operator-managed in prod/preprod, inlined in `values-dev-local.yaml` for local dev):
+  - `keycloak-admin` — keys `KEYCLOAK_ADMIN`, `KEYCLOAK_ADMIN_PASSWORD`
+  - `keycloak-discord` — keys `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`
+- **Discord OAuth callback URLs** to register on the Discord developer portal:
+  - prod:    `https://auth.dyingstar-game.com/realms/dyingstar/broker/discord/endpoint`
+  - preprod: `https://auth-preprod.dyingstar-game.com/realms/dyingstar/broker/discord/endpoint`
+  - local:   `http://<minikube-ip>:30180/realms/dyingstar/broker/discord/endpoint`
+
+Create the prod/preprod secrets with:
+
+```bash
+kubectl --context=dyingstar -n dyingstar-prod create secret generic keycloak-admin \
+  --from-literal=KEYCLOAK_ADMIN=admin \
+  --from-literal=KEYCLOAK_ADMIN_PASSWORD='<strong-password>'
+
+kubectl --context=dyingstar -n dyingstar-prod create secret generic keycloak-discord \
+  --from-literal=DISCORD_CLIENT_ID='<id>' \
+  --from-literal=DISCORD_CLIENT_SECRET='<secret>'
+```
 
 ---
 

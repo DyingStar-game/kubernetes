@@ -1,0 +1,90 @@
+{{- if .Values.keycloak.discord.enabled -}}
+{{/*
+Post-install / post-upgrade Job that registers (or updates) the Discord
+identity provider on the configured realm using kcadm.sh. The bootstrap
+script ships inside the keycloak image (../services/keycloak repo) at
+/opt/keycloak/scripts/bootstrap-discord-idp.sh
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "keycloak.fullname" . }}-bootstrap-discord
+  labels:
+    {{- include "keycloak.labels" . | nindent 4 }}
+    app.kubernetes.io/component: bootstrap
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 6
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        {{- include "keycloak.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: bootstrap
+    spec:
+      restartPolicy: OnFailure
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "keycloak.serviceAccountName" . }}
+      containers:
+        - name: bootstrap
+          image: "{{ .Values.keycloak.discord.image.repository | default .Values.image.repository }}:{{ .Values.keycloak.discord.image.tag | default (.Values.image.tag | default .Chart.AppVersion) }}"
+          imagePullPolicy: {{ .Values.keycloak.discord.image.pullPolicy | default .Values.image.pullPolicy }}
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              KC_HOST="{{ include "keycloak.fullname" . }}"
+              KC_PORT="{{ .Values.service.port }}"
+              echo "Waiting for Keycloak at ${KC_HOST}:${KC_PORT}..."
+              # Use bash /dev/tcp (no curl/wget needed in the UBI-micro image).
+              until (echo > "/dev/tcp/${KC_HOST}/${KC_PORT}") 2>/dev/null; do
+                echo "waiting for keycloak to accept connections..."
+                sleep 5
+              done
+              # Port open != fully ready. Retry kcadm login until Keycloak is
+              # actually serving the admin API.
+              until /opt/keycloak/bin/kcadm.sh config credentials \
+                    --server "http://${KC_HOST}:${KC_PORT}{{ .Values.keycloak.httpRelativePath }}" \
+                    --realm master \
+                    --user "${KEYCLOAK_ADMIN}" \
+                    --password "${KEYCLOAK_ADMIN_PASSWORD}" 2>/dev/null; do
+                echo "waiting for keycloak admin API..."
+                sleep 5
+              done
+              exec /opt/keycloak/scripts/bootstrap-discord-idp.sh
+          env:
+            - name: KC_SERVER_URL
+              value: "http://{{ include "keycloak.fullname" . }}:{{ .Values.service.port }}{{ .Values.keycloak.httpRelativePath }}"
+            - name: KC_REALM
+              value: {{ .Values.keycloak.realm | quote }}
+            - name: KEYCLOAK_ADMIN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "keycloak.adminSecretName" . }}
+                  key: KEYCLOAK_ADMIN
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "keycloak.adminSecretName" . }}
+                  key: KEYCLOAK_ADMIN_PASSWORD
+            - name: DISCORD_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "keycloak.discordSecretName" . }}
+                  key: DISCORD_CLIENT_ID
+            - name: DISCORD_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "keycloak.discordSecretName" . }}
+                  key: DISCORD_CLIENT_SECRET
+          {{- with .Values.keycloak.discord.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

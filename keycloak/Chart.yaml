@@ -1,0 +1,12 @@
+apiVersion: v2
+name: keycloak
+description: Keycloak identity provider for StarDeception (player auth, Discord IdP federation)
+
+type: application
+
+# Chart version - increment when chart templates change
+version: 0.1.0
+
+# Application version - tracks the bundled Keycloak (custom image built from
+# ../services/keycloak which pins the upstream Keycloak release).
+appVersion: "26.0.5"
