@@ -1,0 +1,55 @@
+# Local dev overrides for keycloak (minikube)
+# Usage:
+#   kubectl config use-context minikube
+#   ./dev.sh keycloak
+#
+# DEV ONLY: admin and Discord credentials are inlined here. Replace the
+# Discord values with credentials from a throwaway Discord application
+# whose redirect URL points at:
+#   http://<minikube-ip>:30180/realms/dyingstar/broker/discord/endpoint
+
+replicaCount: 1
+
+image:
+  repository: keycloak
+  pullPolicy: Never
+  tag: dev
+
+service:
+  type: NodePort
+  port: 8080
+  managementPort: 9000
+  nodePort: 30180
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: 1
+    memory: 4Gi
+
+keycloak:
+  # Empty hostname — Keycloak runs in relaxed hostname mode for local dev.
+  hostname: ""
+  adminUser: admin
+  adminPassword: "admin"
+  discord:
+    enabled: true
+    clientId: "REPLACE_WITH_DEV_DISCORD_CLIENT_ID"
+    clientSecret: "REPLACE_WITH_DEV_DISCORD_CLIENT_SECRET"
+
+postgresql:
+  enabled: true
+  auth:
+    password: "devpassword"
+  primary:
+    persistence:
+      enabled: false
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 1
+        memory: 1Gi

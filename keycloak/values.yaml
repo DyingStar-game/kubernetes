@@ -1,0 +1,196 @@
+# Default values for keycloak.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+# Custom Keycloak image built from ../services/keycloak repo.
+# The image bundles the realm export at /opt/keycloak/data/import/ and the
+# bootstrap script at /opt/keycloak/scripts/bootstrap-discord-idp.sh
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/keycloak
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+securityContext: {}
+
+# Service exposing Keycloak HTTP (8080) and management port (9000) for probes/metrics.
+service:
+  type: ClusterIP
+  port: 8080
+  managementPort: 9000
+  # Used when type=NodePort (dev-local)
+  nodePort: ""
+  managementNodePort: ""
+
+# Traditional Ingress (disabled by default; enabled per overlay).
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+
+# Gateway API HTTPRoute (disabled by default).
+httpRoute:
+  enabled: false
+  annotations: {}
+  parentRefs:
+    - name: gateway
+      sectionName: http
+  hostnames:
+    - chart-example.local
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+
+resources: {}
+
+# Probes use Keycloak's built-in management endpoints (port 9000).
+# startupProbe gates liveness/readiness — Keycloak can take several minutes to
+# run DB migrations and import the realm on first start.
+startupProbe:
+  httpGet:
+    path: /health/started
+    port: management
+  initialDelaySeconds: 90
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 120
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: management
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 3
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: management
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+
+volumes: []
+volumeMounts: []
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Extra environment variables passed to the Keycloak container.
+env: []
+envFrom: []
+
+# ─── Keycloak-specific configuration ────────────────────────────────────────────
+keycloak:
+  # Public URL Keycloak should advertise (used as KC_HOSTNAME). Required in
+  # prod/preprod for Discord OAuth callbacks. Leave empty for dev-local.
+  hostname: ""
+
+  # Reverse-proxy mode. "edge" assumes TLS termination at an upstream ingress.
+  # See: https://www.keycloak.org/server/reverseproxy
+  proxy: edge
+
+  # Start command passed to the container. --import-realm imports any JSON files
+  # baked into /opt/keycloak/data/import/ on every start (idempotent).
+  startCommand: "start --optimized --import-realm"
+
+  # HTTP relative path Keycloak listens on (default "/").
+  httpRelativePath: "/"
+
+  # Realm name used by the Discord bootstrap script. Must match the realm id in
+  # the realm.json shipped inside the image.
+  realm: dyingstar
+
+  # Admin user — used by the bootstrap Job to talk to Keycloak via kcadm.sh.
+  adminUser: admin
+
+  # Reference an existing Secret holding KEYCLOAK_ADMIN / KEYCLOAK_ADMIN_PASSWORD.
+  # Recommended for prod/preprod. When empty the chart creates one from
+  # `keycloak.adminPassword` (DEV ONLY — do not use in production).
+  existingSecret: ""
+  adminPassword: ""
+
+  discord:
+    # Run the post-install/-upgrade Job that creates/updates the Discord IdP
+    # via kcadm.sh. Set to false for environments without Discord federation.
+    enabled: true
+
+    # Reference an existing Secret holding DISCORD_CLIENT_ID / DISCORD_CLIENT_SECRET.
+    # Recommended for prod/preprod. When empty the chart creates one from the
+    # values below (DEV ONLY).
+    existingSecret: ""
+    clientId: ""
+    clientSecret: ""
+
+    # Image used to run the bootstrap Job. Defaults to the same image as the
+    # Keycloak deployment (which already contains kcadm.sh and the script).
+    image:
+      repository: ""
+      tag: ""
+      pullPolicy: ""
+
+    # Resources for the bootstrap Job pod.
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+# ─── PostgreSQL (bundled, single-pod) ───────────────────────────────────────────
+# Same pattern as service-resourcesdynamic. For HA / managed PG, set
+# postgresql.enabled=false and point keycloak at an external instance via
+# extra env vars (KC_DB_URL / KC_DB_USERNAME / KC_DB_PASSWORD).
+postgresql:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: postgres
+    tag: "16-alpine"
+    pullPolicy: IfNotPresent
+  auth:
+    username: keycloak
+    password: "changeme-in-production"
+    database: keycloak
+  primary:
+    persistence:
+      enabled: true
+      size: 2Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi

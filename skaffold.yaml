@@ -1,21 +1,23 @@
-apiVersion: skaffold/v4beta11
-kind: Config
-metadata:
-  name: dyingstar
-
-# Skaffold builds images using Dockerfiles from sibling service repos.
-# Each service repo must be cloned as a sibling directory.
+# Skaffold multi-config for StarDeception local development.
+#
+# Each service is an independent module (config). Use -m to select which to deploy:
+#   skaffold dev -m godotserver,horizon,service-resourcesdynamic   # all (local build)
+#   skaffold dev -m horizon                                        # single service
+#   skaffold dev -m godotserver,horizon-harbor                     # mix local + harbor
+#
+# Or use ./dev.sh which reads dev-local.conf to pick modules automatically.
 #
 # Required sibling repos:
 #   ../DyingStar     — godotserver (Dockerfile at .docker/Dockerfile)
 #   ../horizonserver — horizon     (Dockerfile at .docker/Dockerfile)
 #   ../services/resourcesDynamic — service-resourcesdynamic (Dockerfile at docker/Dockerfile)
-#
-# Examples:
-#   skaffold dev                          # deploy all services
-#   skaffold dev -p horizon               # deploy horizon only
-#   skaffold dev -p service-resourcesdynamic
+#   ../services/keycloak         — keycloak                 (Dockerfile at docker/Dockerfile)
 
+# ─── godotserver: local build ───────────────────────────────────────────────────
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: godotserver
 build:
   local:
     push: false
@@ -25,19 +27,6 @@ build:
       context: ../DyingStar
       docker:
         dockerfile: .docker/Dockerfile
-    - image: horizon-server
-      context: ../horizonserver
-      docker:
-        dockerfile: .docker/Dockerfile.server
-    - image: horizon-plugins
-      context: ../horizonserver
-      docker:
-        dockerfile: .docker/Dockerfile.plugins
-    - image: service-resourcesdynamic
-      context: ../services/resourcesDynamic
-      docker:
-        dockerfile: docker/Dockerfile
-
 deploy:
   helm:
     releases:
@@ -51,6 +40,43 @@ deploy:
         setValueTemplates:
           image.repository: "{{.IMAGE_REPO_godotserver}}"
           image.tag: "{{.IMAGE_TAG_godotserver}}"
+
+# ─── godotserver: harbor image ──────────────────────────────────────────────────
+---
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: godotserver-harbor
+deploy:
+  helm:
+    releases:
+      - name: godotserver
+        chartPath: godotserver
+        namespace: dyingstar-dev-local
+        createNamespace: true
+        valuesFiles:
+          - godotserver/values.yaml
+          - godotserver/values-dev-local.yaml
+          - godotserver/values-dev-local-harbor.yaml
+
+# ─── horizon: local build ──────────────────────────────────────────────────────
+---
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: horizon
+build:
+  local:
+    push: false
+    useBuildkit: true
+  artifacts:
+    - image: horizon
+      context: ../horizonserver
+      docker:
+        dockerfile: .docker/Dockerfile
+deploy:
+  helm:
+    releases:
       - name: horizon
         chartPath: horizon
         namespace: dyingstar-dev-local
@@ -59,10 +85,45 @@ deploy:
           - horizon/values.yaml
           - horizon/values-dev-local.yaml
         setValueTemplates:
-          image.repository: "{{.IMAGE_REPO_horizon_server}}"
-          image.tag: "{{.IMAGE_TAG_horizon_server}}"
-          pluginsImage.repository: "{{.IMAGE_REPO_horizon_plugins}}"
-          pluginsImage.tag: "{{.IMAGE_TAG_horizon_plugins}}"
+          image.repository: "{{.IMAGE_REPO_horizon}}"
+          image.tag: "{{.IMAGE_TAG_horizon}}"
+
+# ─── horizon: harbor image ─────────────────────────────────────────────────────
+---
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: horizon-harbor
+deploy:
+  helm:
+    releases:
+      - name: horizon
+        chartPath: horizon
+        namespace: dyingstar-dev-local
+        createNamespace: true
+        valuesFiles:
+          - horizon/values.yaml
+          - horizon/values-dev-local.yaml
+          - horizon/values-dev-local-harbor.yaml
+
+# ─── service-resourcesdynamic: local build ──────────────────────────────────────
+---
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: service-resourcesdynamic
+build:
+  local:
+    push: false
+    useBuildkit: true
+  artifacts:
+    - image: service-resourcesdynamic
+      context: ../services/resourcesDynamic
+      docker:
+        dockerfile: docker/Dockerfile
+deploy:
+  helm:
+    releases:
       - name: service-resourcesdynamic
         chartPath: service-resourcesdynamic
         namespace: dyingstar-dev-local
@@ -74,72 +135,77 @@ deploy:
           image.repository: "{{.IMAGE_REPO_service_resourcesdynamic}}"
           image.tag: "{{.IMAGE_TAG_service_resourcesdynamic}}"
 
-profiles:
-  - name: godotserver
-    build:
-      artifacts:
-        - image: godotserver
-          context: ../DyingStar
-          docker:
-            dockerfile: .docker/Dockerfile
-    deploy:
-      helm:
-        releases:
-          - name: godotserver
-            chartPath: godotserver
-            namespace: dyingstar-dev-local
-            createNamespace: true
-            valuesFiles:
-              - godotserver/values.yaml
-              - godotserver/values-dev-local.yaml
-            setValueTemplates:
-              image.repository: "{{.IMAGE_REPO_godotserver}}"
-              image.tag: "{{.IMAGE_TAG_godotserver}}"
+# ─── service-resourcesdynamic: harbor image ─────────────────────────────────────
+---
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: service-resourcesdynamic-harbor
+deploy:
+  helm:
+    releases:
+      - name: service-resourcesdynamic
+        chartPath: service-resourcesdynamic
+        namespace: dyingstar-dev-local
+        createNamespace: true
+        valuesFiles:
+          - service-resourcesdynamic/values.yaml
+          - service-resourcesdynamic/values-dev-local.yaml
+          - service-resourcesdynamic/values-dev-local-harbor.yaml
 
-  - name: horizon
-    build:
-      artifacts:
-        - image: horizon-server
-          context: ../horizonserver
-          docker:
-            dockerfile: .docker/Dockerfile.server
-        - image: horizon-plugins
-          context: ../horizonserver
-          docker:
-            dockerfile: .docker/Dockerfile.plugins
-    deploy:
-      helm:
-        releases:
-          - name: horizon
-            chartPath: horizon
-            namespace: dyingstar-dev-local
-            createNamespace: true
-            valuesFiles:
-              - horizon/values.yaml
-              - horizon/values-dev-local.yaml
-            setValueTemplates:
-              image.repository: "{{.IMAGE_REPO_horizon_server}}"
-              image.tag: "{{.IMAGE_TAG_horizon_server}}"
-              pluginsImage.repository: "{{.IMAGE_REPO_horizon_plugins}}"
-              pluginsImage.tag: "{{.IMAGE_TAG_horizon_plugins}}"
+# ─── keycloak: local build ──────────────────────────────────────────────────────
+---
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: keycloak
+build:
+  local:
+    push: false
+    useBuildkit: true
+  artifacts:
+    - image: keycloak
+      context: ../services/keycloak
+      docker:
+        dockerfile: docker/Dockerfile
+deploy:
+  helm:
+    flags:
+      install: ["--timeout=10m"]
+      upgrade: ["--timeout=10m"]
+    releases:
+      - name: keycloak
+        chartPath: keycloak
+        namespace: dyingstar-dev-local
+        createNamespace: true
+        wait: true
+        upgradeOnChange: true
+        valuesFiles:
+          - keycloak/values.yaml
+          - keycloak/values-dev-local.yaml
+        setValueTemplates:
+          image.repository: "{{.IMAGE_REPO_keycloak}}"
+          image.tag: "{{.IMAGE_TAG_keycloak}}"
 
-  - name: service-resourcesdynamic
-    build:
-      artifacts:
-        - image: service-resourcesdynamic
-          context: ../services/resourcesDynamic
-          docker:
-            dockerfile: docker/Dockerfile
-    deploy:
-      helm:
-        releases:
-          - name: service-resourcesdynamic
-            chartPath: service-resourcesdynamic
-            namespace: dyingstar-dev-local
-            createNamespace: true
-            valuesFiles:
-              - service-resourcesdynamic/values.yaml
-              - service-resourcesdynamic/values-dev-local.yaml
-            setValueTemplates:
-              image.repository: "{{.IMAGE_REPO_service_resourcesdynamic}}"
-              image.tag: "{{.IMAGE_TAG_service_resourcesdynamic}}"
+# ─── keycloak: harbor image ─────────────────────────────────────────────────────
+---
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: keycloak-harbor
+deploy:
+  helm:
+    flags:
+      install: ["--timeout=10m"]
+      upgrade: ["--timeout=10m"]
+    releases:
+      - name: keycloak
+        chartPath: keycloak
+        namespace: dyingstar-dev-local
+        createNamespace: true
+        wait: true
+        upgradeOnChange: true
+        valuesFiles:
+          - keycloak/values.yaml
+          - keycloak/values-dev-local.yaml
+          - keycloak/values-dev-local-harbor.yaml

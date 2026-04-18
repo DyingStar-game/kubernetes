@@ -1,0 +1,7 @@
+# Harbor image overrides for local dev (skip local build)
+# Applied on top of values-dev-local.yaml when using ./dev.sh with harbor mode
+
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/godotserver
+  pullPolicy: IfNotPresent
+  tag: "develop"

@@ -5,18 +5,12 @@
 replicaCount: 1
 
 image:
-  repository: horizon-server
-  pullPolicy: Never
-  tag: dev
-
-pluginsImage:
-  enabled: true
-  repository: horizon-plugins
+  repository: horizon
   pullPolicy: Never
   tag: dev
 
 service:
-  nodePort: 30000
+  nodePort: 7040
 
 resources:
   requests:

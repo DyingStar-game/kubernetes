@@ -1,0 +1,23 @@
+Keycloak release {{ .Release.Name }} deployed in namespace {{ .Release.Namespace }}.
+
+1. Realm: {{ .Values.keycloak.realm }}
+{{- if .Values.keycloak.hostname }}
+2. Public URL: https://{{ .Values.keycloak.hostname }}{{ .Values.keycloak.httpRelativePath }}
+   Discord OAuth callback: https://{{ .Values.keycloak.hostname }}/realms/{{ .Values.keycloak.realm }}/broker/discord/endpoint
+{{- else if eq .Values.service.type "NodePort" }}
+2. Reach Keycloak via NodePort:
+   export NODE_IP=$(kubectl get nodes -o jsonpath="{.items[0].status.addresses[0].address}")
+   export NODE_PORT=$(kubectl get -n {{ .Release.Namespace }} svc {{ include "keycloak.fullname" . }} -o jsonpath="{.spec.ports[?(@.name=='http')].nodePort}")
+   echo "http://$NODE_IP:$NODE_PORT/"
+{{- else }}
+2. Port-forward Keycloak to your machine:
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "keycloak.fullname" . }} 8080:{{ .Values.service.port }}
+   echo "http://127.0.0.1:8080/"
+{{- end }}
+
+3. Admin credentials are read from the Secret: {{ include "keycloak.adminSecretName" . }}
+{{- if .Values.keycloak.discord.enabled }}
+4. Discord IdP bootstrap Job: {{ include "keycloak.fullname" . }}-bootstrap-discord
+   Inspect with:
+     kubectl -n {{ .Release.Namespace }} logs job/{{ include "keycloak.fullname" . }}-bootstrap-discord
+{{- end }}
