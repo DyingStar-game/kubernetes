@@ -16,3 +16,9 @@ resources:
   limits:
     cpu: 4
     memory: 10Gi
+
+# Disable the gdb crash-debug wrapper in production (lower overhead).
+# Set to "1" temporarily to capture a backtrace if the server is crashing.
+env:
+  - name: DEBUG_GDB
+    value: "0"

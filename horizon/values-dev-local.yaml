@@ -12,6 +12,18 @@ image:
 service:
   nodePort: 7040
 
+# uncomment if you use godotserver running in local (F5), otherwise horizon will
+#   connect to godotserver pod in minikube
+# extraEnv:
+#  - name: GAME_SERVER_HOST
+#    value: "host.minikube.internal"
+
+pluginsImage:
+  enabled: true
+  repository: horizon-plugins
+  pullPolicy: Never
+  tag: dev
+
 resources:
   requests:
     cpu: 1

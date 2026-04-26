@@ -160,6 +160,10 @@ volumeMounts: []
 #   mountPath: "/etc/foo"
 #   readOnly: true
 
+env:
+  - name: GODOT_VERBOSE
+    value: "1"
+
 nodeSelector: {}
 
 tolerations: []

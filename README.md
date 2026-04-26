@@ -1,22 +1,22 @@
 # StarDeception Kubernetes
 
-Helm charts for the **StarDeception** gaming platform microservices.
+Helm charts for the **DyingStar** gaming platform microservices.
 
 ## Environments
 
-| Environment | Namespace | Deploy Method |
-|-------------|-----------|---------------|
-| **Production** | `dyingstar-prod` | `repository_dispatch` from service repos |
-| **Preprod** | `dyingstar-preprod` | `repository_dispatch` from service repos |
-| **Dev Shared** | `dyingstar-dev-shared` | Manual `helm install` |
-| **Dev Local** | `dyingstar-dev-local` | Skaffold on minikube |
+| Environment | Namespace | Deploy Method | comment |
+|-------------|-----------|---------------|---------|
+| **Production** | `dyingstar-prod` | `repository_dispatch` from service repos | for the production |
+| **Preprod** | `dyingstar-preprod` | `repository_dispatch` from service repos | for preproduction, so code validated but not yet released |
+| **Dev Shared** | `dyingstar-dev-shared` | Manual `helm install` | for services used by all developpers, like Postgis |
+| **Dev Local** | `dyingstar-dev-local` | Skaffold on minikube | for run the game localy, mainly for developpers | 
 
 ## Charts
 
 | Chart | Purpose | Source Repo |
 |-------|---------|-------------|
-| `godotserver` | Godot multiplayer game server (headless service) | `../StarDeception` |
-| `horizon` | Horizon game server (NodePort, high CPU) | `../network` |
+| `godotserver` | Godot multiplayer game server (headless service) | `../DyingStar` |
+| `horizon` | Horizon game server (NodePort, high CPU) | `../horizonserver` |
 | `service-resourcesdynamic` | Dynamic resource manager API + WebSocket, with PostgreSQL | `../services/resourcesDynamic` |
 | `keycloak` | Keycloak identity provider (player auth + Discord IdP) | `../services/keycloak` |
 | `dev-services` | Shared developer infrastructure (PostGIS) | — |
@@ -64,12 +64,18 @@ curl -X POST \
 
 For preprod, use `"event_type": "deploy-preprod"`.
 
+This query will trigger the deployment on the environment selected.
+
+
 ### Manual Deployment
 
 > **Kube contexts**: this workspace has two kube-contexts — `dyingstar` (cluster
 > serving prod **and** preprod) and `minikube` (dev-local). Always select the
 > right one before running `helm`/`kubectl`. The examples below pin it via
 > `--kube-context=dyingstar`.
+
+It's main used for personn have the management of preprod / prod and have the minikube for develop.
+
 
 ```bash
 # Production
@@ -85,13 +91,21 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod service-res
 helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod keycloak ./keycloak -f keycloak/values-preprod.yaml --set image.tag=<tag>
 ```
 
+
 ### Manual trigger via workflow_dispatch
 
 You can also trigger deployments manually from the GitHub Actions UI, providing the chart name and image tag.
 
----
+
 
 ## Local Development (Skaffold + minikube)
+
+### Introduction
+
+We use tools, working all on Linux and Windows.
+
+It permit to have something very close to the preprod and prod and working on same way on different Operating Systems.
+
 
 ### Prerequisites
 
@@ -99,16 +113,17 @@ You can also trigger deployments manually from the GitHub Actions UI, providing 
 - [Skaffold](https://skaffold.dev/docs/install/)
 - [Helm](https://helm.sh/docs/intro/install/)
 - Sibling service repos cloned:
-  - `../StarDeception` — godotserver
-  - `../network` — horizon
+  - `../DyingStar` — godotserver
+  - `../horizonserver` — horizon
   - `../services/resourcesDynamic` — service-resourcesdynamic
   - `../services/keycloak` — keycloak
+- [freelens](https://freelensapp.github.io/), used to manage pods and deployments in an UI
 
 ### Quick Start
 
 ```bash
-# Start minikube, the size is important because the docker images are built inside the minikube
-minikube start --disk-size=60g --extra-config=apiserver.service-node-port-range=1024-65535
+# Start minikube, the size is important because the docker images can be built inside the minikube
+minikube start --disk-size=150g --extra-config=apiserver.service-node-port-range=1024-65535
 
 # Deploy all services
 ./dev.sh
@@ -125,6 +140,8 @@ To avoid rebuilding services you haven't modified, you can pull pre-built `devel
 
 **Setup (one-time):**
 
+Copy the example config file to config file ^_^
+
 ```bash
 cp dev-local.conf.example dev-local.conf
 ```
@@ -136,6 +153,7 @@ cp dev-local.conf.example dev-local.conf
 #godotserver
 horizon
 #service-resourcesdynamic
+#keycloak
 ```
 
 In this example, `horizon` will be deployed using the Harbor `develop` image, while the other two are built from source.
@@ -154,10 +172,119 @@ Then run:
 You can also use Skaffold modules directly without the wrapper:
 
 ```bash
-skaffold dev -m godotserver,horizon,service-resourcesdynamic          # all local builds
-skaffold dev -m horizon                                               # single service
-skaffold dev -m godotserver,horizon-harbor,service-resourcesdynamic   # mix local + harbor
+skaffold dev -m godotserver,horizon,service-resourcesdynamic,keycloak         # all local builds
+skaffold dev -m horizon                                                       # single service
+skaffold dev -m godotserver,horizon-harbor,service-resourcesdynamic,keycloak  # mix local + harbor
 ```
+
+### Scenarii
+
+Couple scenarii in example, depend on what part you develop in local.
+
+In all scenarii, the godot client need to connect to Horizon running in the minikube.
+In dyingstar repository (godot files), edit the file `client.ini` and replace the IP with the value return with the command: `minikube ip`.
+
+In my case, it's *192.168.49.2*, so I define it:
+
+```ini
+[network]
+websocket_url="ws://192.168.49.2:7040"
+```
+
+
+#### No develop, only test
+
+For this case, we use all `develop` images. We build anothing in local.
+
+In file `dev-local.conf`, uncomment all lines (remove the `#`).
+
+On Linux:
+
+```bash
+./dev.sh
+```
+
+On Windows, set all tools (suffix with `-harbor`):
+
+```
+skaffold dev -m godotserver-harbor,horizon-harbor,service-resourcesdynamic-harbor,keycloak-harbor
+```
+
+#### Develop godot client & server
+
+For this case, you develop only godot, so Horizon, services... are the `develop` version because we don't modify them.
+
+We must modify some files to allow horizon access the godot server you run locally (inside godot editor with `F5`):
+
+In file `horizon/values-dev-local.yaml`, uncomment 3 lines, to have:
+
+```yaml
+extraEnv:
+ - name: GAME_SERVER_HOST
+   value: "host.minikube.internal"
+```
+
+In file `horizon/values.yaml`, comments the 3 lines in `dependsOn`, to have:
+
+```yaml
+  # - name: godotserver
+  #   service: godotserver
+  #   port: 8980
+```
+
+*This mean Horizon not wait godotserver pods up because we not use them in this scenario.*
+
+In file `dev-local.conf`, uncomment only the line `godotserver` (remove the `#`).
+
+On Linux:
+
+```bash
+./dev.sh
+```
+
+On Windows, set all tools (suffix with `-harbor`):
+
+```
+skaffold dev -m godotserver,horizon-harbor,service-resourcesdynamic-harbor,keycloak-harbor
+```
+
+In godot, in menu *Debug* -> *Customize Run Instances...*, check *enable multiple instances* and set to 2.
+
+The second line will be the server, define:
+
+- *Launch arguments*: `--headless`
+- *Feature Flags*: `dedicated_server`
+
+You can run with *F5* key.
+
+In *Launch arguments*, you can append `--log-file /tmp/godot/player.log` and `--log-file /tmp/godot/server.log` for have log files.
+
+After start run with *F5* in godot, open *Freelens*, go in *Workloads* and *pods*, you can delete the line starts with *horizon-*. This will restart Horizon and connect to your Godot server. After 20 - 40 seconds, you can connect to game server from client.
+
+#### Develop Horizon
+
+
+
+In file `dev-local.conf`, uncomment only the line `horizon` (remove the `#`).
+
+On Linux:
+
+```bash
+./dev.sh
+```
+
+On Windows, set all tools (suffix with `-harbor`):
+
+```
+skaffold dev -m godotserver-harbor,horizon,service-resourcesdynamic-harbor,keycloak-harbor
+```
+
+**NOTE**: you can mix this chapter and previous chapter if you made modifications in godotserver and horizon in same time!
+
+#### Develop service Resourcesdynamic
+
+TODO: need mofdifications for this case
+
 
 ---
 
