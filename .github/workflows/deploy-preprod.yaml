@@ -56,3 +56,13 @@ jobs:
           CHART="${{ steps.inputs.outputs.chart }}"
           kubectl rollout restart deployment/"${CHART}" -n dyingstar-preprod
           kubectl rollout status deployment/"${CHART}" -n dyingstar-preprod --timeout=300s
+
+      - name: Restart horizon when godotserver is updated
+        if: steps.inputs.outputs.chart == 'godotserver'
+        run: |
+          if kubectl get deployment/horizon -n dyingstar-preprod >/dev/null 2>&1; then
+            kubectl rollout restart deployment/horizon -n dyingstar-preprod
+            kubectl rollout status deployment/horizon -n dyingstar-preprod --timeout=300s
+          else
+            echo "horizon deployment not found in dyingstar-preprod, skipping cascade restart"
+          fi
