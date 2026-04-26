@@ -53,3 +53,13 @@ jobs:
             --set image.tag="${IMAGE_TAG}" \
             "${CHART}" \
             "./${CHART}"
+
+      - name: Restart horizon when godotserver is updated
+        if: inputs.chart == 'godotserver'
+        run: |
+          if kubectl get deployment/horizon -n dyingstar-prod >/dev/null 2>&1; then
+            kubectl rollout restart deployment/horizon -n dyingstar-prod
+            kubectl rollout status deployment/horizon -n dyingstar-prod --timeout=300s
+          else
+            echo "horizon deployment not found in dyingstar-prod, skipping cascade restart"
+          fi
