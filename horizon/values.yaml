@@ -164,6 +164,11 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+# Extra environment variables to inject into the container.
+extraEnv: []
+# - name: GAME_SERVER_HOST
+#   value: "host.minikube.internal"
+
 # Init containers that wait for dependent services to be ready before starting.
 # Each entry produces a busybox init container that polls the service with nc.
 dependsOn:
@@ -173,9 +178,9 @@ dependsOn:
   - name: service-resourcesdynamic
     service: service-resourcesdynamic
     port: 3001
-# Plugin image for split-build mode (Skaffold local dev).
+# Plugin image for split-build mode.
 # When enabled, plugins are loaded via an init container from a separate image.
-# Prod/preprod use the combined Dockerfile and leave this disabled.
+# Used in local dev (Skaffold), preprod, and prod. Disabled by default (base values only).
 pluginsImage:
   enabled: false
   repository: ""
