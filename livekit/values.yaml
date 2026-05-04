@@ -1,0 +1,202 @@
+# Default values for livekit.
+# This is a YAML-formatted file.
+
+replicaCount: 1
+
+# Official LiveKit Server image from DockerHub.
+image:
+  repository: livekit/livekit-server
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+securityContext: {}
+
+# ─── Networking ────────────────────────────────────────────────────────────────
+# LiveKit needs UDP reachability for media. On Kubernetes the practical patterns
+# are:
+#   - hostNetwork: true (default off)        → media uses the node's IP directly
+#                                              (best perf, requires open node firewall)
+#   - LoadBalancer with externalTrafficPolicy: Local
+#   - NodePort with a single UDP mux port    → easiest in dev (this default)
+service:
+  type: ClusterIP
+  # HTTP/WebSocket signaling
+  port: 7880
+  # ICE/TCP fallback
+  rtcTcpPort: 7881
+  # ICE/UDP single-port mux (LiveKit can run all media through one UDP port).
+  rtcUdpPort: 7882
+  # NodePorts (used when type=NodePort)
+  nodePort: ""
+  rtcTcpNodePort: ""
+  rtcUdpNodePort: ""
+
+# Run the pod with hostNetwork — strongly recommended in prod when media must
+# traverse a wide UDP range or use embedded TURN. When true, the container ports
+# are bound directly to the node and `service.type` is largely cosmetic.
+hostNetwork: false
+dnsPolicy: ClusterFirst  # set to ClusterFirstWithHostNet when hostNetwork=true
+
+# Traditional Ingress for the WS/HTTP signaling endpoint (TLS handled at L7).
+# Media (UDP) bypasses the ingress entirely — clients hit nodes directly.
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: livekit.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Gateway API HTTPRoute (alternative to ingress).
+httpRoute:
+  enabled: false
+  annotations: {}
+  parentRefs:
+    - name: gateway
+      sectionName: http
+  hostnames:
+    - livekit.example.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+
+resources: {}
+
+# Probes hit the LiveKit /healthz endpoint on the signaling port.
+startupProbe:
+  httpGet:
+    path: /
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 30
+livenessProbe:
+  httpGet:
+    path: /
+    port: http
+  periodSeconds: 30
+  timeoutSeconds: 5
+  failureThreshold: 3
+readinessProbe:
+  httpGet:
+    path: /
+    port: http
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+
+volumes: []
+volumeMounts: []
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Extra environment variables passed to the LiveKit container.
+env: []
+envFrom: []
+
+# ─── LiveKit-specific configuration ────────────────────────────────────────────
+livekit:
+  # API key/secret used by horizonserver (Server SDK) to mint participant tokens
+  # and call RoomService. Same Secret is mounted into LiveKit and exposed to
+  # horizonserver via a SecretRef in the horizon chart.
+  #
+  # Recommended for prod/preprod: existingKeysSecret pointing at an
+  # operator-managed Secret (keys: LIVEKIT_API_KEY, LIVEKIT_API_SECRET).
+  # When empty, the chart creates one from `apiKey` / `apiSecret` (DEV ONLY).
+  existingKeysSecret: ""
+  apiKey: ""
+  apiSecret: ""
+
+  logLevel: info
+
+  turn:
+    # Embedded TURN server. Enable in environments where clients sit behind
+    # restrictive firewalls. Requires a TLS secret when `tls: true`.
+    enabled: false
+    tls: true
+    domain: ""
+    udpPort: 3478
+    tlsPort: 5349
+    # Reference to a Secret holding tls.crt / tls.key (cert-manager output works).
+    # When empty, defaults to `<release>-turn-tls`.
+    tlsSecretName: ""
+
+# ─── Redis (bundled, single-pod) ───────────────────────────────────────────────
+# Same pattern as keycloak's bundled PostgreSQL. For HA / managed Redis, set
+# redis.enabled=false and point LiveKit at an external instance via redis.externalAddress.
+redis:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+  auth:
+    # Reference an existing Secret holding the `password` key.
+    # When empty the chart creates one from `auth.password` (DEV ONLY).
+    existingSecret: ""
+    password: "changeme-in-production"
+  primary:
+    persistence:
+      enabled: true
+      size: 1Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+  # Address LiveKit uses to reach Redis when bundled. Override when
+  # redis.enabled=false to point at an external instance.
+  externalAddress: ""
+
+# ─── Ingress component (optional, RTMP/WHIP push-in) ───────────────────────────
+# Disabled by default — enable per-environment when you need to ingest external
+# media into a LiveKit room (OBS via RTMP or WHIP).
+ingressService:
+  enabled: false
+  image:
+    repository: livekit/ingress
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    rtmpPort: 1935
+    whipPort: 8080
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1
+      memory: 1Gi

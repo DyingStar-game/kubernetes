@@ -30,6 +30,22 @@ httpRoute:
             type: PathPrefix
             value: /
 
+extraEnv:
+  - name: LIVEKIT_URL
+    value: "ws://vocal-preprod.dyingstar-game.space"
+  - name: LIVEKIT_API_URL
+    value: "http://livekit:7880"
+  - name: LIVEKIT_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: livekit-keys
+        key: LIVEKIT_API_KEY
+  - name: LIVEKIT_API_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: livekit-keys
+        key: LIVEKIT_API_SECRET
+
 resources:
   requests:
     cpu: 10

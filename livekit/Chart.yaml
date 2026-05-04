@@ -1,0 +1,12 @@
+apiVersion: v2
+name: livekit
+description: LiveKit Server (WebRTC SFU + TURN) for DyingStar — voice/video rooms managed by horizonserver
+
+type: application
+
+# Chart version - increment when chart templates change
+version: 0.1.0
+
+# Application version - tracks the LiveKit Server release pinned in
+# ../../services/livekit/docker/Dockerfile (LIVEKIT_VERSION).
+appVersion: "v1.11.0"

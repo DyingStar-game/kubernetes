@@ -19,6 +19,7 @@ Helm charts for the **DyingStar** gaming platform microservices.
 | `horizon` | Horizon game server (NodePort, high CPU) | `../horizonserver` |
 | `service-resourcesdynamic` | Dynamic resource manager API + WebSocket, with PostgreSQL | `../services/resourcesDynamic` |
 | `keycloak` | Keycloak identity provider (player auth + Discord IdP) | `../services/keycloak` |
+| `livekit` | LiveKit Server (WebRTC SFU + TURN) for voice/video rooms | `../services/livekit` |
 | `dev-services` | Shared developer infrastructure (PostGIS) | — |
 
 ## Repository Structure
@@ -33,6 +34,7 @@ Helm charts for the **DyingStar** gaming platform microservices.
 ├── horizon/                       # Helm chart
 ├── service-resourcesdynamic/      # Helm chart
 ├── keycloak/                      # Helm chart
+├── livekit/                       # Helm chart
 ├── dev-services/                  # Helm chart (shared dev infra)
 ├── skaffold.yaml                  # Local dev orchestration
 ├── dev.sh                         # Local dev wrapper script
@@ -83,12 +85,14 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-prod godotserver ./
 helm upgrade --install --kube-context=dyingstar -n dyingstar-prod horizon ./horizon -f horizon/values-prod.yaml --set image.tag=<tag>
 helm upgrade --install --kube-context=dyingstar -n dyingstar-prod service-resourcesdynamic ./service-resourcesdynamic -f service-resourcesdynamic/values-prod.yaml --set image.tag=<tag>
 helm upgrade --install --kube-context=dyingstar -n dyingstar-prod keycloak ./keycloak -f keycloak/values-prod.yaml --set image.tag=<tag>
+helm upgrade --install --kube-context=dyingstar -n dyingstar-prod livekit ./livekit -f livekit/values-prod.yaml --set image.tag=<tag>
 
 # Preprod
 helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod godotserver ./godotserver -f godotserver/values-preprod.yaml --set image.tag=<tag>
 helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod horizon ./horizon -f horizon/values-preprod.yaml --set image.tag=<tag>
 helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod service-resourcesdynamic ./service-resourcesdynamic -f service-resourcesdynamic/values-preprod.yaml --set image.tag=<tag>
 helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod keycloak ./keycloak -f keycloak/values-preprod.yaml --set image.tag=<tag>
+helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod livekit ./livekit -f livekit/values-preprod.yaml --set image.tag=<tag>
 ```
 
 
@@ -117,6 +121,7 @@ It permit to have something very close to the preprod and prod and working on sa
   - `../horizonserver` — horizon
   - `../services/resourcesDynamic` — service-resourcesdynamic
   - `../services/keycloak` — keycloak
+  - `../services/livekit` — livekit
 - [freelens](https://freelensapp.github.io/), used to manage pods and deployments in an UI
 
 ### Quick Start
@@ -172,9 +177,9 @@ Then run:
 You can also use Skaffold modules directly without the wrapper:
 
 ```bash
-skaffold dev -m godotserver,horizon,service-resourcesdynamic,keycloak         # all local builds
+skaffold dev -m godotserver,horizon,service-resourcesdynamic,keycloak,livekit  # all local builds
 skaffold dev -m horizon                                                       # single service
-skaffold dev -m godotserver,horizon-harbor,service-resourcesdynamic,keycloak  # mix local + harbor
+skaffold dev -m godotserver,horizon-harbor,service-resourcesdynamic,keycloak,livekit  # mix local + harbor
 ```
 
 ### Scenarii

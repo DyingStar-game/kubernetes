@@ -27,7 +27,7 @@ if [[ "$CURRENT_CONTEXT" != "$EXPECTED_CONTEXT" ]]; then
   exit 1
 fi
 
-ALL_SERVICES=(keycloak service-resourcesdynamic godotserver horizon)
+ALL_SERVICES=(keycloak service-resourcesdynamic godotserver horizon livekit)
 CONF_FILE="dev-local.conf"
 
 # Parse harbor services from config file

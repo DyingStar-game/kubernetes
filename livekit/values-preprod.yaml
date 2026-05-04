@@ -1,0 +1,77 @@
+# Preprod overrides for livekit
+# Usage:
+#   kubectl config use-context dyingstar
+#   helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod \
+#     livekit ./livekit -f livekit/values-preprod.yaml --set image.tag=<sha>
+#
+# Required pre-existing Secrets in dyingstar-preprod (operator-managed):
+#   livekit-keys      keys: LIVEKIT_API_KEY, LIVEKIT_API_SECRET
+#   livekit-redis    keys: password
+#   livekit-turn-tls  keys: tls.crt, tls.key  (cert-manager output)
+#
+# horizonserver in preprod must mount `livekit-keys` to talk to LiveKit
+# via the Server SDK.
+
+replicaCount: 1
+
+image:
+  repository: livekit/livekit-server
+  pullPolicy: IfNotPresent
+
+# hostNetwork=true is the practical pattern for WebRTC on K8s — node IP is
+# advertised directly and UDP traverses without NAT translation.
+hostNetwork: true
+
+service:
+  type: ClusterIP
+  port: 7880
+  rtcTcpPort: 7881
+  rtcUdpPort: 7882
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 2
+    memory: 2Gi
+
+livekit:
+  existingKeysSecret: livekit-keys
+  logLevel: info
+  turn:
+    enabled: true
+    tls: true
+    domain: livekit-preprod.dyingstar-game.com
+    udpPort: 3478
+    tlsPort: 5349
+    tlsSecretName: livekit-turn-tls
+
+redis:
+  enabled: true
+  auth:
+    existingSecret: livekit-redis
+  primary:
+    persistence:
+      enabled: true
+      size: 2Gi
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  hosts:
+    - host: livekit-preprod.dyingstar-game.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: livekit-tls
+      hosts:
+        - livekit-preprod.dyingstar-game.com
+
+ingressService:
+  enabled: false

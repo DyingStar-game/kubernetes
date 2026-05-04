@@ -1,0 +1,115 @@
+{{- if and .Values.redis.enabled (not .Values.redis.auth.existingSecret) -}}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "livekit.fullname" . }}-redis
+  labels:
+    {{- include "livekit.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  password: {{ required "redis.auth.password is required when redis.auth.existingSecret is not set" .Values.redis.auth.password | quote }}
+{{- end }}
+{{- if .Values.redis.enabled }}
+---
+{{- if .Values.redis.primary.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "livekit.fullname" . }}-redis
+  labels:
+    {{- include "livekit.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.redis.primary.persistence.size }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "livekit.fullname" . }}-redis
+  labels:
+    {{- include "livekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "livekit.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: redis
+  template:
+    metadata:
+      labels:
+        {{- include "livekit.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: redis
+    spec:
+      containers:
+        - name: redis
+          image: "{{ .Values.redis.image.registry }}/{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
+          imagePullPolicy: {{ .Values.redis.image.pullPolicy }}
+          command:
+            - redis-server
+            - --requirepass
+            - $(REDIS_PASSWORD)
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "livekit.redisSecretName" . }}
+                  key: password
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          {{- with .Values.redis.primary.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - 'redis-cli -a "$REDIS_PASSWORD" ping | grep -q PONG'
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - 'redis-cli -a "$REDIS_PASSWORD" ping | grep -q PONG'
+            initialDelaySeconds: 3
+            periodSeconds: 5
+      volumes:
+        - name: data
+          {{- if .Values.redis.primary.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "livekit.fullname" . }}-redis
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "livekit.fullname" . }}-redis
+  labels:
+    {{- include "livekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: redis
+      protocol: TCP
+      name: redis
+  selector:
+    {{- include "livekit.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+{{- end }}
