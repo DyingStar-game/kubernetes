@@ -1,0 +1,44 @@
+LiveKit release {{ .Release.Name }} deployed in namespace {{ .Release.Namespace }}.
+
+API key/secret Secret: {{ include "livekit.keysSecretName" . }}
+  -> Mount this same Secret into horizonserver as LIVEKIT_API_KEY / LIVEKIT_API_SECRET
+     so the game server can mint participant tokens with the LiveKit Server SDK.
+
+{{- if eq .Values.service.type "NodePort" }}
+
+Reach LiveKit signaling via NodePort:
+  export NODE_IP=$(kubectl get nodes -o jsonpath="{.items[0].status.addresses[0].address}")
+  export NODE_PORT=$(kubectl get -n {{ .Release.Namespace }} svc {{ include "livekit.fullname" . }} -o jsonpath="{.spec.ports[?(@.name=='http')].nodePort}")
+  echo "ws://$NODE_IP:$NODE_PORT"
+{{- else if .Values.ingress.enabled }}
+
+Public signaling URL:
+{{- range .Values.ingress.hosts }}
+  wss://{{ .host }}{{ (index .paths 0).path }}
+{{- end }}
+{{- else }}
+
+Port-forward LiveKit signaling to your machine:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "livekit.fullname" . }} 7880:{{ .Values.service.port }}
+  echo "ws://127.0.0.1:7880"
+{{- end }}
+
+Mint a test token from inside the cluster:
+  kubectl -n {{ .Release.Namespace }} run lk --rm -it --restart=Never \
+    --image=livekit/livekit-cli -- token create \
+    --api-key   "$(kubectl -n {{ .Release.Namespace }} get secret {{ include "livekit.keysSecretName" . }} -o jsonpath='{.data.LIVEKIT_API_KEY}' | base64 -d)" \
+    --api-secret "$(kubectl -n {{ .Release.Namespace }} get secret {{ include "livekit.keysSecretName" . }} -o jsonpath='{.data.LIVEKIT_API_SECRET}' | base64 -d)" \
+    --identity test --room demo --join
+
+{{- if .Values.livekit.turn.enabled }}
+
+TURN/TLS enabled at {{ .Values.livekit.turn.domain }}:{{ .Values.livekit.turn.tlsPort }}
+  TLS Secret: {{ include "livekit.turnTlsSecretName" . }} (must exist)
+{{- end }}
+
+{{- if not .Values.hostNetwork }}
+
+NOTE: hostNetwork is OFF. WebRTC media uses the single UDP mux port {{ .Values.service.rtcUdpPort }}.
+For high-throughput production, consider setting hostNetwork=true and exposing
+the node firewall directly (see values.yaml for guidance).
+{{- end }}

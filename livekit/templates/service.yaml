@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "livekit.fullname" . }}
+  labels:
+    {{- include "livekit.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+      {{- if and (eq .Values.service.type "NodePort") .Values.service.nodePort }}
+      nodePort: {{ .Values.service.nodePort }}
+      {{- end }}
+    - port: {{ .Values.service.rtcTcpPort }}
+      targetPort: rtc-tcp
+      protocol: TCP
+      name: rtc-tcp
+      {{- if and (eq .Values.service.type "NodePort") .Values.service.rtcTcpNodePort }}
+      nodePort: {{ .Values.service.rtcTcpNodePort }}
+      {{- end }}
+    - port: {{ .Values.service.rtcUdpPort }}
+      targetPort: rtc-udp
+      protocol: UDP
+      name: rtc-udp
+      {{- if and (eq .Values.service.type "NodePort") .Values.service.rtcUdpNodePort }}
+      nodePort: {{ .Values.service.rtcUdpNodePort }}
+      {{- end }}
+    {{- if .Values.livekit.turn.enabled }}
+    - port: {{ .Values.livekit.turn.udpPort }}
+      targetPort: turn-udp
+      protocol: UDP
+      name: turn-udp
+    {{- if .Values.livekit.turn.tls }}
+    - port: {{ .Values.livekit.turn.tlsPort }}
+      targetPort: turn-tls
+      protocol: TCP
+      name: turn-tls
+    {{- end }}
+    {{- end }}
+  selector:
+    {{- include "livekit.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: server

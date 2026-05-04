@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       chart:
-        description: "Chart to deploy (godotserver, horizon, service-resourcesdynamic, keycloak)"
+        description: "Chart to deploy (godotserver, horizon, service-resourcesdynamic, keycloak, livekit)"
         required: true
         type: choice
         options:
@@ -12,6 +12,7 @@ on:
           - horizon
           - service-resourcesdynamic
           - keycloak
+          - livekit
       image_tag:
         description: "Image tag to deploy (e.g. v1.2.0)"
         required: true
@@ -28,7 +29,7 @@ jobs:
       - name: Validate chart name
         run: |
           CHART="${{ inputs.chart }}"
-          if [[ ! "$CHART" =~ ^(godotserver|horizon|service-resourcesdynamic|keycloak)$ ]]; then
+          if [[ ! "$CHART" =~ ^(godotserver|horizon|service-resourcesdynamic|keycloak|livekit)$ ]]; then
             echo "::error::Invalid chart name: $CHART"
             exit 1
           fi

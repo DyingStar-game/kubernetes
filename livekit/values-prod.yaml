@@ -1,0 +1,81 @@
+# Production overrides for livekit
+# Usage:
+#   kubectl config use-context dyingstar
+#   helm upgrade --install --kube-context=dyingstar -n dyingstar-prod \
+#     livekit ./livekit -f livekit/values-prod.yaml --set image.tag=<sha>
+#
+# Required pre-existing Secrets in dyingstar-prod (operator-managed):
+#   livekit-keys      keys: LIVEKIT_API_KEY, LIVEKIT_API_SECRET
+#   livekit-redis    keys: password
+#   livekit-turn-tls  keys: tls.crt, tls.key  (cert-manager output)
+
+replicaCount: 2
+
+image:
+  repository: livekit/livekit-server
+  pullPolicy: IfNotPresent
+
+# Strongly recommended in prod: hostNetwork lets each LiveKit pod advertise its
+# node IP directly so WebRTC clients can reach UDP without source-NAT.
+hostNetwork: true
+
+service:
+  type: ClusterIP
+  port: 7880
+  rtcTcpPort: 7881
+  rtcUdpPort: 7882
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 4
+    memory: 4Gi
+
+livekit:
+  existingKeysSecret: livekit-keys
+  logLevel: info
+  turn:
+    enabled: true
+    tls: true
+    domain: livekit.dyingstar-game.com
+    udpPort: 3478
+    tlsPort: 5349
+    tlsSecretName: livekit-turn-tls
+
+redis:
+  enabled: true
+  auth:
+    existingSecret: livekit-redis
+  primary:
+    persistence:
+      enabled: true
+      size: 5Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  hosts:
+    - host: livekit.dyingstar-game.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: livekit-tls
+      hosts:
+        - livekit.dyingstar-game.com
+
+ingressService:
+  enabled: false

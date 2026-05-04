@@ -1,0 +1,86 @@
+{{- if .Values.ingressService.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "livekit.fullname" . }}-ingress
+  labels:
+    {{- include "livekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ingress
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "livekit.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: ingress
+  template:
+    metadata:
+      labels:
+        {{- include "livekit.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: ingress
+    spec:
+      containers:
+        - name: ingress
+          image: "{{ .Values.ingressService.image.repository }}:{{ .Values.ingressService.image.tag }}"
+          imagePullPolicy: {{ .Values.ingressService.image.pullPolicy }}
+          env:
+            - name: LIVEKIT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "livekit.keysSecretName" . }}
+                  key: LIVEKIT_API_KEY
+            - name: LIVEKIT_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "livekit.keysSecretName" . }}
+                  key: LIVEKIT_API_SECRET
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "livekit.redisSecretName" . }}
+                  key: password
+            - name: INGRESS_CONFIG_BODY
+              value: |
+                log_level: info
+                api_key: ${LIVEKIT_API_KEY}
+                api_secret: ${LIVEKIT_API_SECRET}
+                ws_url: ws://{{ include "livekit.fullname" . }}:{{ .Values.service.port }}
+                redis:
+                  address: {{ if .Values.redis.externalAddress }}{{ .Values.redis.externalAddress | quote }}{{ else }}{{ printf "%s-redis:6379" (include "livekit.fullname" .) | quote }}{{ end }}
+                  password: ${REDIS_PASSWORD}
+                rtmp_port: {{ .Values.ingressService.service.rtmpPort }}
+                whip_port: {{ .Values.ingressService.service.whipPort }}
+                http_relay_port: 9090
+          ports:
+            - name: rtmp
+              containerPort: {{ .Values.ingressService.service.rtmpPort }}
+              protocol: TCP
+            - name: whip
+              containerPort: {{ .Values.ingressService.service.whipPort }}
+              protocol: TCP
+          {{- with .Values.ingressService.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "livekit.fullname" . }}-ingress
+  labels:
+    {{- include "livekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ingress
+spec:
+  type: {{ .Values.ingressService.service.type }}
+  ports:
+    - port: {{ .Values.ingressService.service.rtmpPort }}
+      targetPort: rtmp
+      protocol: TCP
+      name: rtmp
+    - port: {{ .Values.ingressService.service.whipPort }}
+      targetPort: whip
+      protocol: TCP
+      name: whip
+  selector:
+    {{- include "livekit.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: ingress
+{{- end }}

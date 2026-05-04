@@ -1,7 +1,7 @@
 # Skaffold multi-config for StarDeception local development.
 #
 # Each service is an independent module (config). Use -m to select which to deploy:
-#   skaffold dev -m keycloak,service-resourcesdynamic,godotserver,horizon   # all (local build)
+#   skaffold dev -m keycloak,service-resourcesdynamic,godotserver,horizon,livekit   # all (local build)
 #   skaffold dev -m horizon                                        # single service
 #   skaffold dev -m godotserver,horizon-harbor                     # mix local + harbor
 #
@@ -12,6 +12,7 @@
 #   ../horizonserver — horizon     (Dockerfile at .docker/Dockerfile)
 #   ../services/resourcesDynamic — service-resourcesdynamic (Dockerfile at docker/Dockerfile)
 #   ../services/keycloak         — keycloak                 (Dockerfile at docker/Dockerfile)
+#   ../services/livekit          — livekit                  (Dockerfile at docker/Dockerfile)
 
 # ─── keycloak: local build ──────────────────────────────────────────────────────
 apiVersion: skaffold/v4beta11
@@ -169,6 +170,8 @@ apiVersion: skaffold/v4beta11
 kind: Config
 metadata:
   name: horizon
+requires:
+  - configs: [livekit]
 build:
   local:
     push: false
@@ -204,6 +207,8 @@ apiVersion: skaffold/v4beta11
 kind: Config
 metadata:
   name: horizon-harbor
+requires:
+  - configs: [livekit-harbor]
 deploy:
   helm:
     releases:
@@ -215,3 +220,38 @@ deploy:
           - horizon/values.yaml
           - horizon/values-dev-local.yaml
           - horizon/values-dev-local-harbor.yaml
+
+# ─── livekit: official image (no local build) ──────────────────────────────────
+---
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: livekit
+deploy:
+  helm:
+    releases:
+      - name: livekit
+        chartPath: livekit
+        namespace: dyingstar-dev-local
+        createNamespace: true
+        valuesFiles:
+          - livekit/values.yaml
+          - livekit/values-dev-local.yaml
+
+# ─── livekit: harbor image ─────────────────────────────────────────────────────
+---
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: livekit-harbor
+deploy:
+  helm:
+    releases:
+      - name: livekit
+        chartPath: livekit
+        namespace: dyingstar-dev-local
+        createNamespace: true
+        valuesFiles:
+          - livekit/values.yaml
+          - livekit/values-dev-local.yaml
+          - livekit/values-dev-local-harbor.yaml

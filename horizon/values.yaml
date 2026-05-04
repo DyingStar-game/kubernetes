@@ -178,6 +178,9 @@ dependsOn:
   - name: service-resourcesdynamic
     service: service-resourcesdynamic
     port: 3001
+  - name: livekit
+    service: livekit
+    port: 7880
 # Plugin image for split-build mode.
 # When enabled, plugins are loaded via an init container from a separate image.
 # Used in local dev (Skaffold), preprod, and prod. Disabled by default (base values only).
