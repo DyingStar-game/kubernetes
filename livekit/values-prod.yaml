@@ -7,7 +7,9 @@
 # Required pre-existing Secrets in dyingstar-prod (operator-managed):
 #   livekit-keys      keys: LIVEKIT_API_KEY, LIVEKIT_API_SECRET
 #   livekit-redis    keys: password
-#   livekit-turn-tls  keys: tls.crt, tls.key  (cert-manager output)
+#   livekit-turn-tls  keys: tls.crt, tls.key  (external nginx / letsencrypt)
+#
+# HTTPS is terminated by an external nginx (proxy_pass to in-cluster ingress).
 
 replicaCount: 2
 
@@ -39,7 +41,7 @@ livekit:
   turn:
     enabled: true
     tls: true
-    domain: livekit.dyingstar-game.com
+    domain: vocal.dyingstar-game.space
     udpPort: 3478
     tlsPort: 5349
     tlsSecretName: livekit-turn-tls
@@ -60,22 +62,18 @@ redis:
         cpu: 500m
         memory: 512Mi
 
+# TLS is terminated by the external nginx — no in-cluster TLS or cert-manager.
 ingress:
   enabled: true
   className: nginx
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
   hosts:
-    - host: livekit.dyingstar-game.com
+    - host: vocal.dyingstar-game.space
       paths:
         - path: /
           pathType: Prefix
-  tls:
-    - secretName: livekit-tls
-      hosts:
-        - livekit.dyingstar-game.com
 
 ingressService:
   enabled: false
