@@ -13,8 +13,8 @@ resources:
     cpu: 50m
     memory: 64Mi
   limits:
-    cpu: 250m
-    memory: 128Mi
+    cpu: 2
+    memory: 1Gi
 
 scylladb:
   auth:
@@ -28,4 +28,4 @@ scylladb:
       memory: 512Mi
     limits:
       cpu: 1
-      memory: 1Gi
+      memory: 2Gi
