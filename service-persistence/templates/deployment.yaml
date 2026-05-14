@@ -1,0 +1,129 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "service-persistence.fullname" . }}
+  labels:
+    {{- include "service-persistence.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "service-persistence.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "service-persistence.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "service-persistence.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if or .Values.scylladb.enabled .Values.dependsOn }}
+      initContainers:
+        {{- if .Values.scylladb.enabled }}
+        - name: wait-for-scylladb
+          image: "{{ .Values.scylladb.image.registry }}/{{ .Values.scylladb.image.repository }}:{{ .Values.scylladb.image.tag }}"
+          imagePullPolicy: {{ .Values.scylladb.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              until cqlsh {{ include "service-persistence.fullname" . }}-scylladb 9042 \
+                -e "SELECT now() FROM system.local" > /dev/null 2>&1; do
+                echo "waiting for scylladb CQL on {{ include "service-persistence.fullname" . }}-scylladb:9042...";
+                sleep 5;
+              done
+        {{- end }}
+        {{- range .Values.dependsOn }}
+        - name: wait-for-{{ .name }}
+          image: busybox:1.37
+          command: ['sh', '-c', 'until nc -z {{ .service }} {{ .port }}; do echo "waiting for {{ .service }}:{{ .port }}..."; sleep 2; done']
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: ws
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+            - name: http
+              containerPort: {{ .Values.service.httpPort }}
+              protocol: TCP
+          env:
+            - name: WS_PORT
+              value: "{{ .Values.service.port }}"
+            - name: HTTP_PORT
+              value: "{{ .Values.service.httpPort }}"
+            - name: SCYLLA_NODES
+              value: "{{ if .Values.database.host }}{{ .Values.database.host }}{{ else }}{{ include "service-persistence.fullname" . }}-scylladb{{ end }}:{{ .Values.database.port }}"
+            - name: SCYLLA_KEYSPACE
+              value: "{{ .Values.database.keyspace }}"
+            - name: SCYLLA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "service-persistence.fullname" . }}-scylladb
+                  key: username
+            - name: SCYLLA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "service-persistence.fullname" . }}-scylladb
+                  key: password
+            {{- with .Values.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

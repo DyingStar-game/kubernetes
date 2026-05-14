@@ -1,4 +1,4 @@
-# Default values for horizon.
+# Default values for service-persistence.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
@@ -7,7 +7,7 @@ replicaCount: 1
 
 # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
 image:
-  repository: harbor.dyingstar-game.space/dyingstar/horizon
+  repository: harbor.dyingstar-game.space/dyingstar/persistence
   # This sets the pull policy for images.
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
@@ -52,14 +52,11 @@ securityContext: {}
 # This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
 service:
   # This sets the service type more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
-  # NodePort exposes the service on each node's IP at a static port
-  type: NodePort
-  # This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
-  port: 7040
-  # NodePort to expose on each node — set in env overlay (e.g., values-prod.yaml)
-  nodePort:
-  # Local preserves client source IP and avoids extra hop (optional)
-  externalTrafficPolicy: Local
+  type: ClusterIP
+  # WebSocket server port (WS_PORT env var, default 9100)
+  port: 9100
+  # HTTP server port (HTTP_PORT env var, default 3001)
+  httpPort: 3001
 
 # This block is for setting up the ingress for more information can be found here: https://kubernetes.io/docs/concepts/services-networking/ingress/
 ingress:
@@ -99,22 +96,7 @@ httpRoute:
   - matches:
     - path:
         type: PathPrefix
-        value: /headers
-  #   filters:
-  #   - type: RequestHeaderModifier
-  #     requestHeaderModifier:
-  #       set:
-  #       - name: My-Overwrite-Header
-  #         value: this-is-the-only-value
-  #       remove:
-  #       - User-Agent
-  # - matches:
-  #   - path:
-  #       type: PathPrefix
-  #       value: /echo
-  #     headers:
-  #     - name: version
-  #       value: v2
+        value: /
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious
@@ -128,15 +110,20 @@ resources: {}
   #   cpu: 100m
   #   memory: 128Mi
 
-# This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
-#livenessProbe:
-#  httpGet:
-#    path: /
-#    port: http
-#readinessProbe:
-#  httpGet:
-#    path: /
-#    port: http
+# No readinessProbe: horizon's init container (nc -z service-persistence 3000) handles
+# the actual wait for port 3000. A readiness probe here would block the Kubernetes rollout
+# and trigger progressDeadlineSeconds before ScyllaDB schema initialization finishes.
+readinessProbe: {}
+
+# Liveness probe: generous initialDelay to allow slow ScyllaDB schema init before
+# the probe starts checking. Only restarts the container if it dies after startup.
+livenessProbe:
+  tcpSocket:
+    port: ws
+  initialDelaySeconds: 300
+  periodSeconds: 30
+  timeoutSeconds: 5
+  failureThreshold: 3
 
 # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
 autoscaling:
@@ -164,31 +151,59 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
-# Extra environment variables to inject into the container.
-extraEnv: []
-# - name: GAME_SERVER_HOST
-#   value: "host.minikube.internal"
 
-# Init containers that wait for dependent services to be ready before starting.
-# Each entry produces a busybox init container that polls the service with nc.
-dependsOn:
-  - name: godotserver
-    service: godotserver
-    port: 8980
-  - name: service-resourcesdynamic
-    service: service-resourcesdynamic
-    port: 3001
-  - name: livekit
-    service: livekit
-    port: 7880
-  - name: service-persistence
-    service: service-persistence
-    port: 9100
-# Plugin image for split-build mode.
-# When enabled, plugins are loaded via an init container from a separate image.
-# Used in local dev (Skaffold), preprod, and prod. Disabled by default (base values only).
-pluginsImage:
-  enabled: false
-  repository: ""
-  pullPolicy: IfNotPresent
-  tag: ""
+# Extra environment variables to inject into the Rust container.
+env: []
+# - name: RUST_LOG
+#   value: "info"
+
+# Environment variables from secrets or configmaps
+envFrom: []
+# - secretRef:
+#     name: persistence-secrets
+
+# ScyllaDB connection settings injected into the Rust container.
+database:
+  # Leave empty to use the embedded ScyllaDB service: {{ fullname }}-scylladb
+  host: ""
+  port: 9042
+  keyspace: dyingstar
+
+# Init containers that wait for external dependent services to be ready before starting.
+# ScyllaDB readiness is handled automatically via a dedicated initContainer when scylladb.enabled is true.
+dependsOn: []
+# - name: some-service
+#   service: some-service
+#   port: 8080
+
+# ScyllaDB configuration (standalone deployment within this chart)
+scylladb:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: scylladb/scylla
+    tag: "6.2"
+    pullPolicy: IfNotPresent
+  auth:
+    # Default ScyllaDB superuser. ScyllaDB starts with cassandra/cassandra when
+    # PasswordAuthenticator is enabled. Override the password in each environment overlay.
+    # In production, change the cassandra superuser password via CQL after first start:
+    #   ALTER USER cassandra WITH PASSWORD 'new-strong-password';
+    username: cassandra
+    password: "cassandra"    # ScyllaDB authenticator/authorizer. Use AllowAllAuthenticator/AllowAllAuthorizer
+    # for dev-local (app does not pass credentials). Use PasswordAuthenticator/CassandraAuthorizer
+    # for preprod and prod.
+    authenticator: PasswordAuthenticator
+    authorizer: CassandraAuthorizer  # Additional CLI arguments appended to the ScyllaDB startup command.
+  # Example for dev: --developer-mode 1 --smp 1
+  args: []
+  persistence:
+    enabled: true
+    size: 1Gi
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1
+      memory: 1Gi

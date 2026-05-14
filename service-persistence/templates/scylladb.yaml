@@ -1,0 +1,122 @@
+{{- if .Values.scylladb.enabled }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "service-persistence.fullname" . }}-scylladb
+  labels:
+    {{- include "service-persistence.labels" . | nindent 4 }}
+type: Opaque
+data:
+  username: {{ .Values.scylladb.auth.username | b64enc | quote }}
+  password: {{ .Values.scylladb.auth.password | b64enc | quote }}
+{{- if .Values.scylladb.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "service-persistence.fullname" . }}-scylladb
+  labels:
+    {{- include "service-persistence.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.scylladb.persistence.size }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "service-persistence.fullname" . }}-scylladb
+  labels:
+    {{- include "service-persistence.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scylladb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "service-persistence.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: scylladb
+  template:
+    metadata:
+      labels:
+        {{- include "service-persistence.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: scylladb
+    spec:
+      containers:
+        - name: scylladb
+          image: "{{ .Values.scylladb.image.registry }}/{{ .Values.scylladb.image.repository }}:{{ .Values.scylladb.image.tag }}"
+          imagePullPolicy: {{ .Values.scylladb.image.pullPolicy }}
+          args:
+            - --authenticator
+            - {{ .Values.scylladb.auth.authenticator }}
+            - --authorizer
+            - {{ .Values.scylladb.auth.authorizer }}
+            {{- range .Values.scylladb.args }}
+            - {{ . | quote }}
+            {{- end }}
+          ports:
+            - name: cql
+              containerPort: 9042
+              protocol: TCP
+          env:
+            - name: SCYLLA_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "service-persistence.fullname" . }}-scylladb
+                  key: username
+            - name: SCYLLA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "service-persistence.fullname" . }}-scylladb
+                  key: password
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/scylla
+          {{- with .Values.scylladb.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            tcpSocket:
+              port: cql
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 5
+          readinessProbe:
+            tcpSocket:
+              port: cql
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+      volumes:
+        - name: data
+          {{- if .Values.scylladb.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "service-persistence.fullname" . }}-scylladb
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "service-persistence.fullname" . }}-scylladb
+  labels:
+    {{- include "service-persistence.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scylladb
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9042
+      targetPort: cql
+      protocol: TCP
+      name: cql
+  selector:
+    {{- include "service-persistence.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: scylladb
+{{- end }}

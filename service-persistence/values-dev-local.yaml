@@ -1,0 +1,40 @@
+# Local dev overrides for service-persistence (minikube)
+# Usage: helm upgrade --install -n dyingstar-dev-local service-persistence ./service-persistence -f service-persistence/values-dev-local.yaml
+# Or via Skaffold: skaffold dev -m service-persistence
+
+replicaCount: 1
+
+image:
+  repository: service-persistence
+  pullPolicy: Never
+  tag: dev
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 1
+    memory: 128Mi
+
+scylladb:
+  auth:
+    password: "cassandra"
+    authenticator: AllowAllAuthenticator
+    authorizer: AllowAllAuthorizer
+  # --developer-mode 1 disables production I/O checks (required on minikube)
+  # --smp 1 limits ScyllaDB to a single CPU thread (reduces resource usage)
+  args:
+    - --developer-mode
+    - "1"
+    - --smp
+    - "1"
+  persistence:
+    enabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: 1
+      memory: 1Gi
