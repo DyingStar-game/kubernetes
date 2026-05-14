@@ -36,14 +36,12 @@ spec:
       initContainers:
         {{- if .Values.scylladb.enabled }}
         - name: wait-for-scylladb
-          image: "{{ .Values.scylladb.image.registry }}/{{ .Values.scylladb.image.repository }}:{{ .Values.scylladb.image.tag }}"
-          imagePullPolicy: {{ .Values.scylladb.image.pullPolicy }}
+          image: busybox:1.37
           command:
             - /bin/sh
             - -c
             - |
-              until cqlsh {{ include "service-persistence.fullname" . }}-scylladb 9042 \
-                -e "SELECT now() FROM system.local" > /dev/null 2>&1; do
+              until nc -z {{ include "service-persistence.fullname" . }}-scylladb 9042; do
                 echo "waiting for scylladb CQL on {{ include "service-persistence.fullname" . }}-scylladb:9042...";
                 sleep 5;
               done

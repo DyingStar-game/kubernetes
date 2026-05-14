@@ -19,13 +19,16 @@ resources:
 scylladb:
   auth:
     password: "CHANGE_ME_IN_PREPROD"
+  args:
+    - "--smp"
+    - "2"
   persistence:
     enabled: true
     size: 2Gi
   resources:
     requests:
       cpu: 200m
-      memory: 512Mi
+      memory: 2Gi
     limits:
-      cpu: 1
+      cpu: 2
       memory: 2Gi
