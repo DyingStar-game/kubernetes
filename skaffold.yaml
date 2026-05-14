@@ -1,9 +1,9 @@
 # Skaffold multi-config for StarDeception local development.
 #
 # Each service is an independent module (config). Use -m to select which to deploy:
-#   skaffold dev -m keycloak,service-resourcesdynamic,godotserver,horizon,livekit   # all (local build)
-#   skaffold dev -m horizon                                        # single service
-#   skaffold dev -m godotserver,horizon-harbor                     # mix local + harbor
+#   skaffold dev -m keycloak,service-resourcesdynamic,service-persistence,godotserver,horizon,livekit   # all (local build)
+#   skaffold dev -m horizon                                        # single service (auto-includes livekit + service-persistence)
+#   skaffold dev -m godotserver,horizon-harbor                     # mix local + harbor (auto-includes livekit-harbor + service-persistence-harbor)
 #
 # Or use ./dev.sh which reads dev-local.conf to pick modules automatically.
 #
@@ -171,7 +171,7 @@ kind: Config
 metadata:
   name: horizon
 requires:
-  - configs: [livekit]
+  - configs: [livekit, service-persistence]
 build:
   local:
     push: false
@@ -208,7 +208,7 @@ kind: Config
 metadata:
   name: horizon-harbor
 requires:
-  - configs: [livekit-harbor]
+  - configs: [livekit-harbor, service-persistence-harbor]
 deploy:
   helm:
     releases:
@@ -255,3 +255,56 @@ deploy:
           - livekit/values.yaml
           - livekit/values-dev-local.yaml
           - livekit/values-dev-local-harbor.yaml
+
+# ─── service-persistence: local build ──────────────────────────────────────────
+---
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: service-persistence
+build:
+  local:
+    push: false
+    useBuildkit: true
+  artifacts:
+    - image: service-persistence
+      context: ../services/persistence
+      docker:
+        dockerfile: docker/Dockerfile
+deploy:
+  helm:
+    flags:
+      install: ["--timeout=10m"]
+      upgrade: ["--timeout=10m"]
+    releases:
+      - name: service-persistence
+        chartPath: service-persistence
+        namespace: dyingstar-dev-local
+        createNamespace: true
+        valuesFiles:
+          - service-persistence/values.yaml
+          - service-persistence/values-dev-local.yaml
+        setValueTemplates:
+          image.repository: "{{.IMAGE_REPO_service_persistence}}"
+          image.tag: "{{.IMAGE_TAG_service_persistence}}"
+
+# ─── service-persistence: harbor image ─────────────────────────────────────────
+---
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: service-persistence-harbor
+deploy:
+  helm:
+    flags:
+      install: ["--timeout=10m"]
+      upgrade: ["--timeout=10m"]
+    releases:
+      - name: service-persistence
+        chartPath: service-persistence
+        namespace: dyingstar-dev-local
+        createNamespace: true
+        valuesFiles:
+          - service-persistence/values.yaml
+          - service-persistence/values-dev-local.yaml
+          - service-persistence/values-dev-local-harbor.yaml

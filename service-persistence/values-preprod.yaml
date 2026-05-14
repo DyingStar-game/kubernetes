@@ -1,0 +1,31 @@
+# Preprod overrides for service-persistence
+# Usage: helm upgrade --install -n dyingstar-preprod service-persistence ./service-persistence -f service-persistence/values-preprod.yaml
+
+replicaCount: 1
+
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/persistence
+  pullPolicy: Always
+  tag: "develop"
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 2
+    memory: 1Gi
+
+scylladb:
+  auth:
+    password: "CHANGE_ME_IN_PREPROD"
+  persistence:
+    enabled: true
+    size: 2Gi
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1
+      memory: 2Gi

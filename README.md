@@ -20,6 +20,7 @@ Helm charts for the **DyingStar** gaming platform microservices.
 | `service-resourcesdynamic` | Dynamic resource manager API + WebSocket, with PostgreSQL | `../services/resourcesDynamic` |
 | `keycloak` | Keycloak identity provider (player auth + Discord IdP) | `../services/keycloak` |
 | `livekit` | LiveKit Server (WebRTC SFU + TURN) for voice/video rooms | `../services/livekit` |
+| `service-persistence` | Persistence service — ScyllaDB-backed data layer (Rust) | `../services/persistence` |
 | `dev-services` | Shared developer infrastructure (PostGIS) | — |
 
 ## Repository Structure
@@ -35,6 +36,7 @@ Helm charts for the **DyingStar** gaming platform microservices.
 ├── service-resourcesdynamic/      # Helm chart
 ├── keycloak/                      # Helm chart
 ├── livekit/                       # Helm chart
+├── service-persistence/           # Helm chart
 ├── dev-services/                  # Helm chart (shared dev infra)
 ├── skaffold.yaml                  # Local dev orchestration
 ├── dev.sh                         # Local dev wrapper script
@@ -86,6 +88,7 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-prod horizon ./hori
 helm upgrade --install --kube-context=dyingstar -n dyingstar-prod service-resourcesdynamic ./service-resourcesdynamic -f service-resourcesdynamic/values-prod.yaml --set image.tag=<tag>
 helm upgrade --install --kube-context=dyingstar -n dyingstar-prod keycloak ./keycloak -f keycloak/values-prod.yaml --set image.tag=<tag>
 helm upgrade --install --kube-context=dyingstar -n dyingstar-prod livekit ./livekit -f livekit/values-prod.yaml --set image.tag=<tag>
+helm upgrade --install --kube-context=dyingstar -n dyingstar-prod service-persistence ./service-persistence -f service-persistence/values-prod.yaml --set image.tag=<tag>
 
 # Preprod
 helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod godotserver ./godotserver -f godotserver/values-preprod.yaml --set image.tag=<tag>
@@ -93,6 +96,7 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod horizon ./h
 helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod service-resourcesdynamic ./service-resourcesdynamic -f service-resourcesdynamic/values-preprod.yaml --set image.tag=<tag>
 helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod keycloak ./keycloak -f keycloak/values-preprod.yaml --set image.tag=<tag>
 helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod livekit ./livekit -f livekit/values-preprod.yaml --set image.tag=<tag>
+helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod service-persistence ./service-persistence -f service-persistence/values-preprod.yaml --set image.tag=<tag>
 ```
 
 
@@ -122,6 +126,7 @@ It permit to have something very close to the preprod and prod and working on sa
   - `../services/resourcesDynamic` — service-resourcesdynamic
   - `../services/keycloak` — keycloak
   - `../services/livekit` — livekit
+  - `../services/persistence` — service-persistence
 - [freelens](https://freelensapp.github.io/), used to manage pods and deployments in an UI
 
 ### Quick Start
@@ -177,9 +182,9 @@ Then run:
 You can also use Skaffold modules directly without the wrapper:
 
 ```bash
-skaffold dev -m godotserver,horizon,service-resourcesdynamic,keycloak,livekit  # all local builds
-skaffold dev -m horizon                                                       # single service
-skaffold dev -m godotserver,horizon-harbor,service-resourcesdynamic,keycloak,livekit  # mix local + harbor
+skaffold dev -m godotserver,horizon,service-resourcesdynamic,keycloak,livekit,service-persistence  # all local builds
+skaffold dev -m horizon                                                                            # single service
+skaffold dev -m godotserver,horizon-harbor,service-resourcesdynamic,keycloak,livekit,service-persistence  # mix local + harbor
 ```
 
 ### Scenarii
@@ -212,7 +217,7 @@ On Linux:
 On Windows, set all tools (suffix with `-harbor`):
 
 ```
-skaffold dev -m godotserver-harbor,horizon-harbor,service-resourcesdynamic-harbor,keycloak-harbor
+skaffold dev -m godotserver-harbor,horizon-harbor,service-resourcesdynamic-harbor,keycloak-harbor,service-persistence-harbor
 ```
 
 #### Develop godot client & server
@@ -320,6 +325,16 @@ PostGIS available via NodePort (default `30432`).
 - **Ports**: 3001 (HTTP API), 9200 (WebSocket)
 - **Database**: Bundled PostgreSQL (configurable per environment)
 - Environment variable `DATABASE_URL` is auto-configured from chart values
+
+### Service Persistence
+- **Port**: 9100 (WebSocket, Rust)
+- **Database**: Bundled ScyllaDB 6.2 (CQL port 9042) with `PasswordAuthenticator`
+- Environment variables `SCYLLA_NODES` (as `host:port`), `SCYLLA_KEYSPACE`, `SCYLLA_USERNAME`, `SCYLLA_PASSWORD` are auto-configured from chart values
+- Dev-local: ScyllaDB runs with `--developer-mode 1 --smp 1` (no PVC — emptyDir); prod/preprod use a PVC (10Gi/2Gi)
+- **Important**: change the default `cassandra` superuser password in prod/preprod after first deploy via CQL:
+  ```sql
+  ALTER USER cassandra WITH PASSWORD '<new-strong-password>';
+  ```
 
 ### Keycloak
 - **Ports**: 8080 (HTTP), 9000 (management/health/metrics)
