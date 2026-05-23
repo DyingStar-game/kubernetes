@@ -18,7 +18,7 @@ resources:
 
 scylladb:
   auth:
-    password: "CHANGE_ME_IN_PREPROD"
+    existingSecret: "service-persistence-scylladb"
   args:
     - "--smp"
     - "2"
