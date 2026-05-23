@@ -51,22 +51,47 @@ spec:
             - /bin/sh
             - -c
             - |
-              until cqlsh {{ include "service-persistence.fullname" . }}-scylladb 9042 \
-                -u $SCYLLA_USER -p $SCYLLA_PASSWORD \
-                -e "CREATE KEYSPACE IF NOT EXISTS {{ .Values.database.keyspace }} WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};"; do
-                echo "ScyllaDB not ready for CQL yet, retrying in 5s...";
-                sleep 5;
+              HOST={{ include "service-persistence.fullname" . }}-scylladb
+              KEYSPACE={{ .Values.database.keyspace }}
+              # Escape single quotes for CQL string literals ('' is the CQL escape for ')
+              ESCAPED_PASS=$(printf '%s' "$SCYLLA_PASSWORD" | sed "s/'/''/g")
+              INIT_DONE=0
+              until [ $INIT_DONE -eq 1 ]; do
+                # Try with configured credentials first (normal case: existing data with correct password)
+                if cqlsh $HOST 9042 -u $SCYLLA_USER -p $SCYLLA_PASSWORD \
+                    -e "CREATE KEYSPACE IF NOT EXISTS $KEYSPACE WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};" 2>/dev/null; then
+                  echo "Keyspace $KEYSPACE ready."
+                  INIT_DONE=1
+                # Fall back to default cassandra/cassandra (fresh install bootstrap)
+                elif cqlsh $HOST 9042 -u cassandra -p cassandra \
+                    -e "SELECT now() FROM system.local;" 2>/dev/null; then
+                  echo "Connected with default credentials, bootstrapping password..."
+                  cqlsh $HOST 9042 -u cassandra -p cassandra \
+                      -e "ALTER USER cassandra WITH PASSWORD '${ESCAPED_PASS}';" 2>&1 || true
+                  # Verify the password was actually changed before declaring success
+                  if cqlsh $HOST 9042 -u $SCYLLA_USER -p $SCYLLA_PASSWORD \
+                      -e "CREATE KEYSPACE IF NOT EXISTS $KEYSPACE WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};" 2>/dev/null; then
+                    echo "Bootstrap complete: password set and keyspace $KEYSPACE created."
+                    INIT_DONE=1
+                  else
+                    echo "ALTER USER verification failed, retrying in 5s..."
+                    sleep 5
+                  fi
+                else
+                  echo "ScyllaDB not ready yet, retrying in 5s."
+                  sleep 5
+                fi
               done
           env:
             - name: SCYLLA_USER
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "service-persistence.fullname" . }}-scylladb
+                  name: {{ include "service-persistence.scylladbSecretName" . }}
                   key: username
             - name: SCYLLA_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "service-persistence.fullname" . }}-scylladb
+                  name: {{ include "service-persistence.scylladbSecretName" . }}
                   key: password
         {{- end }}
         {{- range .Values.dependsOn }}
@@ -102,12 +127,12 @@ spec:
             - name: SCYLLA_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "service-persistence.fullname" . }}-scylladb
+                  name: {{ include "service-persistence.scylladbSecretName" . }}
                   key: username
             - name: SCYLLA_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "service-persistence.fullname" . }}-scylladb
+                  name: {{ include "service-persistence.scylladbSecretName" . }}
                   key: password
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}

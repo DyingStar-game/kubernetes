@@ -190,7 +190,12 @@ scylladb:
     # In production, change the cassandra superuser password via CQL after first start:
     #   ALTER USER cassandra WITH PASSWORD 'new-strong-password';
     username: cassandra
-    password: "cassandra"    # ScyllaDB authenticator/authorizer. Use AllowAllAuthenticator/AllowAllAuthorizer
+    password: "cassandra"
+    # Use an existing Kubernetes Secret instead of letting Helm create one from the password above.
+    # The secret must have keys 'username' and 'password'.
+    # When set, the password field above is ignored and no Secret is created by the chart.
+    existingSecret: ""
+    # ScyllaDB authenticator/authorizer. Use AllowAllAuthenticator/AllowAllAuthorizer
     # for dev-local (app does not pass credentials). Use PasswordAuthenticator/CassandraAuthorizer
     # for preprod and prod.
     authenticator: PasswordAuthenticator

@@ -60,3 +60,10 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+ScyllaDB secret name — use existingSecret if provided, otherwise the chart-managed secret.
+*/}}
+{{- define "service-persistence.scylladbSecretName" -}}
+{{- .Values.scylladb.auth.existingSecret | default (printf "%s-scylladb" (include "service-persistence.fullname" .)) }}
+{{- end }}
