@@ -5,3 +5,8 @@ image:
   repository: harbor.dyingstar-game.space/dyingstar/horizon
   pullPolicy: IfNotPresent
   tag: "develop"
+
+pluginsImage:
+  repository: harbor.dyingstar-game.space/dyingstar/horizon-plugins
+  pullPolicy: IfNotPresent
+  tag: "develop"

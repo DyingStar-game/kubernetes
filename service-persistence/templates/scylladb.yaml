@@ -72,6 +72,15 @@ spec:
                 secretKeyRef:
                   name: {{ include "service-persistence.fullname" . }}-scylladb
                   key: password
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    mkdir -p /root/.cassandra
+                    printf '[authentication]\nusername = %s\npassword = %s\n' "$SCYLLA_USER" "$SCYLLA_PASSWORD" > /root/.cassandra/cqlshrc
           volumeMounts:
             - name: data
               mountPath: /var/lib/scylla

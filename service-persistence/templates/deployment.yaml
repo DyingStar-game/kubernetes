@@ -45,6 +45,29 @@ spec:
                 echo "waiting for scylladb CQL on {{ include "service-persistence.fullname" . }}-scylladb:9042...";
                 sleep 5;
               done
+        - name: init-scylladb-keyspace
+          image: "{{ .Values.scylladb.image.registry }}/{{ .Values.scylladb.image.repository }}:{{ .Values.scylladb.image.tag }}"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              until cqlsh {{ include "service-persistence.fullname" . }}-scylladb 9042 \
+                -u $SCYLLA_USER -p $SCYLLA_PASSWORD \
+                -e "CREATE KEYSPACE IF NOT EXISTS {{ .Values.database.keyspace }} WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};"; do
+                echo "ScyllaDB not ready for CQL yet, retrying in 5s...";
+                sleep 5;
+              done
+          env:
+            - name: SCYLLA_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "service-persistence.fullname" . }}-scylladb
+                  key: username
+            - name: SCYLLA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "service-persistence.fullname" . }}-scylladb
+                  key: password
         {{- end }}
         {{- range .Values.dependsOn }}
         - name: wait-for-{{ .name }}
