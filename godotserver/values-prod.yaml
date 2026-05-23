@@ -10,10 +10,10 @@ image:
 resources:
   requests:
     cpu: 500m
-    memory: 256Mi
+    memory: 1Gi
   limits:
-    cpu: 2
-    memory: 512Mi
+    cpu: 4
+    memory: 8Gi
 
 # Disable the gdb crash-debug wrapper in production (lower overhead).
 # Set to "1" temporarily to capture a backtrace if the server is crashing.
