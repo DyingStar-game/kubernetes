@@ -1,0 +1,130 @@
+# Base values for the monitoring umbrella chart.
+# Environment-specific overrides: values-prod.yaml / values-preprod.yaml
+#
+# Deploy:
+#   helm dep update ./monitoring
+#   helm upgrade --install --kube-context=dyingstar -n monitoring monitoring ./monitoring \
+#     -f monitoring/values-prod.yaml --create-namespace
+#
+# Required one-time setup (before deploying):
+#   kubectl --context=dyingstar label namespace dyingstar-prod     dyingstar-monitored=true
+#   kubectl --context=dyingstar label namespace dyingstar-preprod  dyingstar-monitored=true
+
+stack:
+  # ---------------------------------------------------------------------------
+  # Prometheus
+  # ---------------------------------------------------------------------------
+  prometheus:
+    prometheusSpec:
+      # Discover ServiceMonitors in namespaces labelled dyingstar-monitored=true
+      serviceMonitorNamespaceSelector:
+        matchLabels:
+          dyingstar-monitored: "true"
+      # Select ALL ServiceMonitors in those namespaces (no label filter needed
+      # because Horizon's ServiceMonitor already carries dyingstar-monitored=true).
+      serviceMonitorSelector: {}
+      # Also honour plain prometheus.io/* pod annotations as a fallback.
+      podMonitorNamespaceSelector:
+        matchLabels:
+          dyingstar-monitored: "true"
+      podMonitorSelector: {}
+      # Retention & storage — overridden per env.
+      retention: 7d
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 5Gi
+      resources:
+        requests:
+          cpu: 200m
+          memory: 512Mi
+        limits:
+          memory: 1Gi
+
+  # ---------------------------------------------------------------------------
+  # Alertmanager — disabled; alerting is handled by Zabbix.
+  # ---------------------------------------------------------------------------
+  alertmanager:
+    enabled: false
+
+  # ---------------------------------------------------------------------------
+  # Grafana
+  # ---------------------------------------------------------------------------
+  grafana:
+    enabled: true
+    # Admin credentials loaded from a pre-created Kubernetes Secret.
+    # Create it once per cluster before deploying:
+    #   kubectl create secret generic grafana-admin-secret \
+    #     --from-literal=admin-user=admin \
+    #     --from-literal=admin-password='<strong-password>' \
+    #     -n monitoring
+    admin:
+      existingSecret: grafana-admin-secret
+      userKey: admin-user
+      passwordKey: admin-password
+    service:
+      type: ClusterIP
+      port: 80
+    # Expose via Gateway API HTTPRoute (same pattern as Keycloak).
+    # Disabled here; enabled in env overlays.
+    ingress:
+      enabled: false
+    persistence:
+      enabled: true
+      size: 2Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+    # Pre-provision a Prometheus datasource pointing to the in-cluster Prometheus.
+    datasources:
+      datasources.yaml:
+        apiVersion: 1
+        datasources:
+          - name: Prometheus
+            type: prometheus
+            url: http://monitoring-stack-prometheus:9090
+            access: proxy
+            isDefault: true
+    # Pre-provision the DyingStar dashboards folder.
+    dashboardProviders:
+      dashboardproviders.yaml:
+        apiVersion: 1
+        providers:
+          - name: dyingstar
+            orgId: 1
+            folder: DyingStar
+            type: file
+            disableDeletion: false
+            options:
+              path: /var/lib/grafana/dashboards/dyingstar
+    # ConfigMap-based dashboards (created separately, see README).
+    dashboardsConfigMaps:
+      dyingstar: monitoring-grafana-dashboards
+
+  # ---------------------------------------------------------------------------
+  # Node exporter — one pod per node.
+  # ---------------------------------------------------------------------------
+  nodeExporter:
+    enabled: true
+
+  # ---------------------------------------------------------------------------
+  # kube-state-metrics — cluster-level object metrics.
+  # ---------------------------------------------------------------------------
+  kubeStateMetrics:
+    enabled: true
+
+  # ---------------------------------------------------------------------------
+  # Disable components not needed (we use an external etcd / scheduler).
+  # ---------------------------------------------------------------------------
+  kubeEtcd:
+    enabled: false
+  kubeScheduler:
+    enabled: false
+  kubeControllerManager:
+    enabled: false

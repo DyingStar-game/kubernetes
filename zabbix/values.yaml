@@ -1,0 +1,89 @@
+# Base values for the Zabbix umbrella chart.
+# Environment-specific overrides: values-prod.yaml / values-preprod.yaml
+#
+# Pre-requisites (one-time, per environment):
+#
+#   1. Generate a 32-byte PSK and save it:
+#        openssl rand -hex 32 > zabbix.psk
+#
+#   2. Create the PSK secret in the monitoring namespace:
+#        kubectl --context=dyingstar -n monitoring create secret generic zabbix-psk \
+#          --from-literal=PSK_IDENTITY=dyingstar-proxy \
+#          --from-file=PSK=zabbix.psk
+#
+#   3. Register the proxy on the external Zabbix server:
+#        Administration → Proxies → Create proxy
+#        Name: dyingstar-prod-proxy  (or dyingstar-preprod-proxy)
+#        Mode: Active
+#        PSK identity: dyingstar-proxy
+#        PSK: <content of zabbix.psk>
+#
+# Deploy:
+#   helm dep update ./zabbix
+#   helm upgrade --install --kube-context=dyingstar -n monitoring zabbix-prod ./zabbix \
+#     -f zabbix/values-prod.yaml --create-namespace
+
+zabbix:
+  # ---------------------------------------------------------------------------
+  # Zabbix Proxy (active mode)
+  # Connects outbound to the external Zabbix server on port 10051.
+  # ---------------------------------------------------------------------------
+  zabbixProxy:
+    enabled: true
+    image:
+      tag: "7.4-alpine"
+    ZBX_PROXYMODE: 0                          # 0 = active
+    ZBX_SERVER_HOST: "monitoring.dyingstar-game.com"     # Override in env overlays
+    ZBX_SERVER_PORT: 10051
+    ZBX_HOSTNAME: "dyingstar-proxy"           # Override in env overlays
+    ZBX_TLSCONNECT: psk
+    ZBX_TLSACCEPT: psk
+    ZBX_TLSPSKIDENTITY: dyingstar-proxy
+    # The PSK file is mounted from the zabbix-psk secret.
+    ZBX_TLSPSKFILE: /var/lib/zabbix/ssl/keys/PSK
+    extraVolumes:
+      - name: zabbix-psk
+        secret:
+          secretName: zabbix-psk
+    extraVolumeMounts:
+      - name: zabbix-psk
+        mountPath: /var/lib/zabbix/ssl/keys
+        readOnly: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+
+  # ---------------------------------------------------------------------------
+  # Zabbix Agent2 (DaemonSet — node + container metrics)
+  # Communicates with the local proxy, not directly with the external server.
+  # ---------------------------------------------------------------------------
+  zabbixAgent:
+    enabled: true
+    image:
+      tag: "7.4-alpine"
+    ZBX_SERVER_HOST: "127.0.0.1"  # Unused in active mode but required
+    ZBX_PASSIVE_ALLOW_LIST: "127.0.0.1/8"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        memory: 128Mi
+
+  # We use kube-state-metrics from the monitoring chart — disable the bundled one.
+  kubeStateMetrics:
+    enabled: false
+
+  # kube-prometheus-stack already installs its own kube-state-metrics.
+  # Point zabbix agent2 kubernetes plugin at the existing kube-state-metrics service.
+  zabbixAgent2:
+    # These env vars configure the agent2 Kubernetes plugin.
+    # Adjust the kube-state-metrics service name if it differs in your cluster.
+    extraEnv:
+      - name: ZBX_PLUGINS
+        value: "kubernetes"
+      - name: KUBE_STATE_METRICS_URL
+        value: "http://monitoring-stack-kube-state-metrics.monitoring.svc:8080/metrics"

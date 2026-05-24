@@ -1,0 +1,15 @@
+apiVersion: v2
+name: monitoring
+description: >
+  Umbrella chart for DyingStar cluster observability.
+  Wraps kube-prometheus-stack (Prometheus + Alertmanager + Grafana +
+  node-exporter + kube-state-metrics).
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+dependencies:
+  - name: kube-prometheus-stack
+    version: "69.x.x"
+    repository: https://prometheus-community.github.io/helm-charts
+    alias: stack

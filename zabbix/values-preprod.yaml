@@ -1,0 +1,5 @@
+# Preprod overrides for Zabbix chart.
+zabbix:
+  zabbixProxy:
+    ZBX_SERVER_HOST: "monitoring.dyingstar-game.com"   # Replace with your Zabbix server FQDN/IP
+    ZBX_HOSTNAME: "dyingstar-preprod-proxy"

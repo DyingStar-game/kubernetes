@@ -1,0 +1,6 @@
+apiVersion: v2
+name: service-monitoring
+description: Helm chart for the DyingStar monitoring service — receives Horizon events from ds_bridge and exposes Prometheus metrics.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
