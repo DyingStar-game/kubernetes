@@ -1,0 +1,12 @@
+1. service-monitoring is running:
+   kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/name={{ include "service-monitoring.name" . }}
+
+2. WebSocket endpoint (used by Horizon ds_bridge):
+   ws://{{ include "service-monitoring.fullname" . }}:{{ .Values.service.port }}/ws
+
+3. Prometheus metrics endpoint:
+   http://{{ include "service-monitoring.fullname" . }}:{{ .Values.service.port }}/metrics
+
+4. Health check:
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "service-monitoring.fullname" . }} {{ .Values.service.port }}
+   curl http://localhost:{{ .Values.service.port }}/health

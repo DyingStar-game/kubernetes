@@ -1,0 +1,18 @@
+# Preprod overrides for the monitoring chart.
+stack:
+  prometheus:
+    prometheusSpec:
+      retention: 7d
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 5Gi
+
+  grafana:
+    # Password is in the grafana-admin-secret Kubernetes Secret (see values.yaml).
+    grafana.ini:
+      server:
+        root_url: https://grafana-preprod.dyingstar-game.com

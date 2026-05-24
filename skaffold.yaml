@@ -1,9 +1,9 @@
 # Skaffold multi-config for StarDeception local development.
 #
 # Each service is an independent module (config). Use -m to select which to deploy:
-#   skaffold dev -m keycloak,service-resourcesdynamic,service-persistence,godotserver,horizon,livekit   # all (local build)
-#   skaffold dev -m horizon                                        # single service (auto-includes livekit + service-persistence)
-#   skaffold dev -m godotserver,horizon-harbor                     # mix local + harbor (auto-includes livekit-harbor + service-persistence-harbor)
+#   skaffold dev -m keycloak,service-resourcesdynamic,service-persistence,service-monitoring,godotserver,horizon,livekit   # all (local build)
+#   skaffold dev -m horizon                                        # single service (auto-includes livekit + service-persistence + service-monitoring)
+#   skaffold dev -m godotserver,horizon-harbor                     # mix local + harbor (auto-includes livekit-harbor + service-persistence-harbor + service-monitoring-harbor)
 #
 # Or use ./dev.sh which reads dev-local.conf to pick modules automatically.
 #
@@ -171,7 +171,7 @@ kind: Config
 metadata:
   name: horizon
 requires:
-  - configs: [livekit, service-persistence]
+  - configs: [livekit, service-persistence, service-monitoring]
 build:
   local:
     push: false
@@ -214,7 +214,7 @@ kind: Config
 metadata:
   name: horizon-harbor
 requires:
-  - configs: [livekit-harbor, service-persistence-harbor]
+  - configs: [livekit-harbor, service-persistence-harbor, service-monitoring-harbor]
 deploy:
   helm:
     releases:
@@ -319,3 +319,50 @@ deploy:
           - service-persistence/values.yaml
           - service-persistence/values-dev-local.yaml
           - service-persistence/values-dev-local-harbor.yaml
+
+# ─── service-monitoring: local build ───────────────────────────────────────────
+---
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: service-monitoring
+build:
+  local:
+    push: false
+    useBuildkit: true
+  artifacts:
+    - image: service-monitoring
+      context: ../services/monitoring
+      docker:
+        dockerfile: docker/Dockerfile
+deploy:
+  helm:
+    releases:
+      - name: service-monitoring
+        chartPath: service-monitoring
+        namespace: dyingstar-dev-local
+        createNamespace: true
+        valuesFiles:
+          - service-monitoring/values.yaml
+          - service-monitoring/values-dev-local.yaml
+        setValueTemplates:
+          image.repository: "{{.IMAGE_REPO_service_monitoring}}"
+          image.tag: "{{.IMAGE_TAG_service_monitoring}}"
+
+# ─── service-monitoring: harbor image ──────────────────────────────────────────
+---
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: service-monitoring-harbor
+deploy:
+  helm:
+    releases:
+      - name: service-monitoring
+        chartPath: service-monitoring
+        namespace: dyingstar-dev-local
+        createNamespace: true
+        valuesFiles:
+          - service-monitoring/values.yaml
+          - service-monitoring/values-dev-local.yaml
+          - service-monitoring/values-dev-local-harbor.yaml

@@ -164,6 +164,9 @@ cp dev-local.conf.example dev-local.conf
 horizon
 #service-resourcesdynamic
 #keycloak
+#livekit
+#service-persistence
+#service-monitoring
 ```
 
 In this example, `horizon` will be deployed using the Harbor `develop` image, while the other two are built from source.

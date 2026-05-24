@@ -1,0 +1,20 @@
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "service-monitoring.fullname" . }}
+  labels:
+    {{- include "service-monitoring.labels" . | nindent 4 }}
+    dyingstar-monitored: "true"
+spec:
+  selector:
+    matchLabels:
+      {{- include "service-monitoring.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.serviceMonitor.interval }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+{{- end }}

@@ -1,0 +1,16 @@
+apiVersion: v2
+name: zabbix
+description: >
+  Umbrella chart for Zabbix in-cluster components.
+  Deploys a Zabbix Proxy (active mode → external Zabbix server) and
+  Zabbix Agent2 (DaemonSet) for Kubernetes node + pod monitoring.
+  Relies on kube-state-metrics from the monitoring chart.
+type: application
+version: 0.1.0
+appVersion: "7.2.0"
+
+dependencies:
+  - name: zabbix
+    version: "1.x.x"
+    repository: https://zabbix-community.github.io/helm-zabbix
+    alias: zabbix

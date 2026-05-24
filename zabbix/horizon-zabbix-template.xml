@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  DyingStar — Horizon Zabbix Template
+  =====================================
+  Import this file on your external Zabbix server:
+    Configuration → Templates → Import
+
+  Two hosts must already exist on Zabbix (one per environment), each assigned
+  to the matching proxy and using the HTTP agent interface pointing at the
+  in-cluster Prometheus metrics URL:
+
+    Host: horizon-prod
+      Proxy:     dyingstar-prod-proxy
+      Interface: (HTTP agent, no real IP needed — items use full URLs)
+
+    Host: horizon-preprod
+      Proxy:     dyingstar-preprod-proxy
+      Interface: (HTTP agent)
+
+  Link this template to both hosts.
+
+  Macros to set per host:
+    {$HORIZON_METRICS_URL}   →  http://horizon.dyingstar-prod:9091/metrics
+                                http://horizon.dyingstar-preprod:9091/metrics
+    {$MIN_GODOT_SERVERS}     →  1   (trigger threshold: minimum expected servers)
+    {$PEAK_HOURS_START}      →  18  (hour, 24h clock, local time)
+    {$PEAK_HOURS_END}        →  23
+-->
+<zabbix_export>
+  <version>6.4</version>
+  <template_groups>
+    <template_group>
+      <uuid>a571c0d1442d4b028d7fe4b8e5e3acaa</uuid>
+      <name>DyingStar</name>
+    </template_group>
+  </template_groups>
+  <templates>
+    <template>
+      <uuid>b3c7e9f1d4a0472e8e5d60b2c1e83f5d</uuid>
+      <template>DyingStar Horizon</template>
+      <name>DyingStar Horizon Business Metrics</name>
+      <description>
+        Scrapes Horizon ds_monitoring Prometheus endpoint via the in-cluster
+        Zabbix proxy and exposes business KPIs for alerting.
+      </description>
+      <groups>
+        <group>
+          <name>DyingStar</name>
+        </group>
+      </groups>
+
+      <!-- ================================================================
+           Macros
+           ================================================================ -->
+      <macros>
+        <macro>
+          <macro>{$HORIZON_METRICS_URL}</macro>
+          <value>http://horizon:9091/metrics</value>
+          <description>Full URL of the Horizon /metrics endpoint (in-cluster DNS).</description>
+        </macro>
+        <macro>
+          <macro>{$MIN_GODOT_SERVERS}</macro>
+          <value>1</value>
+          <description>Minimum number of active Godot servers expected before alerting.</description>
+        </macro>
+      </macros>
+
+      <!-- ================================================================
+           Items
+           ================================================================ -->
+      <items>
+
+        <!-- Raw metrics page — master item, scraped once, parsed by dependents -->
+        <item>
+          <uuid>a1b2c3d4e5f64a1b8c9d0e1f2a3b4c5d</uuid>
+          <name>Horizon metrics (raw)</name>
+          <type>HTTP_AGENT</type>
+          <key>horizon.metrics.raw</key>
+          <delay>30s</delay>
+          <url>{$HORIZON_METRICS_URL}</url>
+          <retrieve_mode>BODY</retrieve_mode>
+          <value_type>TEXT</value_type>
+          <description>Raw Prometheus text from ds_monitoring. Used as master item by all dependent items.</description>
+        </item>
+
+        <!-- Players connected -->
+        <item>
+          <uuid>b2c3d4e5f6a74b2c9d0e1f2a3b4c5d6e</uuid>
+          <name>Players connected</name>
+          <type>DEPENDENT</type>
+          <key>horizon.players_connected</key>
+          <master_item>
+            <key>horizon.metrics.raw</key>
+          </master_item>
+          <value_type>FLOAT</value_type>
+          <preprocessing>
+            <step>
+              <type>PROMETHEUS_PATTERN</type>
+              <parameters>
+                <parameter>horizon_players_connected</parameter>
+                <parameter>value</parameter>
+                <parameter/>
+              </parameters>
+            </step>
+          </preprocessing>
+          <description>Current number of players connected to Horizon.</description>
+        </item>
+
+        <!-- Active Godot servers -->
+        <item>
+          <uuid>c3d4e5f6a7b84c3da0e1f2a3b4c5d6e7</uuid>
+          <name>Active Godot servers</name>
+          <type>DEPENDENT</type>
+          <key>horizon.godot_servers_active</key>
+          <master_item>
+            <key>horizon.metrics.raw</key>
+          </master_item>
+          <value_type>FLOAT</value_type>
+          <preprocessing>
+            <step>
+              <type>PROMETHEUS_PATTERN</type>
+              <parameters>
+                <parameter>horizon_godot_servers_active</parameter>
+                <parameter>value</parameter>
+                <parameter/>
+              </parameters>
+            </step>
+          </preprocessing>
+          <description>Number of Godot game server instances currently registered with Horizon.</description>
+        </item>
+
+        <!-- Player connect rate (per minute, calculated from counter) -->
+        <item>
+          <uuid>d4e5f6a7b8c94d4eb1f2a3b4c5d6e7f8</uuid>
+          <name>Player connects per minute</name>
+          <type>DEPENDENT</type>
+          <key>horizon.players_connect_rate</key>
+          <master_item>
+            <key>horizon.metrics.raw</key>
+          </master_item>
+          <value_type>FLOAT</value_type>
+          <preprocessing>
+            <step>
+              <type>PROMETHEUS_PATTERN</type>
+              <parameters>
+                <parameter>horizon_players_connect_total</parameter>
+                <parameter>value</parameter>
+                <parameter/>
+              </parameters>
+            </step>
+            <step>
+              <type>CHANGE_PER_SECOND</type>
+              <parameters>
+                <parameter/>
+              </parameters>
+            </step>
+            <step>
+              <!-- Convert per-second to per-minute -->
+              <type>MULTIPLIER</type>
+              <parameters>
+                <parameter>60</parameter>
+              </parameters>
+            </step>
+          </preprocessing>
+          <description>Rate of player connections (connects per minute).</description>
+        </item>
+
+        <!-- Auth successes rate -->
+        <item>
+          <uuid>f6a7b8c9d0e14f6ad3b4c5d6e7f8a9b0</uuid>
+          <name>Auth successes per minute</name>
+          <type>DEPENDENT</type>
+          <key>horizon.auth_success_rate</key>
+          <master_item>
+            <key>horizon.metrics.raw</key>
+          </master_item>
+          <value_type>FLOAT</value_type>
+          <preprocessing>
+            <step>
+              <type>PROMETHEUS_PATTERN</type>
+              <parameters>
+                <parameter>horizon_auth_success_total</parameter>
+                <parameter>value</parameter>
+                <parameter/>
+              </parameters>
+            </step>
+            <step>
+              <type>CHANGE_PER_SECOND</type>
+              <parameters>
+                <parameter/>
+              </parameters>
+            </step>
+            <step>
+              <type>MULTIPLIER</type>
+              <parameters>
+                <parameter>60</parameter>
+              </parameters>
+            </step>
+          </preprocessing>
+          <description>Rate of successful player authentications (per minute).</description>
+        </item>
+
+      </items>
+
+      <!-- ================================================================
+           Triggers
+           ================================================================ -->
+      <triggers>
+
+        <trigger>
+          <uuid>a9b0c1d2e3f44a9be5c6d7e8f9a0b1c2</uuid>
+          <expression>last(/DyingStar Horizon/horizon.godot_servers_active) &lt; {$MIN_GODOT_SERVERS}</expression>
+          <name>Horizon: fewer than {$MIN_GODOT_SERVERS} Godot server(s) active</name>
+          <priority>HIGH</priority>
+          <description>No Godot game server is registered with Horizon. Players cannot join a game.</description>
+          <manual_close>NO</manual_close>
+        </trigger>
+
+        <trigger>
+          <uuid>b0c1d2e3f4a54b0cf6d7e8f9a0b1c2d3</uuid>
+          <expression>min(/DyingStar Horizon/horizon.players_connected,10m) = 0 and last(/DyingStar Horizon/horizon.godot_servers_active) &gt; 0</expression>
+          <name>Horizon: no players connected for 10 minutes (servers are up)</name>
+          <priority>WARNING</priority>
+          <description>Servers are running but no player has been connected for at least 10 minutes. Possible connectivity or auth issue.</description>
+          <manual_close>YES</manual_close>
+        </trigger>
+
+        <trigger>
+          <uuid>d2e3f4a5b6c74d2eb8f9a0b1c2d3e4f5</uuid>
+          <expression>nodata(/DyingStar Horizon/horizon.metrics.raw,5m) = 1</expression>
+          <name>Horizon: metrics endpoint not reachable for 5 minutes</name>
+          <priority>HIGH</priority>
+          <description>The ds_monitoring plugin's /metrics HTTP endpoint is not responding. Horizon may be down.</description>
+          <manual_close>NO</manual_close>
+        </trigger>
+
+      </triggers>
+
+      <!-- ================================================================
+           Graphs
+           ================================================================ -->
+      <graphs>
+        <graph>
+          <uuid>e3f4a5b6c7d84e3fc9a0b1c2d3e4f5a6</uuid>
+          <name>Players &amp; Godot servers</name>
+          <graph_items>
+            <graph_item>
+              <color>1A7C11</color>
+              <item>
+                <host>DyingStar Horizon</host>
+                <key>horizon.players_connected</key>
+              </item>
+            </graph_item>
+            <graph_item>
+              <color>F63100</color>
+              <item>
+                <host>DyingStar Horizon</host>
+                <key>horizon.godot_servers_active</key>
+              </item>
+            </graph_item>
+          </graph_items>
+        </graph>
+      </graphs>
+
+    </template>
+  </templates>
+</zabbix_export>

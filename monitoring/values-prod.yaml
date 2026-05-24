@@ -1,0 +1,28 @@
+# Production overrides for the monitoring chart.
+stack:
+  prometheus:
+    prometheusSpec:
+      retention: 15d
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 20Gi
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          memory: 2Gi
+
+  grafana:
+    # Password is in the grafana-admin-secret Kubernetes Secret (see values.yaml).
+    persistence:
+      size: 5Gi
+    # Expose Grafana via HTTPRoute (same pattern as Keycloak).
+    # Requires the Gateway API + controller already installed.
+    grafana.ini:
+      server:
+        root_url: https://grafana.dyingstar-game.com
