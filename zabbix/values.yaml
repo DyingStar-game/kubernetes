@@ -24,23 +24,40 @@
 #     -f zabbix/values-prod.yaml --create-namespace
 
 zabbix:
+  # Override all Zabbix component images to match the external server version (7.4.x).
+  # The community chart ships 7.0.x by default; zabbixImageTag controls all components.
+  zabbixImageTag: ubuntu-7.4-latest
+
+  # Disable components we don't need (proxy-only setup).
+  zabbixServer:
+    enabled: false
+  postgresql:
+    enabled: false
+  zabbixWeb:
+    enabled: false
+  zabbixWebService:
+    enabled: false
+
   # ---------------------------------------------------------------------------
   # Zabbix Proxy (active mode)
   # Connects outbound to the external Zabbix server on port 10051.
   # ---------------------------------------------------------------------------
   zabbixProxy:
     enabled: true
-    image:
-      tag: "7.4-alpine"
     ZBX_PROXYMODE: 0                          # 0 = active
     ZBX_SERVER_HOST: "monitoring.dyingstar-game.com"     # Override in env overlays
     ZBX_SERVER_PORT: 10051
     ZBX_HOSTNAME: "dyingstar-proxy"           # Override in env overlays
-    ZBX_TLSCONNECT: psk
-    ZBX_TLSACCEPT: psk
-    ZBX_TLSPSKIDENTITY: dyingstar-proxy
-    # The PSK file is mounted from the zabbix-psk secret.
-    ZBX_TLSPSKFILE: /var/lib/zabbix/ssl/keys/PSK
+    # TLS/PSK vars are not natively templated — pass via extraEnv.
+    extraEnv:
+      - name: ZBX_TLSCONNECT
+        value: psk
+      - name: ZBX_TLSACCEPT
+        value: psk
+      - name: ZBX_TLSPSKIDENTITY
+        value: dyingstar-proxy
+      - name: ZBX_TLSPSKFILE
+        value: /var/lib/zabbix/ssl/keys/PSK
     extraVolumes:
       - name: zabbix-psk
         secret:
@@ -62,10 +79,23 @@ zabbix:
   # ---------------------------------------------------------------------------
   zabbixAgent:
     enabled: true
-    image:
-      tag: "7.4-alpine"
     ZBX_SERVER_HOST: "127.0.0.1"  # Unused in active mode but required
-    ZBX_PASSIVE_ALLOW_LIST: "127.0.0.1/8"
+    ZBX_PASSIVESERVERS: "0.0.0.0/0"  # Allow proxy to connect from any pod IP (agent is only reachable in-cluster)
+    extraEnv:
+      - name: ZBX_TLSACCEPT
+        value: psk
+      - name: ZBX_TLSPSKIDENTITY
+        value: dyingstar-proxy
+      - name: ZBX_TLSPSKFILE
+        value: /var/lib/zabbix/ssl/keys/PSK
+    extraVolumes:
+      - name: zabbix-psk
+        secret:
+          secretName: zabbix-psk
+    extraVolumeMounts:
+      - name: zabbix-psk
+        mountPath: /var/lib/zabbix/ssl/keys
+        readOnly: true
     resources:
       requests:
         cpu: 50m

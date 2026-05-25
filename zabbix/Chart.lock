@@ -1,0 +1,6 @@
+dependencies:
+- name: zabbix
+  repository: https://zabbix-community.github.io/helm-zabbix
+  version: 7.0.12
+digest: sha256:b6a41e82c61e23650cb844d057e0296139791c6085b44137b4ba234a73148d57
+generated: "2026-05-24T17:05:22.746255119+02:00"

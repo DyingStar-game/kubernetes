@@ -3,3 +3,53 @@ zabbix:
   zabbixProxy:
     ZBX_SERVER_HOST: "monitoring.dyingstar-game.com"   # Replace with your Zabbix server FQDN/IP
     ZBX_HOSTNAME: "dyingstar-preprod-proxy"
+    extraEnv:
+      - name: ZBX_TLSCONNECT
+        value: psk
+      - name: ZBX_TLSACCEPT
+        value: psk
+      - name: ZBX_TLSPSKIDENTITY
+        value: dyingstar-preprod-proxy
+      - name: ZBX_TLSPSKFILE
+        value: /var/lib/zabbix/ssl/keys/PSK
+    extraVolumes:
+      - name: zabbix-psk-preprod
+        secret:
+          secretName: zabbix-psk-preprod
+    extraVolumeMounts:
+      - name: zabbix-psk-preprod
+        mountPath: /var/lib/zabbix/ssl/keys
+        readOnly: true
+
+  zabbixAgent:
+    extraEnv:
+      - name: ZBX_TLSACCEPT
+        value: psk
+      - name: ZBX_TLSPSKIDENTITY
+        value: dyingstar-preprod-proxy
+      - name: ZBX_TLSPSKFILE
+        value: /var/lib/zabbix/ssl/keys/PSK
+    extraVolumes:
+      - name: zabbix-psk-preprod
+        secret:
+          secretName: zabbix-psk-preprod
+    extraVolumeMounts:
+      - name: zabbix-psk-preprod
+        mountPath: /var/lib/zabbix/ssl/keys
+        readOnly: true
+      - name: ZBX_TLSCONNECT
+        value: psk
+      - name: ZBX_TLSACCEPT
+        value: psk
+      - name: ZBX_TLSPSKIDENTITY
+        value: dyingstar-preprod-proxy
+      - name: ZBX_TLSPSKFILE
+        value: /var/lib/zabbix/ssl/keys/PSK
+    extraVolumes:
+      - name: zabbix-psk-preprod
+        secret:
+          secretName: zabbix-psk-preprod
+    extraVolumeMounts:
+      - name: zabbix-psk-preprod
+        mountPath: /var/lib/zabbix/ssl/keys
+        readOnly: true

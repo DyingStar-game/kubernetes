@@ -11,6 +11,6 @@ appVersion: "7.2.0"
 
 dependencies:
   - name: zabbix
-    version: "1.x.x"
+    version: "7.0.x"
     repository: https://zabbix-community.github.io/helm-zabbix
     alias: zabbix
