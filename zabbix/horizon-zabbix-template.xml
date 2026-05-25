@@ -27,16 +27,16 @@
     {$PEAK_HOURS_END}        →  23
 -->
 <zabbix_export>
-  <version>6.4</version>
+  <version>7.0</version>
   <template_groups>
     <template_group>
-      <uuid>a571c0d1442d4b028d7fe4b8e5e3acaa</uuid>
+      <uuid>f415b0630ca247d18af8742847d42880</uuid>
       <name>DyingStar</name>
     </template_group>
   </template_groups>
   <templates>
     <template>
-      <uuid>b3c7e9f1d4a0472e8e5d60b2c1e83f5d</uuid>
+      <uuid>3cd31f1873c54b22a0a2bfdb6cdb877b</uuid>
       <template>DyingStar Horizon</template>
       <name>DyingStar Horizon Business Metrics</name>
       <description>
@@ -72,7 +72,7 @@
 
         <!-- Raw metrics page — master item, scraped once, parsed by dependents -->
         <item>
-          <uuid>a1b2c3d4e5f64a1b8c9d0e1f2a3b4c5d</uuid>
+          <uuid>fb1dae0fdd7b4e3180a2320cc9c9a358</uuid>
           <name>Horizon metrics (raw)</name>
           <type>HTTP_AGENT</type>
           <key>horizon.metrics.raw</key>
@@ -85,7 +85,7 @@
 
         <!-- Players connected -->
         <item>
-          <uuid>b2c3d4e5f6a74b2c9d0e1f2a3b4c5d6e</uuid>
+          <uuid>b70da73b34aa421ab957413b992214bb</uuid>
           <name>Players connected</name>
           <type>DEPENDENT</type>
           <key>horizon.players_connected</key>
@@ -108,7 +108,7 @@
 
         <!-- Active Godot servers -->
         <item>
-          <uuid>c3d4e5f6a7b84c3da0e1f2a3b4c5d6e7</uuid>
+          <uuid>d3a1faa919d34daeb74e0bce60889e43</uuid>
           <name>Active Godot servers</name>
           <type>DEPENDENT</type>
           <key>horizon.godot_servers_active</key>
@@ -131,7 +131,7 @@
 
         <!-- Player connect rate (per minute, calculated from counter) -->
         <item>
-          <uuid>d4e5f6a7b8c94d4eb1f2a3b4c5d6e7f8</uuid>
+          <uuid>657f87ed708440bf86bc8a001bcabca4</uuid>
           <name>Player connects per minute</name>
           <type>DEPENDENT</type>
           <key>horizon.players_connect_rate</key>
@@ -167,7 +167,7 @@
 
         <!-- Auth successes rate -->
         <item>
-          <uuid>f6a7b8c9d0e14f6ad3b4c5d6e7f8a9b0</uuid>
+          <uuid>b4535e79662b4bc1bb7bffce8c1cf197</uuid>
           <name>Auth successes per minute</name>
           <type>DEPENDENT</type>
           <key>horizon.auth_success_rate</key>
@@ -202,66 +202,67 @@
 
       </items>
 
-      <!-- ================================================================
-           Triggers
-           ================================================================ -->
-      <triggers>
-
-        <trigger>
-          <uuid>a9b0c1d2e3f44a9be5c6d7e8f9a0b1c2</uuid>
-          <expression>last(/DyingStar Horizon/horizon.godot_servers_active) &lt; {$MIN_GODOT_SERVERS}</expression>
-          <name>Horizon: fewer than {$MIN_GODOT_SERVERS} Godot server(s) active</name>
-          <priority>HIGH</priority>
-          <description>No Godot game server is registered with Horizon. Players cannot join a game.</description>
-          <manual_close>NO</manual_close>
-        </trigger>
-
-        <trigger>
-          <uuid>b0c1d2e3f4a54b0cf6d7e8f9a0b1c2d3</uuid>
-          <expression>min(/DyingStar Horizon/horizon.players_connected,10m) = 0 and last(/DyingStar Horizon/horizon.godot_servers_active) &gt; 0</expression>
-          <name>Horizon: no players connected for 10 minutes (servers are up)</name>
-          <priority>WARNING</priority>
-          <description>Servers are running but no player has been connected for at least 10 minutes. Possible connectivity or auth issue.</description>
-          <manual_close>YES</manual_close>
-        </trigger>
-
-        <trigger>
-          <uuid>d2e3f4a5b6c74d2eb8f9a0b1c2d3e4f5</uuid>
-          <expression>nodata(/DyingStar Horizon/horizon.metrics.raw,5m) = 1</expression>
-          <name>Horizon: metrics endpoint not reachable for 5 minutes</name>
-          <priority>HIGH</priority>
-          <description>The ds_monitoring plugin's /metrics HTTP endpoint is not responding. Horizon may be down.</description>
-          <manual_close>NO</manual_close>
-        </trigger>
-
-      </triggers>
-
-      <!-- ================================================================
-           Graphs
-           ================================================================ -->
-      <graphs>
-        <graph>
-          <uuid>e3f4a5b6c7d84e3fc9a0b1c2d3e4f5a6</uuid>
-          <name>Players &amp; Godot servers</name>
-          <graph_items>
-            <graph_item>
-              <color>1A7C11</color>
-              <item>
-                <host>DyingStar Horizon</host>
-                <key>horizon.players_connected</key>
-              </item>
-            </graph_item>
-            <graph_item>
-              <color>F63100</color>
-              <item>
-                <host>DyingStar Horizon</host>
-                <key>horizon.godot_servers_active</key>
-              </item>
-            </graph_item>
-          </graph_items>
-        </graph>
-      </graphs>
-
     </template>
   </templates>
+
+  <!-- ==================================================================
+       Triggers (top-level in Zabbix 7.0 format)
+       ================================================================== -->
+  <triggers>
+
+    <trigger>
+      <uuid>119900ec67934cfb9316a0140ba5fe9e</uuid>
+      <expression>last(/DyingStar Horizon/horizon.godot_servers_active) &lt; {$MIN_GODOT_SERVERS}</expression>
+      <name>Horizon: fewer than {$MIN_GODOT_SERVERS} Godot server(s) active</name>
+      <priority>HIGH</priority>
+      <description>No Godot game server is registered with Horizon. Players cannot join a game.</description>
+      <manual_close>NO</manual_close>
+    </trigger>
+
+    <trigger>
+      <uuid>5d0c29644fca4a64835eb8abf6e24793</uuid>
+      <expression>min(/DyingStar Horizon/horizon.players_connected,10m) = 0 and last(/DyingStar Horizon/horizon.godot_servers_active) &gt; 0</expression>
+      <name>Horizon: no players connected for 10 minutes (servers are up)</name>
+      <priority>WARNING</priority>
+      <description>Servers are running but no player has been connected for at least 10 minutes. Possible connectivity or auth issue.</description>
+      <manual_close>YES</manual_close>
+    </trigger>
+
+    <trigger>
+      <uuid>f8f2c9b08d7840209809eb8c01511b43</uuid>
+      <expression>nodata(/DyingStar Horizon/horizon.metrics.raw,5m) = 1</expression>
+      <name>Horizon: metrics endpoint not reachable for 5 minutes</name>
+      <priority>HIGH</priority>
+      <description>The service-monitoring /metrics endpoint is not responding. The monitoring service may be down.</description>
+      <manual_close>NO</manual_close>
+    </trigger>
+
+  </triggers>
+
+  <!-- ==================================================================
+       Graphs (top-level in Zabbix 7.0 format)
+       ================================================================== -->
+  <graphs>
+    <graph>
+      <uuid>d4f9e323f6c147ce910fc6074c515303</uuid>
+      <name>Players &amp; Godot servers</name>
+      <graph_items>
+        <graph_item>
+          <color>1A7C11</color>
+          <item>
+            <host>DyingStar Horizon</host>
+            <key>horizon.players_connected</key>
+          </item>
+        </graph_item>
+        <graph_item>
+          <color>F63100</color>
+          <item>
+            <host>DyingStar Horizon</host>
+            <key>horizon.godot_servers_active</key>
+          </item>
+        </graph_item>
+      </graph_items>
+    </graph>
+  </graphs>
+
 </zabbix_export>

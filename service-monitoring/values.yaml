@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: harbor.dyingstar-game.space/dyingstar/service-monitoring
+  repository: harbor.dyingstar-game.space/dyingstar/monitoring
   pullPolicy: IfNotPresent
   tag: ""
 
