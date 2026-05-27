@@ -13,3 +13,6 @@ dependencies:
     version: "69.x.x"
     repository: https://prometheus-community.github.io/helm-charts
     alias: stack
+  - name: metrics-server
+    version: "3.x.x"
+    repository: https://kubernetes-sigs.github.io/metrics-server/
