@@ -7,6 +7,7 @@
 #     -f monitoring/values-prod.yaml --create-namespace
 #
 # Required one-time setup (before deploying):
+#   kubectl --context=dyingstar label namespace monitoring          dyingstar-monitored=true
 #   kubectl --context=dyingstar label namespace dyingstar-prod     dyingstar-monitored=true
 #   kubectl --context=dyingstar label namespace dyingstar-preprod  dyingstar-monitored=true
 
@@ -128,3 +129,19 @@ stack:
     enabled: false
   kubeControllerManager:
     enabled: false
+
+# ---------------------------------------------------------------------------
+# metrics-server — serves the metrics.k8s.io API used by kubectl top and
+# Kubernetes dashboard UIs (Headlamp, Lens…) to display pod CPU/memory.
+# --kubelet-insecure-tls is required on kubeadm clusters where kubelet TLS
+# certificates do not include node IPs in their SANs.
+# ---------------------------------------------------------------------------
+metrics-server:
+  args:
+    - --kubelet-insecure-tls
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
