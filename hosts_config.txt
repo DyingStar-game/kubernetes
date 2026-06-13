@@ -1,0 +1,3 @@
+horizon.dyingstar.local
+argocd.dyingstar.local
+grafana.dyingstar.local

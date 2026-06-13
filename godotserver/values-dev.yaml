@@ -1,0 +1,24 @@
+# Local dev overrides for godotserver (minikube)
+# Usage: helm upgrade --install -n dyingstar-dev-local godotserver ./godotserver -f godotserver/values-dev-local.yaml
+# Or via Skaffold: skaffold dev -p godotserver
+
+replicaCount: 1
+
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/godotserver
+  pullPolicy: IfNotPresent
+  tag: "develop"
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 2Gi
+  limits:
+    cpu: 4
+    memory: 10Gi
+
+# Disable the gdb crash-debug wrapper in production (lower overhead).
+# Set to "1" temporarily to capture a backtrace if the server is crashing.
+env:
+  - name: DEBUG_GDB
+    value: "0"

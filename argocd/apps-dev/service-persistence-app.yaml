@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: service-persistence
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'file:///mnt/local-repo.git'
+    path: service-persistence
+    targetRevision: HEAD
+    helm:
+      valueFiles:
+        - $values/service-persistence/values-dev.yaml
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: dyingstar
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true

@@ -1,0 +1,52 @@
+# Local dev overrides for horizon (minikube)
+# Usage: helm upgrade --install -n dyingstar-dev-local horizon ./horizon -f horizon/values-dev-local.yaml
+# Or via Skaffold: skaffold dev -p horizon
+
+replicaCount: 1
+
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/horizon
+  pullPolicy: IfNotPresent
+  tag: "develop"
+
+# uncomment if you use godotserver running in local (F5), otherwise horizon will
+#   connect to godotserver pod in minikube
+extraEnv:
+  # - name: GAME_SERVER_HOST
+  #   value: "host.minikube.internal"
+  - name: BYPASS_AUTH
+    value: "true"
+
+service:
+  type: ClusterIP
+  externalTrafficPolicy: ""
+  #nodePort: 30100
+
+pluginsImage:
+  enabled: true
+  repository: harbor.dyingstar-game.space/dyingstar/horizon-plugins
+  pullPolicy: IfNotPresent
+  tag: "develop"
+
+
+httpRoute:
+  enabled: true
+  annotations: {}
+  parentRefs:
+    - name: traefik-gateway 
+      namespace: traefik    
+      sectionName: web      
+  hostnames:
+    - "horizon.dyingstar.local"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+resources:
+  requests:
+    cpu: 1
+    memory: 512Mi
+  limits:
+    cpu: 4
+    memory: 2Gi
