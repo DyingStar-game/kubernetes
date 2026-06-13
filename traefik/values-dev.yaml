@@ -1,0 +1,61 @@
+deployment:
+  replicas: 1
+
+ingressRoute:
+  dashboard:
+    enabled: true
+
+ports:
+  web:
+    port: 80
+    exposedPort: 80
+    protocol: TCP
+    transport:
+      respondingTimeouts:
+        idleTimeout: 3600s
+  websecure:
+    port: 443
+    exposedPort: 443
+    protocol: TCP
+    transport:
+      respondingTimeouts:
+        idleTimeout: 3600s
+
+service:
+  enabled: true
+  type: LoadBalancer
+  spec:
+    externalTrafficPolicy: Local
+logs:
+  general:
+    level: INFO
+  access:
+    enabled: true
+
+providers:
+  kubernetesGateway:
+    enabled: true
+
+gateway:
+  enabled: true 
+  name: traefik-gateway 
+  annotations:
+    cert-manager.io/cluster-issuer: "local-selfsigned-issuer"
+  listeners:
+    web:
+      port: 80
+      protocol: HTTP
+      hostname: "*.dyingstar.local"
+      namespacePolicy:
+        from: All
+    websecure:
+      port: 443
+      protocol: HTTPS
+      hostname: "*.dyingstar.local"
+      namespacePolicy:
+        from: All
+      mode: Terminate
+      certificateRefs:
+        - group: ""
+          kind: Secret
+          name: traefik-default-cert

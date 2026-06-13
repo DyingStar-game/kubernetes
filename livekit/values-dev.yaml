@@ -1,0 +1,60 @@
+# Local dev overrides for livekit (minikube)
+# Usage:
+#   kubectl config use-context minikube
+#   ./dev.sh livekit
+
+hostNetwork: true
+
+replicaCount: 1
+
+image:
+  repository: livekit/livekit-server
+  pullPolicy: IfNotPresent
+
+service:
+  type: NodePort
+  port: 7880
+  rtcTcpPort: 7881
+  rtcUdpPort: 7882
+  nodePort: 30188
+  rtcTcpNodePort: 30189
+  rtcUdpNodePort: 30190
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 1
+    memory: 1Gi
+
+livekit:
+  apiKey: "devkey"
+  apiSecret: "devsecret-replace-me-32-chars-min"
+  logLevel: debug
+  # In local dev with hostNetwork, LiveKit's STUN detection picks up your
+  # public IP (hairpin NAT issue). Force it to advertise the minikube node IP
+  # so the browser on the same host can reach RTC ports directly.
+  # Update this if your minikube IP changes (`minikube ip`).
+  nodeIp: "192.168.49.2"
+  turn:
+    # TURN/TLS off in local dev (no cert hassle).
+    enabled: false
+
+redis:
+  enabled: true
+  auth:
+    password: "redis-dev-password"
+  primary:
+    persistence:
+      enabled: false
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+ingressService:
+  enabled: false

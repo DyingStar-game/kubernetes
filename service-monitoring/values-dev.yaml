@@ -1,0 +1,12 @@
+# Dev-local overrides for service-monitoring (minikube local build).
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/monitoring
+  pullPolicy: Always
+  tag: "develop"
+
+serviceMonitor:
+  enabled: false
+
+extraEnv:
+  - name: RUST_LOG
+    value: "monitoring=debug"
