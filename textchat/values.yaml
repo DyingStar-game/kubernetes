@@ -1,25 +1,33 @@
 # Default values for textchat.
 # MQTT broker (Mosquitto) used by the in-game text chat.
 #
-# Auth roadmap: this base runs the broker ANONYMOUS (no auth), which is enough
-# for local development. Production will swap to a JWT-authenticated image
-# (mosquitto-go-auth validating the Keycloak JWT) — see the textchat plan.
+# Two auth modes:
+#   - anonymous : no auth (local dev). Uses the official eclipse-mosquitto image.
+#   - jwt       : clients authenticate with their Keycloak access token, validated
+#                 by the chat-auth adapter (mosquitto-go-auth, remote mode). Used
+#                 for preprod/prod (and to test the auth path locally).
 
 mosquitto:
   enabled: true
+  # "anonymous" or "jwt".
+  auth:
+    mode: anonymous
+  # Image for anonymous mode.
   image:
     repository: eclipse-mosquitto
     tag: "2.0.20"
     pullPolicy: IfNotPresent
-  # When true, the broker accepts unauthenticated clients. Local dev only.
+  # Image for jwt mode (bundles mosquitto + go-auth + websockets).
+  goauthImage:
+    repository: iegomez/mosquitto-go-auth
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  # Used only in anonymous mode.
   allowAnonymous: true
   service:
     type: ClusterIP
-    # Native MQTT (TCP) port.
     mqttPort: 1883
-    # MQTT-over-WebSocket port — this is the one the Godot client connects to.
     websocketPort: 9001
-    # NodePorts (only used when service.type is NodePort, e.g. in dev-local).
     mqttNodePort: ""
     websocketNodePort: ""
   resources:
@@ -29,6 +37,29 @@ mosquitto:
     limits:
       cpu: 500m
       memory: 256Mi
+
+# chat-auth adapter — deployed only when mosquitto.auth.mode == "jwt".
+# Validates Keycloak JWTs (JWKS) and answers go-auth user/acl checks.
+chatAuth:
+  image:
+    repository: service-chatauth
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  service:
+    port: 3000
+  # Expected token issuer and (optionally) an explicit JWKS URL.
+  oidcIssuer: "http://keycloak:8080/realms/dyingstar"
+  oidcJwksUrl: ""
+  # Topic filters any authenticated player may use (MVP; tighten per claims later).
+  allowedTopics: "chat/#"
+  resources:
+    requests:
+      cpu: 25m
+      memory: 48Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi
 
 serviceAccount:
   create: true

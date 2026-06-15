@@ -1,4 +1,7 @@
 {{- if .Values.mosquitto.enabled }}
+{{- $jwt := eq .Values.mosquitto.auth.mode "jwt" }}
+{{- $image := ternary .Values.mosquitto.goauthImage .Values.mosquitto.image $jwt }}
+{{- $confPath := ternary "/etc/mosquitto/mosquitto.conf" "/mosquitto/config/mosquitto.conf" $jwt }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -24,8 +27,8 @@ spec:
       serviceAccountName: {{ include "textchat.serviceAccountName" . }}
       containers:
         - name: mosquitto
-          image: "{{ .Values.mosquitto.image.repository }}:{{ .Values.mosquitto.image.tag }}"
-          imagePullPolicy: {{ .Values.mosquitto.image.pullPolicy }}
+          image: "{{ $image.repository }}:{{ $image.tag }}"
+          imagePullPolicy: {{ $image.pullPolicy }}
           ports:
             - name: mqtt
               containerPort: {{ .Values.mosquitto.service.mqttPort }}
@@ -35,7 +38,7 @@ spec:
               protocol: TCP
           volumeMounts:
             - name: config
-              mountPath: /mosquitto/config/mosquitto.conf
+              mountPath: {{ $confPath }}
               subPath: mosquitto.conf
           {{- with .Values.mosquitto.resources }}
           resources:
