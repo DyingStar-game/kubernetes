@@ -6,7 +6,7 @@
 #        then uncomment the services you don't need to build.
 #        Run ./dev.sh to start.
 #
-# Available services: godotserver, horizon, service-resourcesdynamic, keycloak, livekit, service-persistence
+# Available services: godotserver, horizon, service-resourcesdynamic, keycloak, livekit, service-persistence, textchat
 
 #godotserver
 #horizon
@@ -15,3 +15,4 @@
 #livekit
 #service-persistence
 #service-monitoring
+#textchat

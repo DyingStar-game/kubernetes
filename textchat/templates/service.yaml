@@ -1,0 +1,29 @@
+{{- if .Values.mosquitto.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "textchat.fullname" . }}-mosquitto
+  labels:
+    {{- include "textchat.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mosquitto
+spec:
+  type: {{ .Values.mosquitto.service.type }}
+  ports:
+    - port: {{ .Values.mosquitto.service.mqttPort }}
+      targetPort: mqtt
+      protocol: TCP
+      name: mqtt
+      {{- if and (eq .Values.mosquitto.service.type "NodePort") .Values.mosquitto.service.mqttNodePort }}
+      nodePort: {{ .Values.mosquitto.service.mqttNodePort }}
+      {{- end }}
+    - port: {{ .Values.mosquitto.service.websocketPort }}
+      targetPort: websocket
+      protocol: TCP
+      name: websocket
+      {{- if and (eq .Values.mosquitto.service.type "NodePort") .Values.mosquitto.service.websocketNodePort }}
+      nodePort: {{ .Values.mosquitto.service.websocketNodePort }}
+      {{- end }}
+  selector:
+    {{- include "textchat.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: mosquitto
+{{- end }}

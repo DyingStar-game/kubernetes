@@ -1,0 +1,27 @@
+{{- if .Values.mosquitto.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "textchat.fullname" . }}-mosquitto
+  labels:
+    {{- include "textchat.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mosquitto
+data:
+  mosquitto.conf: |
+    # Mosquitto config for the DyingStar text chat broker.
+    # Log to stdout so kubectl logs / Freelens can read it.
+    log_dest stdout
+    connection_messages true
+
+    # Native MQTT (TCP).
+    listener {{ .Values.mosquitto.service.mqttPort }}
+    protocol mqtt
+
+    # MQTT over WebSocket — this is the port the Godot client connects to.
+    listener {{ .Values.mosquitto.service.websocketPort }}
+    protocol websockets
+
+    # Auth: anonymous in local dev. Production will swap to a JWT-authenticated
+    # image (mosquitto-go-auth validating the Keycloak JWT) and set this to false.
+    allow_anonymous {{ .Values.mosquitto.allowAnonymous }}
+{{- end }}

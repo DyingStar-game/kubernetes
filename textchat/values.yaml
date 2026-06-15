@@ -1,0 +1,37 @@
+# Default values for textchat.
+# MQTT broker (Mosquitto) used by the in-game text chat.
+#
+# Auth roadmap: this base runs the broker ANONYMOUS (no auth), which is enough
+# for local development. Production will swap to a JWT-authenticated image
+# (mosquitto-go-auth validating the Keycloak JWT) — see the textchat plan.
+
+mosquitto:
+  enabled: true
+  image:
+    repository: eclipse-mosquitto
+    tag: "2.0.20"
+    pullPolicy: IfNotPresent
+  # When true, the broker accepts unauthenticated clients. Local dev only.
+  allowAnonymous: true
+  service:
+    type: ClusterIP
+    # Native MQTT (TCP) port.
+    mqttPort: 1883
+    # MQTT-over-WebSocket port — this is the one the Godot client connects to.
+    websocketPort: 9001
+    # NodePorts (only used when service.type is NodePort, e.g. in dev-local).
+    mqttNodePort: ""
+    websocketNodePort: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""

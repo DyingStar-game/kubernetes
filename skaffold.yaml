@@ -366,3 +366,49 @@ deploy:
           - service-monitoring/values.yaml
           - service-monitoring/values-dev-local.yaml
           - service-monitoring/values-dev-local-harbor.yaml
+
+# ─── textchat: official Mosquitto image (no local build) ───────────────────────
+---
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: textchat
+deploy:
+  helm:
+    releases:
+      - name: textchat
+        chartPath: textchat
+        namespace: dyingstar-dev-local
+        createNamespace: true
+        valuesFiles:
+          - textchat/values.yaml
+          - textchat/values-dev-local.yaml
+portForward:
+  - resourceType: Service
+    resourceName: textchat-mosquitto
+    namespace: dyingstar-dev-local
+    port: 9001
+    localPort: 9001
+
+# ─── textchat: harbor alias (same official image, mirrors livekit) ─────────────
+---
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: textchat-harbor
+deploy:
+  helm:
+    releases:
+      - name: textchat
+        chartPath: textchat
+        namespace: dyingstar-dev-local
+        createNamespace: true
+        valuesFiles:
+          - textchat/values.yaml
+          - textchat/values-dev-local.yaml
+portForward:
+  - resourceType: Service
+    resourceName: textchat-mosquitto
+    namespace: dyingstar-dev-local
+    port: 9001
+    localPort: 9001

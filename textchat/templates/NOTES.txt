@@ -1,0 +1,17 @@
+textchat (Mosquitto MQTT broker) deployed to {{ .Release.Namespace }}.
+
+{{- if .Values.mosquitto.enabled }}
+
+The in-game text chat connects over MQTT-over-WebSocket.
+{{- if eq .Values.mosquitto.service.type "NodePort" }}
+  Node (WebSocket): <NodeIP>:{{ .Values.mosquitto.service.websocketNodePort }}
+  Node (MQTT TCP):  <NodeIP>:{{ .Values.mosquitto.service.mqttNodePort }}
+{{- else }}
+  ClusterIP (WebSocket): {{ include "textchat.fullname" . }}-mosquitto:{{ .Values.mosquitto.service.websocketPort }}
+{{- end }}
+
+Local dev: skaffold port-forwards the WebSocket port to 127.0.0.1:{{ .Values.mosquitto.service.websocketPort }}.
+Point the client's client.ini [chat] section at ws://127.0.0.1:{{ .Values.mosquitto.service.websocketPort }}.
+
+Auth: ANONYMOUS (local dev). Production swaps to JWT (mosquitto-go-auth + Keycloak).
+{{- end }}
