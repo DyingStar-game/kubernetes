@@ -1,0 +1,58 @@
+{{- if .Values.mosquitto.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "textchat.fullname" . }}-mosquitto
+  labels:
+    {{- include "textchat.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mosquitto
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "textchat.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: mosquitto
+  template:
+    metadata:
+      annotations:
+        # Roll the pod when the config changes.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+      labels:
+        {{- include "textchat.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: mosquitto
+    spec:
+      serviceAccountName: {{ include "textchat.serviceAccountName" . }}
+      containers:
+        - name: mosquitto
+          image: "{{ .Values.mosquitto.image.repository }}:{{ .Values.mosquitto.image.tag }}"
+          imagePullPolicy: {{ .Values.mosquitto.image.pullPolicy }}
+          ports:
+            - name: mqtt
+              containerPort: {{ .Values.mosquitto.service.mqttPort }}
+              protocol: TCP
+            - name: websocket
+              containerPort: {{ .Values.mosquitto.service.websocketPort }}
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /mosquitto/config/mosquitto.conf
+              subPath: mosquitto.conf
+          {{- with .Values.mosquitto.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            tcpSocket:
+              port: mqtt
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: websocket
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "textchat.fullname" . }}-mosquitto
+{{- end }}
