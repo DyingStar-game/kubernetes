@@ -21,7 +21,32 @@ data:
     listener {{ .Values.mosquitto.service.websocketPort }}
     protocol websockets
 
-    # Auth: anonymous in local dev. Production will swap to a JWT-authenticated
-    # image (mosquitto-go-auth validating the Keycloak JWT) and set this to false.
+    {{- if eq .Values.mosquitto.auth.mode "jwt" }}
+    # JWT mode: every client authenticates with its Keycloak access token (sent as
+    # the MQTT password). go-auth forwards it to the chat-auth adapter, which
+    # validates the signature against Keycloak's JWKS and decides the ACL.
+    allow_anonymous false
+
+    auth_plugin /mosquitto/go-auth.so
+    auth_opt_log_level info
+    auth_opt_backends jwt
+    auth_opt_check_prefix false
+    auth_opt_jwt_mode remote
+    # Do NOT parse/verify the token in the broker — the chat-auth adapter does it
+    # (validates the RS256 signature against Keycloak's JWKS). The client sends the
+    # JWT as the MQTT username; go-auth forwards it as "Authorization: Bearer".
+    auth_opt_jwt_parse_token false
+    auth_opt_jwt_host {{ include "textchat.fullname" . }}-chatauth
+    auth_opt_jwt_port {{ .Values.chatAuth.service.port }}
+    auth_opt_jwt_getuser_uri /user
+    auth_opt_jwt_superuser_uri /superuser
+    auth_opt_jwt_aclcheck_uri /acl
+    auth_opt_jwt_response_mode json
+    auth_opt_jwt_params_mode json
+    auth_opt_jwt_with_tls false
+    auth_opt_jwt_verify_peer false
+    {{- else }}
+    # Anonymous mode (local dev): no authentication.
     allow_anonymous {{ .Values.mosquitto.allowAnonymous }}
+    {{- end }}
 {{- end }}

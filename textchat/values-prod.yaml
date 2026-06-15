@@ -1,0 +1,16 @@
+# Prod overrides for textchat — JWT-authenticated broker.
+# Deployed by CI/CD to the dyingstar-prod namespace.
+
+mosquitto:
+  auth:
+    mode: jwt
+  service:
+    type: ClusterIP
+
+chatAuth:
+  image:
+    repository: harbor.dyingstar-game.space/dyingstar/service-chatauth
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  oidcIssuer: "https://auth.dyingstar-game.com/realms/dyingstar"
+  allowedTopics: "chat/#"
