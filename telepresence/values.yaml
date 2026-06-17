@@ -38,13 +38,9 @@ agentInjector:
   certificate:
     accessMethod: watch
     method: helm
-    altNames:
-      - telepresence.dyngstar.local
 
   service:
-    type: ClusterIP   # Traefik forward en interne, pas besoin de LoadBalancer ici
-    port: ""
-    nodePort: ""
+    type: ClusterIP 
 
   injectPolicy: OnDemand
   mutationAware: true
@@ -58,7 +54,6 @@ agentInjector:
     reinvocationPolicy: IfNeeded
     sideEffects: None
     timeoutSeconds: 10
-    url: "https://telepresence.dyngstar.local:8443/traffic-agent"
 
 agent:
   port: 9900
@@ -90,8 +85,3 @@ intercept:
 
 routeController:
   enabled: true
-
-usage:
-  enabled: false
-  collectorAddress: "usg.tada.se:443"
-  insecure: false
