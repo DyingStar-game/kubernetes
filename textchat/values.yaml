@@ -17,10 +17,13 @@ mosquitto:
     repository: eclipse-mosquitto
     tag: "2.0.20"
     pullPolicy: IfNotPresent
-  # Image for jwt mode (bundles mosquitto + go-auth + websockets).
+  # Image for jwt mode (bundles mosquitto + go-auth + websockets). The original
+  # iegomez/mosquitto-go-auth is unmaintained; use the maintained Ajnasz fork instead. Same
+  # go-auth.so path and auth_opt_* options, so the configmap is unchanged. Tag pinned to the
+  # stable release bundling mosquitto 2.0.x (matches the anonymous-mode eclipse-mosquitto 2.0.x).
   goauthImage:
-    repository: iegomez/mosquitto-go-auth
-    tag: "latest"
+    repository: ghcr.io/ajnasz/mosquitto-go-auth
+    tag: "3.4.0-ajnasz.1-mosquitto_2.0.22"
     pullPolicy: IfNotPresent
   # Used only in anonymous mode.
   allowAnonymous: true
