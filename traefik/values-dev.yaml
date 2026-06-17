@@ -20,6 +20,13 @@ ports:
     transport:
       respondingTimeouts:
         idleTimeout: 3600s
+  telepresence:
+    port: 8443
+    exposedPort: 8443
+    protocol: TCP
+    transport:
+      respondingTimeouts:
+        idleTimeout: 3600s
 
 service:
   enabled: true

@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: telepresence
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: 'oci://ghcr.io/telepresenceio'
+      chart: telepresence-oss
+      targetRevision: 40.3.0
+      helm:
+        valueFiles:
+          - $values/telepresence/values-dev.yaml
+    - repoURL: 'file:///mnt/local-repo.git'
+      targetRevision: HEAD
+      ref: values
+    - repoURL: 'file:///mnt/local-repo.git'
+      targetRevision: HEAD
+      path: telepresence/manifest
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: telepresence
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true

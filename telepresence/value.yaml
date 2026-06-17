@@ -1,0 +1,97 @@
+# ── Déploiement ────────────────────────────────────────────────
+replicaCount: 1
+
+image:
+  registry: ghcr.io/telepresenceio
+  name: tel2
+  pullPolicy: IfNotPresent
+
+securityContext:
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+service:
+  type: ClusterIP
+
+logLevel: debug
+
+grpc:
+  connectionTTL: 24h
+  maxReceiveSize: 4Mi
+
+podCIDRStrategy: coverPodIPs
+
+managerRbac:
+  create: true
+
+timeouts:
+  agentArrival: 60s
+
+# ── Agent Injector ─────────────────────────────────────────────
+agentInjector:
+  enabled: true
+  name: agent-injector
+  secret:
+    name: mutator-webhook-tls
+
+  certificate:
+    accessMethod: watch
+    method: helm
+    altNames:
+      - telepresence.dyngstar.local
+
+  service:
+    type: ClusterIP   # Traefik forward en interne, pas besoin de LoadBalancer ici
+    port: ""
+    nodePort: ""
+
+  injectPolicy: OnDemand
+  mutationAware: true
+
+  webhook:
+    name: agent-injector-webhook
+    admissionReviewVersions: ["v1"]
+    servicePath: /traffic-agent
+    port: 8443
+    failurePolicy: Ignore
+    reinvocationPolicy: IfNeeded
+    sideEffects: None
+    timeoutSeconds: 10
+    url: "https://telepresence.dyngstar.local:8443/traffic-agent"
+
+agent:
+  port: 9900
+  enableH2cProbing: true
+  mountPolicies:
+    "/tmp": Local
+  image:
+    pullPolicy: IfNotPresent
+  initContainer:
+    enabled: true
+
+client:
+  dns:
+    excludeSuffixes: [".com", ".io", ".net", ".org", ".ru"]
+
+workloads:
+  deployments:
+    enabled: true
+  replicaSets:
+    enabled: true
+  statefulSets:
+    enabled: true
+  argoRollouts:
+    enabled: false
+
+intercept:
+  allowGlobalIntercepts: true
+  inactiveBlockTimeout: 10m
+
+routeController:
+  enabled: true
+
+usage:
+  enabled: false
+  collectorAddress: "usg.tada.se:443"
+  insecure: false
