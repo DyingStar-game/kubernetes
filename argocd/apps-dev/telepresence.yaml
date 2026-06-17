@@ -6,9 +6,9 @@ metadata:
 spec:
   project: default
   sources:
-    - repoURL: 'oci://ghcr.io/telepresenceio'
+    - repoURL: 'oci://ghcr.io/telepresenceio/telepresence-oss'
       chart: telepresence-oss
-      targetRevision: 2.21.1
+      targetRevision: 2.21.3
       helm:
         valueFiles:
           - $values/telepresence/values-dev.yaml
