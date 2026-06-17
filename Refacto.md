@@ -52,3 +52,16 @@ kubectl exec -n argocd deploy/argocd-server -c server -- \
   sh -c "argocd login localhost:8080 --username admin --password $ARGOCD_PASSWORD --insecure && \
           argocd app set horizon --source-position 1 -p image.repository -p image.tag -p image.pullPolicy"
 
+
+
+# telepresence 
+
+telepresence connect --namespace dyingstar
+
+telepresence list
+
+telepresence intercept godotserver --port 8980
+
+telepresence leave godotserver
+
+telepresence quit
