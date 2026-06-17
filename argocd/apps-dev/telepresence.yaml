@@ -8,7 +8,7 @@ spec:
   sources:
     - repoURL: 'oci://ghcr.io/telepresenceio'
       chart: telepresence-oss
-      targetRevision: 1.1.1-bogus.overwritten.by.chart.go
+      targetRevision: 2.21.1
       helm:
         valueFiles:
           - $values/telepresence/values-dev.yaml
