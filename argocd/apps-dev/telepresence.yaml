@@ -11,7 +11,7 @@ spec:
       targetRevision: 2.21.3
       helm:
         valueFiles:
-          - $values/telepresence/values-dev.yaml
+          - $values/telepresence/values.yaml
     - repoURL: 'file:///mnt/local-repo.git'
       targetRevision: HEAD
       ref: values
