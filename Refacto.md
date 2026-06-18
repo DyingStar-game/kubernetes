@@ -65,3 +65,10 @@ telepresence intercept godotserver --port 8980
 telepresence leave godotserver
 
 telepresence quit
+
+
+for windows : 
+
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+.\start-dev.ps1
