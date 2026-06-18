@@ -6,7 +6,7 @@ replicaCount: 1
 
 image:
   repository: harbor.dyingstar-game.space/dyingstar/horizon
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
   tag: "develop"
 
 # uncomment if you use godotserver running in local (F5), otherwise horizon will
