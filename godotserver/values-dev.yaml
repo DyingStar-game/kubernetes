@@ -6,7 +6,7 @@ replicaCount: 1
 
 image:
   repository: harbor.dyingstar-game.space/dyingstar/godotserver
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
   tag: "develop"
 
 resources:
