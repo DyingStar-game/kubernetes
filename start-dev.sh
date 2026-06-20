@@ -8,13 +8,9 @@ ROOT_APP_NS="argocd"
 
 # 1. Start Minikube
 echo "--- Starting Minikube ---"
-minikube start --disk-size=150g
+minikube start --disk-size=150g --mount-string $PWD:/mnt/local-repo.git
 
-# 2. Mount local directory (background)
-echo "--- Mounting local directory ---"
-minikube mount "$PWD":/mnt/local-repo.git > /dev/null 2>&1 &
-
-# 3. Initial installation (if not present)
+# 2. Initial installation (if not present)
 if ! helm list -n argocd | grep -q "argocd"; then
     echo "--- Installing ArgoCD and components ---"
     
@@ -33,7 +29,7 @@ else
     echo "--- ArgoCD already installed, skipping installation ---"
 fi
 
-# 4. Check Root App status and Sync if necessary
+# 3. Check Root App status and Sync if necessary
 echo "--- Checking Root Application status ---"
 
 # Wait for the Application CRD to be available
@@ -55,12 +51,12 @@ else
     echo "--- Root App is already Synced ---"
 fi
 
-# 5. Launch tunnel
+# 4. Launch tunnel
 echo "--- Launching tunnel ---"
 # Note: minikube tunnel requires sudo
 sudo -E minikube tunnel > /dev/null 2>&1 &
 
-# 6. Get Traefik IP
+# 5. Get Traefik IP
 echo "--- Retrieving Traefik IP ---"
 IP=""
 while [ -z "$IP" ]; do
@@ -69,7 +65,7 @@ while [ -z "$IP" ]; do
 done
 echo "Traefik IP detected: $IP"
 
-# 7. Wait for Traefik IP
+# 6. Wait for Traefik IP
 echo "--- Waiting for Traefik IP ---"
 IP=""
 while [ -z "$IP" ]; do
@@ -78,7 +74,7 @@ while [ -z "$IP" ]; do
 done
 echo "Traefik IP detected: $IP"
 
-# 8. Update /etc/hosts
+# 7. Update /etc/hosts
 if [ -f "$DOMAINS_FILE" ]; then
     echo "--- Updating /etc/hosts ---"
     while IFS= read -r domain || [ -n "$domain" ]; do

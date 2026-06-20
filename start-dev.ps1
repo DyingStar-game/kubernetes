@@ -8,16 +8,9 @@ $ROOT_APP_NS = "argocd"
 
 # 1. Démarrer Minikube
 Write-Host "--- Démarrage de Minikube ---"
-minikube start --disk-size=150g
+minikube start --disk-size=150g --mount-string "${pwd}:/mnt/local-repo.git"
 
-# 2. Monter le répertoire local (en arrière-plan)
-Write-Host "--- Montage du répertoire local ---"
-$mountJob = Start-Job -ScriptBlock {
-    param($pwd)
-    minikube mount "${pwd}:/mnt/local-repo.git"
-} -ArgumentList $PWD
-
-# 3. Installation initiale (si absente)
+# 2. Installation initiale (si absente)
 $helmList = helm list -n argocd 2>$null
 if (-not ($helmList -match "argocd")) {
     Write-Host "--- Installation d'ArgoCD et des composants ---"
@@ -37,11 +30,21 @@ if (-not ($helmList -match "argocd")) {
     Write-Host "--- ArgoCD déjà installé, installation ignorée ---"
 }
 
-# 4. Vérifier le statut de la Root App et synchroniser si nécessaire
+# 3. Vérifier le statut de la Root App et synchroniser si nécessaire
 Write-Host "--- Vérification du statut de l'application Root ---"
 
 # Attendre que le CRD Application soit disponible
 kubectl wait --for=condition=Established crd/applications.argoproj.io --timeout=60s | Out-Null
+
+Write-Host "Attente du déploiement d'ArgoCD..."
+
+# Attendre argocd-server
+kubectl wait --namespace argocd --for=condition=Available deployment/argocd-server --timeout=300s
+
+# Attendre argocd-repo-server
+kubectl wait --namespace argocd --for=condition=Available deployment/argocd-repo-server --timeout=300s
+
+Write-Host "ArgoCD est prêt !"
 
 # Récupérer le statut de synchronisation
 $SYNC_STATUS = kubectl get application $ROOT_APP_NAME -n $ROOT_APP_NS -o jsonpath='{.status.sync.status}' 2>$null
@@ -50,9 +53,13 @@ if ($SYNC_STATUS -ne "Synced") {
     Write-Host "--- Root App est '$SYNC_STATUS'. Déclenchement de la synchronisation via l'API... ---"
 
     kubectl annotate application $ROOT_APP_NAME -n $ROOT_APP_NS argocd.argoproj.io/refresh=hard --overwrite
-    kubectl patch app $ROOT_APP_NAME -n $ROOT_APP_NS `
-        -p '{"spec":{"syncPolicy":{"automated":{"selfHeal":true,"prune":true}}}}' `
-        --type=merge
+    kubectl patch app $ROOT_APP_NAME -n $ROOT_APP_NS --type=merge -p '
+    spec:
+      syncPolicy:
+        automated:
+          selfHeal: true
+          prune: true
+   '
 
     Write-Host "--- Synchronisation déclenchée. En attente que les ressources soient saines... ---"
     kubectl wait --for=jsonpath='{.status.sync.status}=Synced' `
@@ -61,14 +68,14 @@ if ($SYNC_STATUS -ne "Synced") {
     Write-Host "--- Root App déjà synchronisée ---"
 }
 
-# 5. Lancer le tunnel
+# 4. Lancer le tunnel
 Write-Host "--- Lancement du tunnel ---"
 # Note : minikube tunnel nécessite des droits administrateur (déjà requis en haut du script)
 $tunnelJob = Start-Job -ScriptBlock {
     minikube tunnel
 }
 
-# 6. Récupérer l'IP de Traefik
+# 5. Récupérer l'IP de Traefik
 Write-Host "--- Récupération de l'IP de Traefik ---"
 $IP = ""
 while ([string]::IsNullOrEmpty($IP)) {
@@ -78,30 +85,66 @@ while ([string]::IsNullOrEmpty($IP)) {
 }
 Write-Host "IP Traefik détectée : $IP"
 
-# 7. Mettre à jour le fichier hosts
+# 6. Mettre à jour le fichier hosts
 $HOSTS_FILE = "C:\Windows\System32\drivers\etc\hosts"
+
+function Read-HostsFile {
+    param($Path, $MaxRetries = 5, $DelayMs = 300)
+    for ($i = 0; $i -lt $MaxRetries; $i++) {
+        try {
+            $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+            $reader = New-Object System.IO.StreamReader($stream)
+            $content = $reader.ReadToEnd()
+            $reader.Close()
+            $stream.Close()
+            return $content -split "`r`n|`n"
+        }
+        catch {
+            Start-Sleep -Milliseconds $DelayMs
+        }
+    }
+    throw "Impossible de lire $Path après $MaxRetries tentatives."
+}
+
+function Write-HostsFile {
+    param($Path, $Lines, $MaxRetries = 8, $DelayMs = 400)
+    for ($i = 0; $i -lt $MaxRetries; $i++) {
+        try {
+            $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::Read)
+            $writer = New-Object System.IO.StreamWriter($stream)
+            foreach ($line in $Lines) { $writer.WriteLine($line) }
+            $writer.Flush()
+            $writer.Close()
+            $stream.Close()
+            return $true
+        }
+        catch {
+            Write-Host "    (tentative $($i+1)/$MaxRetries échouée, nouvelle tentative...)"
+            Start-Sleep -Milliseconds $DelayMs
+        }
+    }
+    return $false
+}
 
 if (Test-Path $DOMAINS_FILE) {
     Write-Host "--- Mise à jour de $HOSTS_FILE ---"
-
     $domains = Get-Content $DOMAINS_FILE | Where-Object {
         $_ -notmatch '^\s*$' -and $_ -notmatch '^\s*#'
     }
 
+    $hostsLines = if (Test-Path $HOSTS_FILE) { Read-HostsFile -Path $HOSTS_FILE } else { @() }
+    $hostsContent = [System.Collections.Generic.List[string]]$hostsLines
+
     foreach ($domain in $domains) {
-        # Lire le contenu actuel
-        $hostsContent = Get-Content $HOSTS_FILE
+        $hostsContent = [System.Collections.Generic.List[string]]($hostsContent | Where-Object { $_ -notmatch [regex]::Escape($domain) })
+        $hostsContent.Add("$IP $domain")
+        Write-Host "    -> $domain configuré en mémoire"
+    }
 
-        # Supprimer les entrées existantes pour ce domaine
-        $hostsContent = $hostsContent | Where-Object { $_ -notmatch [regex]::Escape($domain) }
-
-        # Ajouter la nouvelle entrée
-        $hostsContent += "$IP $domain"
-
-        # Écrire le fichier mis à jour
-        $hostsContent | Set-Content $HOSTS_FILE -Encoding ASCII
-
-        Write-Host "   -> $domain configuré"
+    if (Write-HostsFile -Path $HOSTS_FILE -Lines $hostsContent) {
+        Write-Host "--- Fichier hosts enregistré avec succès ! ---"
+    } else {
+        Write-Error "Impossible d'écrire dans le fichier hosts après plusieurs tentatives."
     }
 }
 
