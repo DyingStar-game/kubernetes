@@ -1,0 +1,50 @@
+adminPassword: "devpass"
+
+ingress:
+  enabled: false
+
+extraObjects:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: grafana-httproute
+    spec:
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+          sectionName: websecure
+      hostnames:
+        - grafana.dyingstar.local
+      rules:
+        - matches:
+            - path:
+                type: PathPrefix
+                value: /
+          backendRefs:
+            - name: grafana
+              port: 80
+
+# Configuration de Grafana
+grafana.ini:
+  server:
+    domain: grafana.dyingstar.local
+    root_url: "https://grafana.dyingstar.local/"
+
+# Les datasources doivent être à la racine
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        url: http://prometheus-server.prometheus.svc.cluster.local:80
+        access: proxy
+        isDefault: true
+      - name: Loki
+        type: loki
+        url: http://loki.loki.svc.cluster.local:3100
+        access: proxy
+      - name: Tempo
+        type: tempo
+        url: http://tempo.tempo.svc.cluster.local:3200
+        access: proxy
