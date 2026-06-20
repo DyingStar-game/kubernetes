@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: k8s-monitoring-receiver-ext
+  namespace: k8s-monitoring
+  labels:
+    app.kubernetes.io/name: receiver-ext
+    # Ajoutez ici d'autres labels si Helm en génère par défaut
+spec:
+  # Remplacer les selectors par ceux générés par votre chart Helm
+  selector:
+    app.kubernetes.io/instance: k8s-monitoring-receiver
+    app.kubernetes.io/name: receiver
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+      appProtocol: kubernetes.io/h2c

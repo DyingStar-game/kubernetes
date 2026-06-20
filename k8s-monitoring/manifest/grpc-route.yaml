@@ -1,0 +1,17 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: GRPCRoute
+metadata:
+  name: alloy-otlp-grpc-route
+  namespace: k8s-monitoring
+spec:
+  parentRefs:
+    - name: traefik-gateway 
+      namespace: traefik    
+      sectionName: web
+      
+  hostnames:
+    - otlp.dyingstar.local
+  rules:
+    - backendRefs:
+        - name: k8s-monitoring-receiver-ext
+          port: 4317

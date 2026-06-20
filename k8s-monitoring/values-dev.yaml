@@ -1,0 +1,69 @@
+# Nom de votre cluster (utile si vous avez plusieurs clusters Kubernetes à l'avenir)
+cluster:
+  name: "minikube"
+
+collectors:
+  metrics-collector:
+    presets: [clustered, statefulset] # Deploys as a StatefulSet
+  logs-collector:
+    presets: [filesystem-log-reader, daemonset] # Deploys as a DaemonSet, one per node
+  receiver:
+    presets: [daemonset] # Deploys as a DaemonSet, one per node
+  events-collector:
+    presets: [singleton]
+
+# Définition des destinations (où Alloy va envoyer les données)
+destinations:
+  prometheus:
+    type: prometheus
+    url: http://prometheus-server.prometheus.svc.cluster.local:80/api/v1/push
+
+  loki:
+    type: loki
+    # URL de push pour Loki (port 80 de la gateway Loki)
+    url: http://loki.loki.svc.cluster.local:3100/loki/api/v1/push
+
+  tempo:
+    type: otlp
+    metrics: { enabled: false }
+    logs:    { enabled: false }
+    traces:  { enabled: true }
+    protocol: http
+    url: http://tempo.tempo.svc.cluster.local:4318/v1/traces
+
+# Activation et configuration de la collecte
+clusterMetrics:
+  enabled: true
+  collector: metrics-collector # References the collector defined above
+
+podLogsViaLoki:
+  enabled: true
+  collector: logs-collector # References the collector defined above
+
+nodeMetrics:
+  enabled: true
+  collector: metrics-collector
+
+nodeLogs:
+  enabled: true
+  collector: logs-collector
+
+clusterEvents:
+  enabled: true
+  collector: events-collector
+
+telemetryServices:
+  kube-state-metrics:
+    deploy: true
+    
+applicationObservability:
+  enabled: true
+  collector: receiver
+  receivers:
+    otlp:
+      grpc:
+        enabled: true
+        port: 4317
+      http:
+        enabled: true
+        port: 4318

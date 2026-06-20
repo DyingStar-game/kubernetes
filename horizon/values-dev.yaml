@@ -1,7 +1,3 @@
-# Local dev overrides for horizon (minikube)
-# Usage: helm upgrade --install -n dyingstar-dev-local horizon ./horizon -f horizon/values-dev-local.yaml
-# Or via Skaffold: skaffold dev -p horizon
-
 replicaCount: 1
 
 image:
@@ -34,7 +30,6 @@ extraEnv:
 service:
   type: ClusterIP
   externalTrafficPolicy: ""
-  #nodePort: 30100
 
 pluginsImage:
   enabled: true

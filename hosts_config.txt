@@ -4,3 +4,4 @@ grafana.dyingstar.local
 telepresence.dyingstar.local
 chat.dyingstar.local
 vocal.dyingstar.local
+otlp.dyingstar.local
