@@ -8,7 +8,8 @@ Helm charts for the **DyingStar** gaming platform microservices.
 |-------------|-----------|---------------|---------|
 | **Production** | `dyingstar-prod` | `repository_dispatch` from service repos | for the production |
 | **Preprod** | `dyingstar-preprod` | `repository_dispatch` from service repos | for preproduction, so code validated but not yet released |
-| **Dev Local** | `dyingstar` | Manual `helm install` | Skaffold on minikube | for run the game localy, mainly for developpers | 
+| **Dev Shared** | `dyingstar-dev-shared` | Manual `helm install` | for services used by all developpers, like Postgis |
+| **Dev Local** | `dyingstar-dev-local` | Skaffold on minikube | for run the game localy, mainly for developpers | 
 
 ## Charts
 
@@ -39,14 +40,14 @@ Helm charts for the **DyingStar** gaming platform microservices.
 ├── dev-services/                  # Helm chart (shared dev infra)
 ├── skaffold.yaml                  # Local dev orchestration
 ├── dev.sh                         # Local dev wrapper script
-└── dev.conf.example         # Config template: Harbor vs local build
+└── dev-local.conf.example         # Config template: Harbor vs local build
 ```
 
 Each chart contains:
 - `values.yaml` — base (env-neutral) defaults
 - `values-prod.yaml` — production overrides
 - `values-preprod.yaml` — preprod overrides
-- `values-dev.yaml` — local dev overrides (minikube)
+- `values-dev-local.yaml` — local dev overrides (minikube)
 
 ---
 
@@ -127,7 +128,6 @@ It permit to have something very close to the preprod and prod and working on sa
   - `../services/livekit` — livekit
   - `../services/persistence` — service-persistence
 - [freelens](https://freelensapp.github.io/), used to manage pods and deployments in an UI
-- [k9s](https://k9scli.io/), used to manage cluster without ui on cli tools
 
 ### Quick Start
 
