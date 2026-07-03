@@ -42,7 +42,8 @@ redis:
         cpu: 200m
         memory: 256Mi
 
-hostNetwork: false
+hostNetwork: true
+dnsPolicy: ClusterFirstWithHostNet
 
 # Gateway API HTTPRoute (alternative to ingress).
 httpRoute:
