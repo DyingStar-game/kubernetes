@@ -1,0 +1,29 @@
+mosquitto:
+  auth:
+    mode: anonymous
+  service:
+    type: ClusterIP
+
+chatAuth:
+  image:
+    repository: harbor.dyingstar-game.space/dyingstar/service-chatauth
+    tag: "develop"
+    pullPolicy: IfNotPresent
+  oidcIssuer: "https://auth-preprod.dyingstar-game.com/realms/dyingstar"
+  allowedTopics: "chat/#"
+
+
+httpRoute:
+  enabled: true
+  annotations: {}
+  parentRefs:
+    - name: traefik-gateway 
+      namespace: traefik    
+      sectionName: web      
+  hostnames:
+    - "chat.dyingstar.local"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
