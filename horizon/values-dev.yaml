@@ -16,6 +16,20 @@ extraEnv:
   #   value: "host.minikube.internal"
   - name: BYPASS_AUTH
     value: "true"
+  - name: LIVEKIT_URL
+    value: "ws://vocal.dyingstar.local"
+  - name: LIVEKIT_API_URL
+    value: "http://livekit:7880"
+  - name: LIVEKIT_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: livekit-keys
+        key: LIVEKIT_API_KEY
+  - name: LIVEKIT_API_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: livekit-keys
+        key: LIVEKIT_API_SECRET
 
 service:
   type: ClusterIP
@@ -50,19 +64,3 @@ resources:
   limits:
     cpu: 4
     memory: 2Gi
-
-extraEnv:
-  - name: LIVEKIT_URL
-    value: "ws://vocal.dyingstar.local"
-  - name: LIVEKIT_API_URL
-    value: "http://livekit:7880"
-  - name: LIVEKIT_API_KEY
-    valueFrom:
-      secretKeyRef:
-        name: livekit-keys
-        key: LIVEKIT_API_KEY
-  - name: LIVEKIT_API_SECRET
-    valueFrom:
-      secretKeyRef:
-        name: livekit-keys
-        key: LIVEKIT_API_SECRET
