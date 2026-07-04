@@ -22,6 +22,7 @@ image:
 # hostNetwork=true is the practical pattern for WebRTC on K8s — node IP is
 # advertised directly and UDP traverses without NAT translation.
 hostNetwork: true
+dnsPolicy: ClusterFirstWithHostNet
 
 service:
   type: ClusterIP
@@ -57,18 +58,18 @@ redis:
       enabled: true
       size: 2Gi
 
-# TLS is terminated by the external nginx — no in-cluster TLS or cert-manager.
-ingress:
+# Gateway API HTTPRoute (alternative to ingress).
+httpRoute:
   enabled: true
-  className: nginx
-  annotations:
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-  hosts:
-    - host: vocal-preprod.dyingstar-game.space
-      paths:
-        - path: /
-          pathType: Prefix
-
-ingressService:
-  enabled: false
+  annotations: {}
+  parentRefs:
+    - name: traefik-gateway
+      namespace: traefik
+      sectionName: web
+  hostnames:
+    - "vocal-preprod.dyingstar-game.space"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /

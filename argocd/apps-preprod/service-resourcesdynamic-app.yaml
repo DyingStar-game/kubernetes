@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: service-resourcesdynamic
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
+    path: service-resourcesdynamic
+    targetRevision: main
+    helm:
+      valueFiles:
+        - $values/service-resourcesdynamic/values-preprod.yaml
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: dyingstar-preprod
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true

@@ -14,3 +14,18 @@ chatAuth:
     pullPolicy: IfNotPresent
   oidcIssuer: "https://auth-preprod.dyingstar-game.com/realms/dyingstar"
   allowedTopics: "chat/#"
+
+httpRoute:
+  enabled: true
+  annotations: {}
+  parentRefs:
+    - name: traefik-gateway 
+      namespace: traefik    
+      sectionName: web      
+  hostnames:
+    - "chat.dyingstar-game.com"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
