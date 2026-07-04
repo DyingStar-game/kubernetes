@@ -1,27 +1,22 @@
-controller:
-  replicas: 1
-
 configs:
-  params:
-   server.insecure: true
   secret:
     argocdServerAdminPassword: $2a$10$DGjIUCWlfkG1egqOPGEjM.smmsNs4aFjTKe.5/wbp7Q51O7sz8CM2
 
 server:
-  replicas: 1
-  httproute:
-    enabled: true
-    parentRefs:
-      - name: traefik-gateway
-        namespace: traefik
-        sectionName: websecure
-    hostnames:
-      - "argocd.dyingstar.local"
-    rules:
-      - matches:
-          - path:
-              type: PathPrefix
-              value: /
+ httproute:
+  enabled: true
+  parentRefs:
+    - name: traefik-gateway
+      namespace: traefik
+      sectionName: websecure
+  hostnames:
+    - "argocd.dyingstar.local"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+
 repoServer:
   replicas: 1
   volumes:
@@ -32,11 +27,6 @@ repoServer:
   volumeMounts:
     - name: local-repo
       mountPath: /mnt/local-repo.git
-
-applicationSet:
-  replicas: 1
-
-
 
 extraObjects:
 - apiVersion: v1

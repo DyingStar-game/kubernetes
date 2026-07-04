@@ -1,0 +1,30 @@
+server:
+ httproute:
+  enabled: true
+  parentRefs:
+    - name: traefik-gateway
+      namespace: traefik
+      sectionName: argocd
+  hostnames:
+    - "argocd.dyingstar-game.com"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+
+extraObjects:
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: kubernetes
+    namespace: argocd
+    labels:
+      argocd.argoproj.io/secret-type: repository
+    annotations:
+      managed-by: argocd.argoproj.io
+  type: Opaque
+  stringData:
+    type: git
+    name: kubernetes
+    url: https://github.com/DyingStar-game/kubernetes.git

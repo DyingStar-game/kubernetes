@@ -22,8 +22,9 @@ httpRoute:
   hostnames:
     - server-preprod.dyingstar-game.space
   parentRefs:
-    - name: gateway
-      sectionName: http
+    - name: traefik-gateway 
+      namespace: traefik    
+      sectionName: web 
   rules:
     - matches:
         - path:
