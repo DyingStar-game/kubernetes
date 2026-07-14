@@ -54,7 +54,7 @@ fi
 # 4. Launch tunnel
 echo "--- Launching tunnel ---"
 # Note: minikube tunnel requires sudo
-sudo -E minikube tunnel > /dev/null 2>&1 &
+sudo HOME=$HOME minikube tunnel > /dev/null 2>&1 &
 
 # 5. Get Traefik IP
 echo "--- Retrieving Traefik IP ---"
