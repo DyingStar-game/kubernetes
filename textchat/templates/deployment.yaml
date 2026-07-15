@@ -28,6 +28,7 @@ spec:
       containers:
         - name: mosquitto
           image: "{{ $image.repository }}:{{ $image.tag }}"
+          args: ["-c", "/etc/mosquitto/mosquitto.conf"]
           imagePullPolicy: {{ $image.pullPolicy }}
           ports:
             - name: mqtt
@@ -41,8 +42,10 @@ spec:
             runAsGroup: 1883
           volumeMounts:
             - name: config
-              mountPath: {{ $confPath }}
-              subPath: mosquitto.conf
+              mountPath: /etc/mosquitto
+            #- name: config
+            #  mountPath: {{ $confPath }}
+            #  subPath: mosquitto.conf
           {{- with .Values.mosquitto.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
