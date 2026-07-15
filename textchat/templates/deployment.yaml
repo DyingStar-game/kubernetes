@@ -1,7 +1,7 @@
 {{- if .Values.mosquitto.enabled }}
 {{- $jwt := eq .Values.mosquitto.auth.mode "jwt" }}
 {{- $image := ternary .Values.mosquitto.goauthImage .Values.mosquitto.image $jwt }}
-{{- $confPath := ternary "/etc/mosquitto/mosquitto.conf" "/mosquitto/config/mosquitto.conf" $jwt }}
+{{- $confPath := ternary "/etc/mosquitto/" "/mosquitto/config/" $jwt }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
