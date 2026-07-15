@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak-operator-official
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/keycloak/keycloak-k8s-resources.git'
+    targetRevision: 26.7.0
+    path: kubernetes
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: keycloak-operator
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
