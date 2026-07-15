@@ -61,4 +61,5 @@ spec:
         - name: config
           configMap:
             name: {{ include "textchat.fullname" . }}-mosquitto
+            defaultMode: 0644
 {{- end }}
