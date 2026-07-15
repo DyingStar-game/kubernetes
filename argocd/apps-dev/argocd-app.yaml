@@ -11,6 +11,7 @@ spec:
       targetRevision: 9.5.21
       helm:
         valueFiles:
+          - $values/argocd/values.yaml
           - $values/argocd/values-dev.yaml
     - repoURL: 'file:///mnt/local-repo.git'
       targetRevision: HEAD
