@@ -1,7 +1,7 @@
 {{- if .Values.mosquitto.enabled }}
 {{- $jwt := eq .Values.mosquitto.auth.mode "jwt" }}
 {{- $image := ternary .Values.mosquitto.goauthImage .Values.mosquitto.image $jwt }}
-{{- $confPath := ternary "/etc/mosquitto/" "/mosquitto/config/" $jwt }}
+{{- $confPath := ternary "/etc/mosquitto/mosquitto.conf" "/mosquitto/config/mosquitto.conf" $jwt }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -36,12 +36,10 @@ spec:
             - name: websocket
               containerPort: {{ .Values.mosquitto.service.websocketPort }}
               protocol: TCP
-          securityContext:
-            runAsUser: 1883
-            runAsGroup: 1883
           volumeMounts:
             - name: config
               mountPath: {{ $confPath }}
+              subPath: mosquitto.conf
           {{- with .Values.mosquitto.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -60,5 +58,4 @@ spec:
         - name: config
           configMap:
             name: {{ include "textchat.fullname" . }}-mosquitto
-            defaultMode: 0644
 {{- end }}
