@@ -25,8 +25,8 @@ ports:
 
 service:
   enabled: true
-  type: NodePort
   spec:
+    type: NodePort
     externalTrafficPolicy: Local
 logs:
   general:
