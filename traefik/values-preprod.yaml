@@ -42,7 +42,7 @@ gateway:
   enabled: true 
   name: traefik-gateway 
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-issuer"
+    cert-manager.io/cluster-issuer: "letsencrypt"
   listeners:
     web:
       port: 80
