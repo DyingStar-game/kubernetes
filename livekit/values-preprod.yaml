@@ -21,14 +21,14 @@ image:
 
 # hostNetwork=true is the practical pattern for WebRTC on K8s — node IP is
 # advertised directly and UDP traverses without NAT translation.
-hostNetwork: true
-dnsPolicy: ClusterFirstWithHostNet
+# hostNetwork: true
+# dnsPolicy: ClusterFirstWithHostNet
 
-service:
-  type: ClusterIP
-  port: 7880
-  rtcTcpPort: 7881
-  rtcUdpPort: 7882
+# service:
+#   type: ClusterIP
+#   port: 7880
+#   rtcTcpPort: 7881
+#   rtcUdpPort: 7882
 
 resources:
   requests:
@@ -42,12 +42,12 @@ livekit:
   existingKeysSecret: livekit-keys
   logLevel: info
   turn:
-    enabled: true
-    tls: true
-    domain: vocal-preprod.dyingstar-game.space
-    udpPort: 3478
-    tlsPort: 5349
-    tlsSecretName: livekit-turn-tls
+    enabled: false
+    # tls: true
+    # domain: vocal-preprod.dyingstar-game.space
+    # udpPort: 3478
+    # tlsPort: 5349
+    # tlsSecretName: livekit-turn-tls
 
 redis:
   enabled: true
