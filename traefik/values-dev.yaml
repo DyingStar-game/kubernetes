@@ -30,8 +30,8 @@ ports:
 
 service:
   enabled: true
-  type: LoadBalancer
   spec:
+    type: LoadBalancer
     externalTrafficPolicy: Local
 logs:
   general:
