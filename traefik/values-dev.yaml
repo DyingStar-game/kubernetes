@@ -52,7 +52,6 @@ gateway:
     web:
       port: 80
       protocol: HTTP
-      hostname: "*.dyingstar.local"
       namespacePolicy:
         from: All
     websecure:
