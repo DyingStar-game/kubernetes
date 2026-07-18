@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
     path: godotserver
-    targetRevision: main
+    targetRevision: refacto-and-kube-best-practice
     helm:
       valueFiles:
         - $values/godotserver/values-preprod.yaml

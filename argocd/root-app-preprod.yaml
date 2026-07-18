@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     repoURL: 'https://github.com/DyingStar-game/kubernetes.git'
-    targetRevision: main
+    targetRevision: refacto-and-kube-best-practice
     path: argocd/apps-preprod
   destination:
     server: 'https://kubernetes.default.svc'

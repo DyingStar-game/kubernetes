@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
     path: livekit
-    targetRevision: main
+    targetRevision: refacto-and-kube-best-practice
     helm:
       valueFiles:
         - $values/livekit/values-preprod.yaml
