@@ -11,6 +11,10 @@ spec:
   hostnames:
     - "auth-preprod.dyingstar-game.com"
   rules:
-    backendRefs:
-      - name: keycloak
-        port: 8080
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: keycloak
+          port: 8080
