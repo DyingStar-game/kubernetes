@@ -33,21 +33,23 @@ keycloak:
     enabled: true
     existingSecret: keycloak-discord
 
+# Exposure is handled by Traefik via the Gateway API, not by an Ingress:
+#   - HTTPRoute:  keycloak/manifests/httproute.yaml (synced by the keycloak ArgoCD app)
+#   - Listener:   traefik/values-preprod.yaml, listener "keycloak"
+#   - TLS:        cert-manager gateway-shim issues the keycloak-tls Secret into the
+#                 traefik namespace, the same way argocd-tls and harbor-tls are issued.
+#
+# This Ingress previously issued keycloak-tls into dyingstar-preprod via the
+# ingress-shim. It is disabled because it no longer works and actively competes for
+# the hostname: there is no nginx controller in this cluster, and the ClusterIssuer it
+# referenced (letsencrypt-prod) was renamed to "letsencrypt" in cert-manager/values-preprod.yaml,
+# so renewal has been failing since the last issuance on 2026-06-17.
+#
+# Note: the Gateway listener's certificateRefs resolve in the *Gateway's* namespace
+# (traefik), so the old keycloak-tls Secret in dyingstar-preprod is a different Secret
+# that Traefik will never read, despite the identical name.
 ingress:
-  enabled: true
-  className: nginx
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
-  hosts:
-    - host: auth-preprod.dyingstar-game.com
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - secretName: keycloak-tls
-      hosts:
-        - auth-preprod.dyingstar-game.com
+  enabled: false
 
 postgresql:
   enabled: true
