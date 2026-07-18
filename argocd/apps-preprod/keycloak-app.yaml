@@ -11,7 +11,7 @@ spec:
       path: keycloak/manifests
   destination:
     server: 'https://kubernetes.default.svc'
-    namespace: keycloak
+    namespace: dyingstar-preprod
   syncPolicy:
     automated:
       prune: true
