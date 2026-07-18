@@ -8,5 +8,9 @@ extraObjects:
     kind: ClusterIssuer
     metadata:
       name: local-selfsigned-issuer
+      annotations:
+        # Applied only once cert-manager (wave 0) is Healthy, otherwise the
+        # cert-manager.io validating webhook is not reachable yet.
+        argocd.argoproj.io/sync-wave: "10"
     spec:
       selfSigned: {}
