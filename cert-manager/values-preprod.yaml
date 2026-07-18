@@ -1,6 +1,9 @@
-installCRDs: true
-extraArgs:
-  - --enable-gateway-api
+crds:
+  enabled: true
+
+config:
+ gatewayAPI:
+    enable: true
 
 extraObjects:
   - |

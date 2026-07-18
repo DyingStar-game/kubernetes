@@ -1,5 +1,5 @@
 deployment:
-  replicas: 3
+  replicas: 2
 
 ingressRoute:
   dashboard:
@@ -60,3 +60,13 @@ gateway:
       certificateRefs:
         - kind: Secret
           name: argocd-tls
+    harbor:
+      port: 443
+      protocol: HTTPS
+      hostname: "harbor.dyingstar-game.space"
+      namespacePolicy:
+        from: All
+      mode: Terminate
+      certificateRefs:
+        - kind: Secret
+          name: harbor-tls
