@@ -47,7 +47,6 @@ gateway:
     web:
       port: 80
       protocol: HTTP
-      hostname: "*.dyingstar-game.space"
       namespacePolicy:
         from: All
     argocd:
