@@ -9,7 +9,7 @@ mosquitto:
 
 chatAuth:
   image:
-    repository: harbor.dyingstar-game.space/dyingstar/service-chatauth
+    repository: harbor.dyingstar-game.space/dyingstar/chatauth
     tag: "develop"
     pullPolicy: IfNotPresent
   oidcIssuer: "https://auth-preprod.dyingstar-game.com/realms/dyingstar"
