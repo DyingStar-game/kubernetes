@@ -1,0 +1,98 @@
+# Harbor — container registry for dyingstar-game.space
+#
+# Exposed through the Traefik Gateway (Gateway API), not an Ingress.
+# The `harbor` listener on traefik-gateway terminates TLS for
+# harbor.dyingstar-game.space; its certificate is issued automatically by
+# cert-manager's gateway-shim via the `cert-manager.io/cluster-issuer`
+# annotation on the Gateway (see traefik/values-preprod.yaml).
+# Harbor therefore serves plain HTTP internally — do not enable expose.tls.
+
+expose:
+  type: route
+  tls:
+    # TLS terminates at the Gateway, not at Harbor.
+    enabled: false
+  route:
+    parentRefs:
+      - name: traefik-gateway
+        namespace: traefik
+        sectionName: harbor
+        kind: Gateway
+        group: gateway.networking.k8s.io
+    hosts:
+      - harbor.dyingstar-game.space
+
+# Must match the public URL clients use, otherwise docker login / push break.
+externalURL: https://harbor.dyingstar-game.space
+
+# ---------------------------------------------------------------------------
+# Secrets
+#
+# The Harbor chart generates several values with randAlphaNum / htpasswd /
+# genCA, falling back to a `lookup` of the live secret. Argo CD renders with
+# `helm template` and has NO cluster access, so `lookup` always returns empty
+# and those fields are regenerated on EVERY render. Left unpinned, each sync
+# would rotate the registry HTTP secret, the CSRF key, the jobservice secret,
+# the registry htpasswd and the token-signing CA — breaking pushes/pulls and
+# logging every user out.
+#
+# Pinning them to pre-existing secrets makes rendering deterministic. These
+# must NOT be the chart-managed secrets (harbor-core, harbor-registry,
+# harbor-jobservice): the chart omits each key whenever an existing secret is
+# referenced, so it would delete the very key it is reading.
+#
+# Both secrets are created out-of-band by ./bootstrap-secrets.sh, which copies
+# the values from the running install so nothing changes on adoption. They are
+# deliberately not in git.
+# ---------------------------------------------------------------------------
+
+# Key must be named `secretKey`.
+# WARNING: encrypts robot tokens and registry credentials in the Harbor DB.
+# Changing it invalidates that data — follow Harbor's key-rotation procedure.
+existingSecretSecretKey: harbor-bootstrap
+
+# NOTE: only seeds the admin password on FIRST install. On an existing
+# instance the live password lives in the Harbor DB — rotate it through the
+# Harbor UI/API, not by editing this secret.
+existingSecretAdminPassword: harbor-bootstrap
+existingSecretAdminPasswordKey: HARBOR_ADMIN_PASSWORD
+
+core:
+  # Key must be named `secret`. Shared between core, registry and jobservice.
+  existingSecret: harbor-bootstrap
+  existingXsrfSecret: harbor-bootstrap
+  existingXsrfSecretKey: CSRF_KEY
+  # Token-signing CA — keys `tls.crt` / `tls.key`. Mounted whole, so it needs
+  # its own secret rather than sharing harbor-bootstrap.
+  secretName: harbor-token-ca
+
+registry:
+  existingSecret: harbor-bootstrap
+  existingSecretKey: REGISTRY_HTTP_SECRET
+  credentials:
+    # Keys must be named REGISTRY_PASSWD and REGISTRY_HTPASSWD.
+    existingSecret: harbor-bootstrap
+
+jobservice:
+  existingSecret: harbor-bootstrap
+  existingSecretKey: JOBSERVICE_SECRET
+
+# ---------------------------------------------------------------------------
+# Storage — sizes mirror what is currently bound in the cluster.
+# storageClass is left empty to use the cluster default (local-path).
+# ---------------------------------------------------------------------------
+persistence:
+  enabled: true
+  persistentVolumeClaim:
+    registry:
+      # 5Gi is small for a registry; raise before it fills up.
+      size: 5Gi
+    jobservice:
+      jobLog:
+        size: 1Gi
+    database:
+      size: 1Gi
+    redis:
+      size: 1Gi
+    trivy:
+      size: 5Gi
