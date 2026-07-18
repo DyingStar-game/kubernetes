@@ -47,9 +47,9 @@ service:
   # ICE/UDP single-port mux (LiveKit can run all media through one UDP port).
   rtcUdpPort: 7882
   # NodePorts (used when type=NodePort)
-  nodePort: "37880"
-  rtcTcpNodePort: "37881"
-  rtcUdpNodePort: "37882"
+  nodePort: "30880"
+  rtcTcpNodePort: "30881"
+  rtcUdpNodePort: "30882"
 
 livekit:
   existingKeysSecret: livekit-keys
