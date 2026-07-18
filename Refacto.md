@@ -152,10 +152,10 @@ Install Gateway API and ArgoCD:
 
 ```bash
 # Apply Kubernetes Gateway API standard install
-kubectl apply -f [https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.5.1/standard-install.yaml](https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.5.1/standard-install.yaml)
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.5.1/standard-install.yaml
 
 # Add official ArgoCD Helm repository
-helm repo add argo [https://argoproj.github.io/argo-helm](https://argoproj.github.io/argo-helm)
+helm repo add argo https://argoproj.github.io/argo-helm
 helm repo update
 
 # Install ArgoCD configured for local Minikube mounts
@@ -163,7 +163,7 @@ helm install argocd argo/argo-cd \
   --namespace argocd \
   --create-namespace \
   -f argocd/values.yaml \
-  -f argocd/values-dev-local.yaml 
+  -f argocd/values-dev.yaml 
 
 # Apply ArgoCD root application
 kubectl apply -f argocd/root-app-dev.yaml
