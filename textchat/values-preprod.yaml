@@ -23,7 +23,7 @@ httpRoute:
       namespace: traefik    
       sectionName: web      
   hostnames:
-    - "chat.dyingstar-game.com"
+    - "chat-preprod.dyingstar-game.space"
   rules:
     - matches:
         - path:

@@ -14,7 +14,7 @@ spec:
           - $values/argocd/values.yaml
           - $values/argocd/values-preprod.yaml
     - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
-      targetRevision: main
+      targetRevision: refacto-and-kube-best-practice
       ref: values
   destination:
     server: 'https://kubernetes.default.svc'

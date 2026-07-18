@@ -6,7 +6,7 @@ server:
       namespace: traefik
       sectionName: argocd
   hostnames:
-    - "argocd.dyingstar-game.com"
+    - "argocd.dyingstar-game.space"
   rules:
     - matches:
         - path:
