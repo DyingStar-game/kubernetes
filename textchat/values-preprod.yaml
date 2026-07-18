@@ -3,7 +3,7 @@
 
 mosquitto:
   auth:
-    mode: jwt
+    mode: anonymous
   service:
     type: ClusterIP
 
