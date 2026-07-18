@@ -70,3 +70,13 @@ gateway:
       certificateRefs:
         - kind: Secret
           name: harbor-tls
+    keycloak:
+      port: 443
+      protocol: HTTPS
+      hostname: "auth-preprod.dyingstar-game.com"
+      namespacePolicy:
+        from: All
+      mode: Terminate
+      certificateRefs:
+        - kind: Secret
+          name: keycloak-tls
