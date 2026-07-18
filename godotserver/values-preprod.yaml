@@ -1,7 +1,7 @@
 # Preprod overrides for godotserver
 # Usage: helm upgrade --install -n dyingstar-preprod godotserver ./godotserver -f godotserver/values-preprod.yaml
 
-replicaCount: 5
+replicaCount: 2
 
 image:
   repository: harbor.dyingstar-game.space/dyingstar/godotserver
@@ -10,11 +10,11 @@ image:
 
 resources:
   requests:
-    cpu: 500m
-    memory: 1Gi
-  limits:
     cpu: 4
-    memory: 8Gi
+    memory: 2Gi
+  limits:
+    cpu: 20
+    memory: 12Gi
 
 # Disable the gdb crash-debug wrapper in preprod (lower overhead).
 # Set to "1" temporarily via `kubectl set env` to debug a crash.
