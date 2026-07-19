@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: 'https://grafana-community.github.io/helm-charts'
+      chart: grafana
+      targetRevision: 12.4.8
+      helm:
+        valueFiles:
+          - $values/grafana/values-preprod.yaml
+    - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
+      targetRevision: refacto-and-kube-best-practice
+      ref: values
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true

@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prometheus
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: 'https://prometheus-community.github.io/helm-charts'
+      chart: prometheus
+      targetRevision: 29.13.0
+      helm:
+        valueFiles:
+          - $values/prometheus/values-preprod.yaml
+    - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
+      targetRevision: refacto-and-kube-best-practice
+      ref: values
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true

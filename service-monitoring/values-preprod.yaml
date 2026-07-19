@@ -7,6 +7,9 @@ image:
 serviceMonitor:
   enabled: true
 
+podAnnotations: 
+  k8s.grafana.com/scrape: "true"
+
 resources:
   requests:
     cpu: 50m

@@ -1,0 +1,26 @@
+# Désactiver Alertmanager
+alertmanager:
+  enabled: false
+
+# Désactiver Kube-State-Metrics
+kube-state-metrics:
+  enabled: false
+
+# Désactiver Node-Exporter (si vous n'en avez pas besoin pour les métriques hôtes)
+nodeExporter:
+  enabled: false
+
+# Désactiver le Pushgateway
+pushgateway:
+  enabled: false
+
+# Vous pouvez également réduire le serveur si nécessaire
+server:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "512Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
