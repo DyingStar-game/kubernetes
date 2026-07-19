@@ -11,13 +11,13 @@ spec:
       targetRevision: 4.1.6
       helm:
         valueFiles:
-          - $values/k8s-monitoring/dev/values.yaml
-    - repoURL: 'file:///mnt/local-repo.git'
-      targetRevision: HEAD
+          - $values/k8s-monitoring/preprod/values.yaml
+    - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
+      targetRevision: refacto-and-kube-best-practice
       ref: values
-    - repoURL: 'file:///mnt/local-repo.git'
-      targetRevision: HEAD
-      path: k8s-monitoring/dev/manifests
+    - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
+      targetRevision: refacto-and-kube-best-practice
+      path: k8s-monitoring/preprod/manifests
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: k8s-monitoring

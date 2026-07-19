@@ -79,3 +79,13 @@ gateway:
       certificateRefs:
         - kind: Secret
           name: keycloak-tls
+    grafana:
+      port: 443
+      protocol: HTTPS
+      hostname: "grafana.dyingstar-game.space"
+      namespacePolicy:
+        from: All
+      mode: Terminate
+      certificateRefs:
+        - kind: Secret
+          name: grafana-tls

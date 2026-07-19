@@ -1,0 +1,48 @@
+ingress:
+  enabled: false
+
+extraObjects:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: grafana-httproute
+    spec:
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+          sectionName: websecure
+      hostnames:
+        - grafana.dyingstar-game.space
+      rules:
+        - matches:
+            - path:
+                type: PathPrefix
+                value: /
+          backendRefs:
+            - name: grafana
+              port: 80
+
+# Configuration de Grafana
+grafana.ini:
+  server:
+    domain: grafana.dyingstar-game.space
+    root_url: "https://grafana.dyingstar-game.space/"
+
+# Les datasources doivent être à la racine
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        url: http://prometheus-server:80
+        access: proxy
+        isDefault: true
+      - name: Loki
+        type: loki
+        url: http://loki:3100
+        access: proxy
+      - name: Tempo
+        type: tempo
+        url: http://tempo:3200
+        access: proxy
