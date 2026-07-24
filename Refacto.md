@@ -191,6 +191,10 @@ If you need to build and use local Docker images without pushing them to a regis
 eval $(minikube -p minikube docker-env)
 
 # Build your image directly inside Minikube
-docker build -t my-project/frontend:local .
+docker build -t service-resourcesdynamic:dev .
 
+kubectl patch deployment service-resourcesdynamic -n dyingstar --type='json' -p='[
+  {"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "Never"},
+  {"op": "replace", "path": "/spec/template/spec/containers/0/image", "value": "service-resourcesdynamic:dev"}
+]'
 ```
