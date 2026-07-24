@@ -1,24 +1,23 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: traefik
+  name: grafana
   namespace: argocd
 spec:
-  project: default
+  project: observability
   sources:
-    - repoURL: 'https://traefik.github.io/charts'
-      chart: traefik
-      targetRevision: 40.3.0
+    - repoURL: 'https://grafana-community.github.io/helm-charts'
+      chart: grafana
+      targetRevision: 12.4.8
       helm:
         valueFiles:
-          - $values/traefik/values-dev.yaml
+          - $values/grafana/values-dev.yaml
     - repoURL: 'file:///mnt/local-repo.git'
       targetRevision: HEAD
       ref: values
   destination:
     server: 'https://kubernetes.default.svc'
-    namespace: traefik
-
+    namespace: grafana
   syncPolicy:
     automated:
       prune: true

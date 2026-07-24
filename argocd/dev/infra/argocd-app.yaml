@@ -1,23 +1,25 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: tempo
+  name: argocd
   namespace: argocd
 spec:
-  project: default
+  project: infra
   sources:
-    - repoURL: 'https://grafana-community.github.io/helm-charts'
-      chart: tempo
-      targetRevision: 2.2.3
+    - repoURL: 'https://argoproj.github.io/argo-helm'
+      chart: argo-cd
+      targetRevision: 9.5.21
       helm:
         valueFiles:
-          - $values/tempo/values-dev.yaml
+          - $values/argocd/values.yaml
+          - $values/argocd/values-dev.yaml
     - repoURL: 'file:///mnt/local-repo.git'
       targetRevision: HEAD
       ref: values
   destination:
     server: 'https://kubernetes.default.svc'
-    namespace: tempo
+    namespace: argocd
+
   syncPolicy:
     automated:
       prune: true

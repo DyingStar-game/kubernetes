@@ -1,17 +1,17 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: service-persistence
+  name: textchat
   namespace: argocd
 spec:
-  project: default
+  project: game
   source:
     repoURL: 'file:///mnt/local-repo.git'
-    path: service-persistence
+    path: textchat
     targetRevision: HEAD
     helm:
       valueFiles:
-        - $values/service-persistence/values-dev.yaml
+        - $values/textchat/values-dev.yaml
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: dyingstar

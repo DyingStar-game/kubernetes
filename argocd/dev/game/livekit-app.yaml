@@ -1,17 +1,17 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: textchat
+  name: livekit
   namespace: argocd
 spec:
-  project: default
+  project: game
   source:
     repoURL: 'file:///mnt/local-repo.git'
-    path: textchat
+    path: livekit
     targetRevision: HEAD
     helm:
       valueFiles:
-        - $values/textchat/values-dev.yaml
+        - $values/livekit/values-dev.yaml
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: dyingstar

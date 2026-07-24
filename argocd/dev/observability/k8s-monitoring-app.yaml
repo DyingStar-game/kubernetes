@@ -1,23 +1,26 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: prometheus
+  name: k8s-monitoring
   namespace: argocd
 spec:
-  project: default
+  project: observability
   sources:
-    - repoURL: 'https://prometheus-community.github.io/helm-charts'
-      chart: prometheus
-      targetRevision: 29.13.0
+    - repoURL: 'https://grafana.github.io/helm-charts'
+      chart: k8s-monitoring
+      targetRevision: 4.1.6
       helm:
         valueFiles:
-          - $values/prometheus/values-dev.yaml
+          - $values/k8s-monitoring/dev/values.yaml
     - repoURL: 'file:///mnt/local-repo.git'
       targetRevision: HEAD
       ref: values
+    - repoURL: 'file:///mnt/local-repo.git'
+      targetRevision: HEAD
+      path: k8s-monitoring/dev/manifests
   destination:
     server: 'https://kubernetes.default.svc'
-    namespace: prometheus
+    namespace: k8s-monitoring
   syncPolicy:
     automated:
       prune: true

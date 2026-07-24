@@ -1,14 +1,14 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: root-app
+  name: root-observability
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: 'file:///mnt/local-repo.git'
     targetRevision: HEAD
-    path: argocd/apps-dev
+    path: argocd/dev/apps
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: argocd
