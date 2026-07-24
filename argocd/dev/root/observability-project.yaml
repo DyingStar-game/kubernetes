@@ -7,7 +7,7 @@ spec:
   description: observability apps
   
   sourceRepos:
-    - 'file:///mnt/local-repo.git'
+    - '*'
 
   destinations:
     - namespace: '*'
