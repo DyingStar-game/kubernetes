@@ -1,34 +1,26 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: harbor
+  name: tempo
   namespace: argocd
 spec:
-  project: default
+  project: observability
   sources:
-    - repoURL: 'https://helm.goharbor.io'
-      chart: harbor
-      targetRevision: 1.18.4
+    - repoURL: 'https://grafana-community.github.io/helm-charts'
+      chart: tempo
+      targetRevision: 2.2.3
       helm:
-        releaseName: harbor
         valueFiles:
-          - $values/harbor/values-preprod.yaml
+          - $values/tempo/values-preprod.yaml
     - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
       targetRevision: refacto-and-kube-best-practice
       ref: values
   destination:
     server: 'https://kubernetes.default.svc'
-    namespace: harbor
-
+    namespace: observability
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
     - CreateNamespace=true
-    retry:
-      limit: 5
-      backoff:
-        duration: 15s
-        factor: 2
-        maxDuration: 5m

@@ -1,23 +1,23 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: cert-manger
+  name: traefik
   namespace: argocd
 spec:
-  project: default
+  project: infra
   sources:
-    - repoURL: 'https://charts.jetstack.io'
-      chart: cert-manager
-      targetRevision: v1.21.0
+    - repoURL: 'https://traefik.github.io/charts'
+      chart: traefik
+      targetRevision: 40.3.0
       helm:
         valueFiles:
-          - $values/cert-manager/values-preprod.yaml
+          - $values/traefik/values-preprod.yaml
     - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
       targetRevision: refacto-and-kube-best-practice
       ref: values
   destination:
     server: 'https://kubernetes.default.svc'
-    namespace: cert-manager
+    namespace: traefik
 
   syncPolicy:
     automated:
@@ -25,10 +25,3 @@ spec:
       selfHeal: true
     syncOptions:
     - CreateNamespace=true
-    - SkipDryRunOnMissingResource=true
-    retry:
-      limit: 5
-      backoff:
-        duration: 15s
-        factor: 2
-        maxDuration: 5m

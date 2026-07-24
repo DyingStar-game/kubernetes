@@ -1,17 +1,17 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: service-monitoring
+  name: textchat
   namespace: argocd
 spec:
-  project: default
+  project: game
   source:
     repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
-    path: service-monitoring
+    path: textchat
     targetRevision: refacto-and-kube-best-practice
     helm:
       valueFiles:
-        - $values/service-monitoring/values-preprod.yaml
+        - $values/textchat/values-preprod.yaml
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: dyingstar-preprod
