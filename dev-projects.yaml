@@ -1,0 +1,28 @@
+namespace: dyingstar
+tag: dev
+
+projects:
+  - name: godotserver
+    path: ../DyingStar
+    dockerfile: .docker/Dockerfile
+    deployment: godotserver
+
+  - name: horizon
+    path: ../horizonserver
+    dockerfile: .docker/Dockerfile
+    deployment: horizon
+
+  - name: resourcesdynamic
+    path: ../services/resourcesDynamic
+    dockerfile: docker/Dockerfile
+    deployment: service-resourcesdynamic
+
+  - name: keycloak
+    path: ../services/keycloak
+    dockerfile: docker/Dockerfile
+    deployment: keycloak
+
+  - name: livekit
+    path: ../services/livekit
+    dockerfile: docker/Dockerfile
+    deployment: livekit
