@@ -1,23 +1,26 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: grafana
+  name: k8s-monitoring
   namespace: argocd
 spec:
-  project: default
+  project: observability
   sources:
-    - repoURL: 'https://grafana-community.github.io/helm-charts'
-      chart: grafana
-      targetRevision: 12.4.8
+    - repoURL: 'https://grafana.github.io/helm-charts'
+      chart: k8s-monitoring
+      targetRevision: 4.1.6
       helm:
         valueFiles:
-          - $values/grafana/values-preprod.yaml
+          - $values/k8s-monitoring/preprod/values.yaml
     - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
       targetRevision: refacto-and-kube-best-practice
       ref: values
+    - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
+      targetRevision: refacto-and-kube-best-practice
+      path: k8s-monitoring/preprod/manifests
   destination:
     server: 'https://kubernetes.default.svc'
-    namespace: observability
+    namespace: k8s-monitoring
   syncPolicy:
     automated:
       prune: true

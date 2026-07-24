@@ -4,7 +4,7 @@ metadata:
   name: horizon
   namespace: argocd
 spec:
-  project: default
+  project: game
   source:
     repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
     path: horizon

@@ -1,17 +1,17 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: service-resourcesdynamic
+  name: service-monitoring
   namespace: argocd
 spec:
-  project: default
+  project: game
   source:
     repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
-    path: service-resourcesdynamic
+    path: service-monitoring
     targetRevision: refacto-and-kube-best-practice
     helm:
       valueFiles:
-        - $values/service-resourcesdynamic/values-preprod.yaml
+        - $values/service-monitoring/values-preprod.yaml
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: dyingstar-preprod
