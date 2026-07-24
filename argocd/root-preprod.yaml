@@ -1,14 +1,14 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: root-app
+  name: root-preprod
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: 'https://github.com/DyingStar-game/kubernetes.git'
     targetRevision: refacto-and-kube-best-practice
-    path: argocd/apps-preprod
+    path: argocd/preprod/apps
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: argocd

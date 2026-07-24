@@ -1,23 +1,23 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: loki
+  name: prometheus
   namespace: argocd
 spec:
-  project: default
+  project: observability
   sources:
-    - repoURL: 'https://grafana-community.github.io/helm-charts'
-      chart: loki
-      targetRevision: 17.4.9
+    - repoURL: 'https://prometheus-community.github.io/helm-charts'
+      chart: prometheus
+      targetRevision: 29.13.0
       helm:
         valueFiles:
-          - $values/loki/values-dev.yaml
+          - $values/prometheus/values-dev.yaml
     - repoURL: 'file:///mnt/local-repo.git'
       targetRevision: HEAD
       ref: values
   destination:
     server: 'https://kubernetes.default.svc'
-    namespace: loki
+    namespace: prometheus
   syncPolicy:
     automated:
       prune: true

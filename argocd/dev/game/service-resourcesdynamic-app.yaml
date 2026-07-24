@@ -1,14 +1,17 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: keycloak-operator-official
+  name: service-resourcesdynamic
   namespace: argocd
 spec:
-  project: default
+  project: game
   source:
     repoURL: 'file:///mnt/local-repo.git'
-    path: keycloak/manifests
+    path: service-resourcesdynamic
     targetRevision: HEAD
+    helm:
+      valueFiles:
+        - $values/service-resourcesdynamic/values-dev.yaml
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: dyingstar
@@ -17,4 +20,4 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=true
+    - CreateNamespace=true

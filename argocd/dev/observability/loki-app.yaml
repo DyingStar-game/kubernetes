@@ -1,27 +1,23 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: telepresence
+  name: loki
   namespace: argocd
 spec:
-  project: default
+  project: observability
   sources:
-    - repoURL: 'oci://ghcr.io/telepresenceio/telepresence-oss'
-      chart: telepresence-oss
-      targetRevision: 2.28.0
+    - repoURL: 'https://grafana-community.github.io/helm-charts'
+      chart: loki
+      targetRevision: 17.4.9
       helm:
         valueFiles:
-          - $values/telepresence/values.yaml
+          - $values/loki/values-dev.yaml
     - repoURL: 'file:///mnt/local-repo.git'
       targetRevision: HEAD
       ref: values
-    - repoURL: 'file:///mnt/local-repo.git'
-      targetRevision: HEAD
-      path: telepresence/manifest
   destination:
     server: 'https://kubernetes.default.svc'
-    namespace: telepresence
-
+    namespace: loki
   syncPolicy:
     automated:
       prune: true

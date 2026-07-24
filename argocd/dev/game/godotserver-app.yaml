@@ -1,17 +1,17 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: service-resourcesdynamic
+  name: godotserver
   namespace: argocd
 spec:
-  project: default
+  project: game
   source:
     repoURL: 'file:///mnt/local-repo.git'
-    path: service-resourcesdynamic
+    path: godotserver
     targetRevision: HEAD
     helm:
       valueFiles:
-        - $values/service-resourcesdynamic/values-dev.yaml
+        - $values/godotserver/values-dev.yaml
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: dyingstar

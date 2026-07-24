@@ -3,7 +3,7 @@
 # Configuration
 $DOMAINS_FILE = "hosts_config.txt"
 $TRAEFIK_NS = "traefik"
-$ROOT_APP_NAME = "root-app"
+$ROOT_APP_NAME = "root-dev"
 $ROOT_APP_NS = "argocd"
 
 # 1. Démarrer Minikube
@@ -25,7 +25,7 @@ if (-not ($helmList -match "argocd")) {
         -f argocd/values.yaml `
         -f argocd/values-dev.yaml
 
-    kubectl apply -f argocd/root-app-dev.yaml
+    kubectl apply -f argocd/root-dev.yaml
 } else {
     Write-Host "--- ArgoCD déjà installé, installation ignorée ---"
 }

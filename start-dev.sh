@@ -3,7 +3,7 @@
 # Configuration
 DOMAINS_FILE="hosts_config.txt"
 TRAEFIK_NS="traefik"
-ROOT_APP_NAME="root-app" # Ensure this matches your app name in ArgoCD
+ROOT_APP_NAME="root-dev" # Ensure this matches your app name in ArgoCD
 ROOT_APP_NS="argocd"
 
 # 1. Start Minikube
@@ -24,7 +24,7 @@ if ! helm list -n argocd | grep -q "argocd"; then
       -f argocd/values.yaml \
       -f argocd/values-dev.yaml 
     
-    kubectl apply -f argocd/root-app-dev.yaml
+    kubectl apply -f argocd/root-dev.yaml
 else
     echo "--- ArgoCD already installed, skipping installation ---"
 fi

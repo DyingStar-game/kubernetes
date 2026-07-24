@@ -1,17 +1,17 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: livekit
+  name: service-persistence
   namespace: argocd
 spec:
-  project: default
+  project: game
   source:
     repoURL: 'file:///mnt/local-repo.git'
-    path: livekit
+    path: service-persistence
     targetRevision: HEAD
     helm:
       valueFiles:
-        - $values/livekit/values-dev.yaml
+        - $values/service-persistence/values-dev.yaml
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: dyingstar

@@ -1,23 +1,18 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: service-monitoring
+  name: root-dev
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: 'file:///mnt/local-repo.git'
-    path: service-monitoring
     targetRevision: HEAD
-    helm:
-      valueFiles:
-        - $values/service-monitoring/values-dev.yaml
+    path: argocd/dev/root
   destination:
     server: 'https://kubernetes.default.svc'
-    namespace: dyingstar
+    namespace: argocd
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
-    syncOptions:
-    - CreateNamespace=true
