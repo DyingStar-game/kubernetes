@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: 'https://github.com/DyingStar-game/kubernetes.git'
     targetRevision: HEAD
-    path: argocd/dev/observability
+    path: argocd/preprod/observability
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: argocd
