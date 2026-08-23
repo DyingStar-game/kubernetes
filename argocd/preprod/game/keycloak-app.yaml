@@ -7,7 +7,7 @@ spec:
   project: game
   sources:
     - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
-      targetRevision: refacto-and-kube-best-practice
+      targetRevision: main
       path: keycloak/manifests
   destination:
     server: 'https://kubernetes.default.svc'
