@@ -13,10 +13,10 @@ spec:
         valueFiles:
           - $values/k8s-monitoring/preprod/values.yaml
     - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
-      targetRevision: refacto-and-kube-best-practice
+      targetRevision: main
       ref: values
     - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
-      targetRevision: refacto-and-kube-best-practice
+      targetRevision: main
       path: k8s-monitoring/preprod/manifests
   destination:
     server: 'https://kubernetes.default.svc'

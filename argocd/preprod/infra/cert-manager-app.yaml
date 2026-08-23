@@ -13,7 +13,7 @@ spec:
         valueFiles:
           - $values/cert-manager/values-preprod.yaml
     - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
-      targetRevision: refacto-and-kube-best-practice
+      targetRevision: main
       ref: values
   destination:
     server: 'https://kubernetes.default.svc'
