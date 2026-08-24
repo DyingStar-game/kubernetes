@@ -21,3 +21,23 @@ spec:
       selfHeal: true
     syncOptions:
     - CreateNamespace=true
+    # Sans ceci, ignoreDifferences n'agit que sur la détection de drift : une sync
+    # déclenchée par un commit ré-appliquerait l'image Harbor sur le build local.
+    - RespectIgnoreDifferences=true
+
+  # Le build local (./build-and-deploy.sh) patche l'image du container principal et
+  # celle des init containers copy-plugins / copy-props, avec imagePullPolicy: Never.
+  # Sans ceci, selfHeal annulerait le patch au reconcile suivant.
+  # Les init containers sont ciblés par nom : leur index dépend du nombre d'entrées
+  # `dependsOn` dans les values et changerait avec elles.
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/template/spec/containers/0/image
+        - /spec/template/spec/containers/0/imagePullPolicy
+      jqPathExpressions:
+        - '.spec.template.spec.initContainers[] | select(.name == "copy-plugins") | .image'
+        - '.spec.template.spec.initContainers[] | select(.name == "copy-plugins") | .imagePullPolicy'
+        - '.spec.template.spec.initContainers[] | select(.name == "copy-props") | .image'
+        - '.spec.template.spec.initContainers[] | select(.name == "copy-props") | .imagePullPolicy'

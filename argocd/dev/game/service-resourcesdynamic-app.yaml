@@ -21,6 +21,9 @@ spec:
       selfHeal: true
     syncOptions:
     - CreateNamespace=true
+    # Sans ceci, ignoreDifferences n'agit que sur la détection de drift : une sync
+    # déclenchée par un commit ré-appliquerait l'image Harbor sur le build local.
+    - RespectIgnoreDifferences=true
   
   ignoreDifferences:
     - group: apps
