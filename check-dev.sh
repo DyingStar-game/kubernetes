@@ -180,7 +180,7 @@ check_file() {
 
 check_file "argocd/values.yaml"
 check_file "argocd/values-dev.yaml"
-check_file "argocd/root-app-dev.yaml"
+check_file "argocd/root-dev.yaml"
 
 if [ -f "hosts_config.txt" ]; then
     ok "hosts_config.txt : présent"
