@@ -54,3 +54,9 @@ resources:
   limits:
     cpu: 18
     memory: 4Gi
+
+dataImage:
+  enabled: true
+  repository: harbor.dyingstar-game.space/dyingstar/horizon-data
+  pullPolicy: Always
+  tag: "develop"

@@ -32,7 +32,7 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if or .Values.dependsOn .Values.pluginsImage.enabled }}
+      {{- if or .Values.dependsOn .Values.pluginsImage.enabled .Values.dataImage.enabled }}
       initContainers:
         {{- range .Values.dependsOn }}
         - name: wait-for-{{ .name }}
@@ -47,6 +47,15 @@ spec:
           volumeMounts:
             - name: plugins
               mountPath: /shared-plugins
+        {{- end }}
+        {{- if .Values.dataImage.enabled }}
+        - name: copy-props
+          image: "{{ .Values.dataImage.repository }}:{{ .Values.dataImage.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.dataImage.pullPolicy }}
+          command: ['sh', '-c', 'cp -a /data/. /shared-props/']
+          volumeMounts:
+            - name: genericprops
+              mountPath: /shared-props
         {{- end }}
       {{- end }}
       containers:
@@ -77,20 +86,35 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if or .Values.pluginsImage.enabled .Values.volumeMounts }}
+          {{- if or .Values.pluginsImage.enabled .Values.dataImage.enabled .Values.volumeMounts }}
           volumeMounts:
             {{- if .Values.pluginsImage.enabled }}
             - name: plugins
               mountPath: /app/plugins
             {{- end }}
+            {{- if .Values.dataImage.enabled }}
+            # ds_genericprops resolves both paths relative to the server's workdir
+            # (/app): props/ directly, and startup_items.json under ds_genericprops/
+            # first. Mounting the same volume twice serves both without ever
+            # bind-mounting a single file, which would break on editor rename-writes.
+            - name: genericprops
+              mountPath: /app/props
+              subPath: props
+            - name: genericprops
+              mountPath: /app/ds_genericprops
+            {{- end }}
             {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-      {{- if or .Values.pluginsImage.enabled .Values.volumes }}
+      {{- if or .Values.pluginsImage.enabled .Values.dataImage.enabled .Values.volumes }}
       volumes:
         {{- if .Values.pluginsImage.enabled }}
         - name: plugins
+          emptyDir: {}
+        {{- end }}
+        {{- if .Values.dataImage.enabled }}
+        - name: genericprops
           emptyDir: {}
         {{- end }}
         {{- with .Values.volumes }}
