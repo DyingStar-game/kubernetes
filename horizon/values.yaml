@@ -195,3 +195,16 @@ pluginsImage:
   repository: ""
   pullPolicy: IfNotPresent
   tag: ""
+
+# Data image for the ds_genericprops JSON files (props/*_def.json and
+# startup_items.json). Copied into a shared emptyDir by the copy-props init
+# container and mounted at /app/props + /app/ds_genericprops.
+#
+# Enabled by default, unlike pluginsImage: these files are no longer baked into
+# the server image, so a chart consumer that forgot to turn this on would get a
+# server that starts but cannot create a single object.
+dataImage:
+  enabled: true
+  repository: harbor.dyingstar-game.space/dyingstar/horizon-data
+  pullPolicy: IfNotPresent
+  tag: ""

@@ -10,3 +10,9 @@ pluginsImage:
   repository: harbor.dyingstar-game.space/dyingstar/horizon-plugins
   pullPolicy: IfNotPresent
   tag: "develop"
+
+dataImage:
+  enabled: true
+  repository: harbor.dyingstar-game.space/dyingstar/horizon-data
+  pullPolicy: IfNotPresent
+  tag: "develop"
