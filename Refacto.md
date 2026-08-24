@@ -166,7 +166,7 @@ helm install argocd argo/argo-cd \
   -f argocd/values-dev.yaml 
 
 # Apply ArgoCD root application
-kubectl apply -f argocd/root-app-dev.yaml
+kubectl apply -f argocd/root-dev.yaml
 
 ```
 

@@ -192,7 +192,7 @@ Write-Section "7. Fichiers de configuration locaux"
 $requiredFiles = @(
     "argocd\values.yaml",
     "argocd\values-dev.yaml",
-    "argocd\root-app-dev.yaml"
+    "argocd\root-dev.yaml"
 )
 
 foreach ($f in $requiredFiles) {
