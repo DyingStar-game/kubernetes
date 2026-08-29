@@ -1,3 +1,14 @@
+# Catalogue des images buildables en local (minikube) par ./scripts_linux/build-and-deploy.sh
+#
+# Champs par entrée :
+#   name           identifiant de la cible (argument du script, entrée du menu)
+#   path           répertoire source, relatif à ce fichier — sert aussi de contexte de build
+#   dockerfile     Dockerfile, relatif à `path`
+#   deployment     Deployment à patcher dans le namespace ci-dessous
+#   image          (optionnel) nom de l'image locale buildée — défaut : `name`
+#   initContainer  (optionnel) si présent, on patche cet init container du Deployment
+#                  au lieu du container principal
+
 namespace: dyingstar
 tag: dev
 
@@ -7,22 +18,46 @@ projects:
     dockerfile: .docker/Dockerfile
     deployment: godotserver
 
+  # Build « split » (serveur Horizon seul) — le monolithe .docker/Dockerfile
+  # recompile tout le workspace Rust et n'est pas adapté au dev local.
   - name: horizon
     path: ../horizonserver
-    dockerfile: .docker/Dockerfile
+    dockerfile: .docker/Dockerfile.server
     deployment: horizon
+
+  # Images d'init de horizon : leur contenu est recopié dans un emptyDir partagé
+  # au démarrage du pod (cf. horizon/templates/deployment.yaml).
+  - name: horizon-plugins
+    path: ../horizonserver
+    dockerfile: .docker/Dockerfile.plugins
+    deployment: horizon
+    initContainer: copy-plugins
+
+  - name: horizon-data
+    path: ../horizonserver
+    dockerfile: .docker/Dockerfile.data
+    deployment: horizon
+    initContainer: copy-props
 
   - name: resourcesdynamic
     path: ../services/resourcesDynamic
     dockerfile: docker/Dockerfile
     deployment: service-resourcesdynamic
 
-  - name: keycloak
-    path: ../services/keycloak
+  - name: persistence
+    path: ../services/persistence
     dockerfile: docker/Dockerfile
-    deployment: keycloak
+    deployment: service-persistence
 
-  - name: livekit
-    path: ../services/livekit
+  - name: monitoring
+    path: ../services/monitoring
     dockerfile: docker/Dockerfile
-    deployment: livekit
+    deployment: service-monitoring
+
+# Non listés volontairement :
+#   keycloak   déployé par l'opérateur officiel (argocd/dev/game/keycloak-app.yaml
+#              pointe sur keycloak/manifests) — pas de Deployment issu d'un chart local
+#   livekit    livekit/values-dev.yaml utilise l'image upstream livekit/livekit-server,
+#              pas l'image custom de ../services/livekit — un rebuild serait sans effet
+#   textchat   ../services/chatauth ne contient aucun Dockerfile
+#   npc, orchestrator, reverseproxy   pas d'Application ArgoCD en dev

@@ -1,7 +1,11 @@
 #!/bin/bash
 
+# Les chemins ci-dessous sont relatifs a la racine du depot, alors que le script
+# vit dans scripts_linux/ : on se replace donc a la racine.
+cd "$(dirname "$0")/.."
+
 # =============================================================
-#  check-prereqs.sh — Vérification des prérequis pour start.sh
+#  check-dev.sh — Vérification des prérequis pour start-dev.sh
 # =============================================================
 
 RED='\033[0;31m'
@@ -113,7 +117,7 @@ if [ -n "$FREE_DISK_GB" ]; then
     if [ "$FREE_DISK_GB" -ge 20 ]; then
         ok "Disque libre : ${FREE_DISK_GB} Go"
     elif [ "$FREE_DISK_GB" -ge 10 ]; then
-        warn "Disque libre : ${FREE_DISK_GB} Go — 20 Go recommandés (--disk-size=150g dans start.sh)"
+        warn "Disque libre : ${FREE_DISK_GB} Go — 20 Go recommandés (--disk-size=150g dans start-dev.sh)"
     else
         fail "Disque libre : ${FREE_DISK_GB} Go — minimum 20 Go requis"
     fi
@@ -196,12 +200,12 @@ fi
 echo ""
 echo "======================================================"
 if [ "$ERRORS" -eq 0 ] && [ "$WARNINGS" -eq 0 ]; then
-    echo -e "  ${GREEN}Tout est prêt — vous pouvez lancer start.sh${NC}"
+    echo -e "  ${GREEN}Tout est prêt — vous pouvez lancer ./scripts_linux/start-dev.sh${NC}"
 elif [ "$ERRORS" -eq 0 ]; then
-    echo -e "  ${YELLOW}$WARNINGS avertissement(s) — start.sh devrait fonctionner${NC}"
+    echo -e "  ${YELLOW}$WARNINGS avertissement(s) — ./scripts_linux/start-dev.sh devrait fonctionner${NC}"
 else
     echo -e "  ${RED}$ERRORS erreur(s) bloquante(s), $WARNINGS avertissement(s)${NC}"
-    echo -e "  ${RED}Corrigez les erreurs avant de lancer start-dev.sh${NC}"
+    echo -e "  ${RED}Corrigez les erreurs avant de lancer ./scripts_linux/start-dev.sh${NC}"
 fi
 echo "======================================================"
 echo ""

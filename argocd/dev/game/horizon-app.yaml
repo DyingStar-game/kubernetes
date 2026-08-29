@@ -25,7 +25,7 @@ spec:
     # déclenchée par un commit ré-appliquerait l'image Harbor sur le build local.
     - RespectIgnoreDifferences=true
 
-  # Le build local (./build-and-deploy.sh) patche l'image du container principal et
+  # Le build local (./scripts_linux/build-and-deploy.sh) patche l'image du container principal et
   # celle des init containers copy-plugins / copy-props, avec imagePullPolicy: Never.
   # Sans ceci, selfHeal annulerait le patch au reconcile suivant.
   # Les init containers sont ciblés par nom : leur index dépend du nombre d'entrées

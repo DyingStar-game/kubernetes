@@ -1,10 +1,28 @@
 #!/bin/bash
 
+# Les chemins ci-dessous sont relatifs a la racine du depot, alors que le script
+# vit dans scripts_linux/ : on se replace donc a la racine.
+cd "$(dirname "$0")/.."
+
 # Configuration
 DOMAINS_FILE="hosts_config.txt"
 TRAEFIK_NS="traefik"
 ROOT_APP_NAME="root-dev" # Ensure this matches your app name in ArgoCD
 ROOT_APP_NS="argocd"
+
+# 0. Disconnect Telepresence before starting Minikube
+# While connected, Telepresence registers a "tel2-search" DNS search domain on
+# the host. Docker copies the host search list into the Minikube container when
+# it is created, and kubelet (dnsPolicy: ClusterFirst) then appends it to every
+# pod. With ndots:5, in-cluster lookups such as
+# traffic-manager.telepresence.svc.cluster.local are expanded to
+# "<name>.tel2-search" first, resolved by the host resolver to the wrong IP, and
+# the injected traffic-agent never becomes ready -> "telepresence intercept"
+# fails with "context deadline exceeded".
+if command -v telepresence > /dev/null 2>&1; then
+    echo "--- Disconnecting Telepresence (avoids polluting cluster DNS) ---"
+    telepresence quit -s > /dev/null 2>&1
+fi
 
 # 1. Start Minikube
 echo "--- Starting Minikube ---"

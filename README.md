@@ -39,7 +39,8 @@ Helm charts for the **DyingStar** gaming platform microservices.
 ├── service-persistence/           # Helm chart
 ├── dev-services/                  # Helm chart (shared dev infra)
 ├── skaffold.yaml                  # Local dev orchestration
-├── dev.sh                         # Local dev wrapper script
+├── scripts_linux/                 # Linux/macOS scripts (bash), incl. dev.sh wrapper
+├── scripts_windows/               # Windows scripts (PowerShell)
 └── dev-local.conf.example         # Config template: Harbor vs local build
 ```
 
@@ -136,10 +137,10 @@ It permit to have something very close to the preprod and prod and working on sa
 minikube start --disk-size=150g --extra-config=apiserver.service-node-port-range=1024-65535
 
 # Deploy all services
-./dev.sh
+./scripts_linux/dev.sh
 
 # Or deploy a single service
-./dev.sh horizon
+./scripts_linux/dev.sh horizon
 ```
 
 Skaffold builds Docker images using Dockerfiles from the sibling repos and deploys via Helm with `values-dev-local.yaml` into namespace `dyingstar-dev-local`.
@@ -174,10 +175,10 @@ In this example, `horizon` will be deployed using the Harbor `develop` image, wh
 Then run:
 
 ```bash
-./dev.sh                          # Deploy all services
-./dev.sh horizon                  # Deploy only horizon
-./dev.sh godotserver horizon      # Deploy specific services
-./dev.sh --tail=false             # Pass extra args to skaffold
+./scripts_linux/dev.sh                          # Deploy all services
+./scripts_linux/dev.sh horizon                  # Deploy only horizon
+./scripts_linux/dev.sh godotserver horizon      # Deploy specific services
+./scripts_linux/dev.sh --tail=false             # Pass extra args to skaffold
 ```
 
 > **Note**: minikube must be able to pull from Harbor. If Harbor requires authentication, create an `imagePullSecret` in the `dyingstar-dev-local` namespace.
@@ -214,7 +215,7 @@ In file `dev-local.conf`, uncomment all lines (remove the `#`).
 On Linux:
 
 ```bash
-./dev.sh
+./scripts_linux/dev.sh
 ```
 
 On Windows, set all tools (suffix with `-harbor`):
@@ -252,7 +253,7 @@ In file `dev-local.conf`, uncomment only the line `godotserver` (remove the `#`)
 On Linux:
 
 ```bash
-./dev.sh
+./scripts_linux/dev.sh
 ```
 
 On Windows, set all tools (suffix with `-harbor`):
@@ -283,7 +284,7 @@ In file `dev-local.conf`, uncomment only the line `horizon` (remove the `#`).
 On Linux:
 
 ```bash
-./dev.sh
+./scripts_linux/dev.sh
 ```
 
 On Windows, set all tools (suffix with `-harbor`):

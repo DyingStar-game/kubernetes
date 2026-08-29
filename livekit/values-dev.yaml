@@ -1,7 +1,7 @@
 # Local dev overrides for livekit (minikube)
 # Usage:
 #   kubectl config use-context minikube
-#   ./dev.sh livekit
+#   ./scripts_linux/dev.sh livekit
 
 
 

@@ -7,14 +7,14 @@
 # pre-built "develop" image from Harbor; all others are built from source.
 #
 # Usage:
-#   ./dev.sh                          # Deploy all services
-#   ./dev.sh horizon                  # Deploy only horizon
-#   ./dev.sh godotserver horizon      # Deploy only godotserver + horizon
-#   ./dev.sh --tail=false             # Extra args passed to skaffold
-#   ./dev.sh horizon --tail=false     # Single service + extra args
+#   ./scripts_linux/dev.sh                          # Deploy all services
+#   ./scripts_linux/dev.sh horizon                  # Deploy only horizon
+#   ./scripts_linux/dev.sh godotserver horizon      # Deploy only godotserver + horizon
+#   ./scripts_linux/dev.sh --tail=false             # Extra args passed to skaffold
+#   ./scripts_linux/dev.sh horizon --tail=false     # Single service + extra args
 
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 
 # Safety: dev.sh must only ever target the local minikube cluster. Refuse to
 # run if the active kube-context is anything else (e.g. the prod 'dyingstar'

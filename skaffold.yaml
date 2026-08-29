@@ -5,7 +5,7 @@
 #   skaffold dev -m horizon                                        # single service (auto-includes livekit + service-persistence + service-monitoring)
 #   skaffold dev -m godotserver,horizon-harbor                     # mix local + harbor (auto-includes livekit-harbor + service-persistence-harbor + service-monitoring-harbor)
 #
-# Or use ./dev.sh which reads dev-local.conf to pick modules automatically.
+# Or use ./scripts_linux/dev.sh which reads dev-local.conf to pick modules automatically.
 #
 # Required sibling repos:
 #   ../DyingStar     — godotserver (Dockerfile at .docker/Dockerfile)
