@@ -1,6 +1,10 @@
 # =============================================================
-#  check-prereqs.ps1 - Verification des prerequis pour start.ps1
+#  check-dev.ps1 - Verification des prerequis pour start-dev.ps1
 # =============================================================
+
+# Les chemins ci-dessous sont relatifs a la racine du depot, alors que le
+# script vit dans scripts_windows\ : on se replace donc a la racine.
+Set-Location -LiteralPath (Join-Path $PSScriptRoot '..')
 
 $ErrorActionPreference = "SilentlyContinue"
 
@@ -160,7 +164,7 @@ $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIden
 if ($isAdmin) {
     Write-Ok "Session administrateur : oui"
 } else {
-    Write-Fail "Session administrateur : non - start.ps1 requiert des droits admin (minikube tunnel + hosts)"
+    Write-Fail "Session administrateur : non - .\scripts_windows\start-dev.ps1 requiert des droits admin (minikube tunnel + hosts)"
 }
 
 # ----------------------------------------------------------
@@ -219,12 +223,12 @@ Write-Host ""
 Write-Host "======================================================" -ForegroundColor Cyan
 
 if ($script:Errors -eq 0 -and $script:Warnings -eq 0) {
-    Write-Host "  Tout est pret - vous pouvez lancer start.ps1" -ForegroundColor Green
+    Write-Host "  Tout est pret - vous pouvez lancer .\scripts_windows\start-dev.ps1" -ForegroundColor Green
 } elseif ($script:Errors -eq 0) {
-    Write-Host "  $($script:Warnings) avertissement(s) - start.ps1 devrait fonctionner" -ForegroundColor Yellow
+    Write-Host "  $($script:Warnings) avertissement(s) - .\scripts_windows\start-dev.ps1 devrait fonctionner" -ForegroundColor Yellow
 } else {
     Write-Host "  $($script:Errors) erreur(s) bloquante(s), $($script:Warnings) avertissement(s)" -ForegroundColor Red
-    Write-Host "  Corrigez les erreurs avant de lancer start.ps1" -ForegroundColor Red
+    Write-Host "  Corrigez les erreurs avant de lancer .\scripts_windows\start-dev.ps1" -ForegroundColor Red
 }
 
 Write-Host "======================================================" -ForegroundColor Cyan

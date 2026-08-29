@@ -25,7 +25,7 @@ spec:
     # déclenchée par un commit ré-appliquerait l'image Harbor sur le build local.
     - RespectIgnoreDifferences=true
 
-  # Le build local (./build-and-deploy.sh) patche l'image du container principal
+  # Le build local (./scripts_linux/build-and-deploy.sh) patche l'image du container principal
   # avec imagePullPolicy: Never — sans ceci, selfHeal l'annulerait au reconcile.
   ignoreDifferences:
     - group: apps

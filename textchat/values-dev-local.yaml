@@ -1,7 +1,7 @@
 # Local dev overrides for textchat (minikube).
 # Usage:
 #   kubectl config use-context minikube
-#   ./dev.sh textchat
+#   ./scripts_linux/dev.sh textchat
 #
 # The WebSocket port (9001) is reached from the Windows host through the
 # skaffold port-forward declared in skaffold.yaml (127.0.0.1:9001), exactly

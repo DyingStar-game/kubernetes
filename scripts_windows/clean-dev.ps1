@@ -1,5 +1,8 @@
 #Requires -RunAsAdministrator
 
+# Le script vit dans scripts_windows\ : on se replace a la racine du depot.
+Set-Location -LiteralPath (Join-Path $PSScriptRoot '..')
+
 Write-Host "--- Nettoyage complet de Minikube ---"
 
 # 1. Arrêter et supprimer le cluster
@@ -54,4 +57,4 @@ Write-Host "Suppression du répertoire cache ~/.minikube/cache (optionnel)..."
 #     Write-Host "  -> Cache supprimé : $minikubeCache"
 # }
 
-Write-Host "Nettoyage terminé. Vous pouvez relancer start-dev.ps1."
+Write-Host "Nettoyage terminé. Vous pouvez relancer .\scripts_windows\start-dev.ps1."

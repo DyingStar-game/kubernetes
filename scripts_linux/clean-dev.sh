@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Le script vit dans scripts_linux/ : on se replace a la racine du depot.
+cd "$(dirname "$0")/.."
+
 echo "--- Complete Minikube cleanup ---"
 
 # 1. Stop and delete the cluster

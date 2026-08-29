@@ -1,7 +1,7 @@
 # Local dev overrides for keycloak (minikube)
 # Usage:
 #   kubectl config use-context minikube
-#   ./dev.sh keycloak
+#   ./scripts_linux/dev.sh keycloak
 #
 # DEV ONLY: admin and Discord credentials are inlined here. Replace the
 # Discord values with credentials from a throwaway Discord application

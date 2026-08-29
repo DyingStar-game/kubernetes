@@ -12,13 +12,9 @@ image:
 service:
   nodePort: 7040
 
-# uncomment if you use godotserver running in local (F5), otherwise horizon will
-#   connect to godotserver pod in minikube
-extraEnv:
-  # - name: GAME_SERVER_HOST
-  #   value: "host.minikube.internal"
-  - name: BYPASS_AUTH
-    value: "true"
+# extraEnv:
+#   - name: BYPASS_AUTH
+#     value: "true"
 
 pluginsImage:
   enabled: true
