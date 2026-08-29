@@ -94,10 +94,20 @@ if ($Port -eq 0) { $Port = [int]$svcPort }
 
 # Pods prets derriere le service, dans l'ordre renvoye par l'EndpointSlice.
 function Get-ReadyPods {
-    $jsonpath = '{range .items[*].endpoints[?(@.conditions.ready==true)]}{.targetRef.name}{" "}{end}'
-    $out = kubectl get endpointslice -n $Namespace -l "kubernetes.io/service-name=$Service" -o jsonpath=$jsonpath 2>$null
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($out)) { return @() }
-    return @(($out | Out-String).Trim() -split '\s+' | Where-Object { $_ })
+    # NB : pas de jsonpath ici. Une valeur contenant a la fois des espaces et des
+    # guillemets est mal transmise aux commandes natives par PowerShell, ce qui
+    # decoupe l'argument et provoque "name cannot be provided when a selector is
+    # specified". On filtre donc le JSON cote PowerShell.
+    $raw = kubectl get endpointslice -n $Namespace -l "kubernetes.io/service-name=$Service" -o json 2>$null | Out-String
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($raw)) { return @() }
+    try { $data = $raw | ConvertFrom-Json } catch { return @() }
+    $names = @()
+    foreach ($slice in @($data.items)) {
+        foreach ($ep in @($slice.endpoints)) {
+            if ($ep.conditions.ready -eq $true -and $ep.targetRef.name) { $names += $ep.targetRef.name }
+        }
+    }
+    return @($names)
 }
 
 Write-Host "  Relais vers ${Service}:${svcPort} (namespace $Namespace)" -ForegroundColor Cyan
