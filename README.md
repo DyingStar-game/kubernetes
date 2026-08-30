@@ -9,7 +9,7 @@ Helm charts for the **DyingStar** gaming platform microservices.
 | **Production** | `dyingstar-prod` | `repository_dispatch` from service repos | for the production |
 | **Preprod** | `dyingstar-preprod` | `repository_dispatch` from service repos | for preproduction, so code validated but not yet released |
 | **Dev Shared** | `dyingstar-dev-shared` | Manual `helm install` | for services used by all developpers, like Postgis |
-| **Dev Local** | `dyingstar-dev-local` | Skaffold on minikube | for run the game localy, mainly for developpers | 
+| **Dev Local** | `dyingstar` | ArgoCD on minikube | for run the game localy, mainly for developpers | 
 
 ## Charts
 
@@ -38,17 +38,17 @@ Helm charts for the **DyingStar** gaming platform microservices.
 ├── livekit/                       # Helm chart
 ├── service-persistence/           # Helm chart
 ├── dev-services/                  # Helm chart (shared dev infra)
-├── skaffold.yaml                  # Local dev orchestration
-├── scripts_linux/                 # Linux/macOS scripts (bash), incl. dev.sh wrapper
-├── scripts_windows/               # Windows scripts (PowerShell)
-└── dev-local.conf.example         # Config template: Harbor vs local build
+├── argocd/                        # ArgoCD Applications (dev + preprod)
+├── dev-projects.yaml              # Local build targets (read by build-and-deploy)
+├── scripts_linux/                 # Linux/macOS scripts (bash)
+└── scripts_windows/               # Windows scripts (PowerShell)
 ```
 
 Each chart contains:
 - `values.yaml` — base (env-neutral) defaults
 - `values-prod.yaml` — production overrides
 - `values-preprod.yaml` — preprod overrides
-- `values-dev-local.yaml` — local dev overrides (minikube)
+- `values-dev.yaml` — local dev overrides (minikube, deployed by ArgoCD)
 
 ---
 
@@ -107,7 +107,7 @@ You can also trigger deployments manually from the GitHub Actions UI, providing 
 
 
 
-## Local Development (Skaffold + minikube)
+## Local Development (minikube + ArgoCD)
 
 ### Introduction
 
@@ -115,13 +115,21 @@ We use tools, working all on Linux and Windows.
 
 It permit to have something very close to the preprod and prod and working on same way on different Operating Systems.
 
+The local stack runs on minikube: ArgoCD reconciles the Applications declared in
+`argocd/dev/` into the namespace `dyingstar`, each chart being rendered with its
+`values-dev.yaml`. By default every service uses the `develop` image from Harbor —
+you only build locally the service you are working on.
+
+See [Refacto.md](Refacto.md) for the detailed / manual installation guide.
 
 ### Prerequisites
 
 - [minikube](https://minikube.sigs.k8s.io/docs/start/)
-- [Skaffold](https://skaffold.dev/docs/install/)
+- [kubectl](https://kubernetes.io/docs/tasks/tools/)
 - [Helm](https://helm.sh/docs/intro/install/)
-- Sibling service repos cloned:
+- Docker (under Windows, docker on WSL)
+- [Telepresence](https://telepresence.io/docs/install/client)
+- Sibling service repos cloned (only those you build locally):
   - `../DyingStar` — godotserver
   - `../horizonserver` — horizon
   - `../services/resourcesDynamic` — service-resourcesdynamic
@@ -132,105 +140,89 @@ It permit to have something very close to the preprod and prod and working on sa
 
 ### Quick Start
 
-```bash
-# Start minikube, the size is important because the docker images can be built inside the minikube
-minikube start --disk-size=150g --extra-config=apiserver.service-node-port-range=1024-65535
-
-# Deploy all services
-./scripts_linux/dev.sh
-
-# Or deploy a single service
-./scripts_linux/dev.sh horizon
-```
-
-Skaffold builds Docker images using Dockerfiles from the sibling repos and deploys via Helm with `values-dev-local.yaml` into namespace `dyingstar-dev-local`.
-
-### Skip Building Unchanged Services
-
-To avoid rebuilding services you haven't modified, you can pull pre-built `develop` images from Harbor instead of building locally.
-
-**Setup (one-time):**
-
-Copy the example config file to config file ^_^
+Every script relocates itself to the repository root, so it can be run from anywhere.
 
 ```bash
-cp dev-local.conf.example dev-local.conf
+# 1. Check the dependencies
+./scripts_linux/check-dev.sh
+
+# 2. Start minikube + the whole stack (ArgoCD, Traefik, game services)
+./scripts_linux/start-dev.sh
+
+# 3. Stop / clean up the environment
+./scripts_linux/clean-dev.sh
 ```
 
-**Edit `dev-local.conf`** — uncomment services you want to pull from Harbor:
-
-```conf
-# Services to pull from Harbor instead of building locally.
-#godotserver
-horizon
-#service-resourcesdynamic
-#keycloak
-#livekit
-#service-persistence
-#service-monitoring
+```powershell
+# Windows equivalents
+.\scripts_windows\check-dev.ps1
+.\scripts_windows\start-dev.ps1
+.\scripts_windows\clean-dev.ps1
 ```
 
-In this example, `horizon` will be deployed using the Harbor `develop` image, while the other two are built from source.
+**BE CAREFUL: the creation of the services can take 10 to 25 minutes**, depending on your
+computer. Follow them in freelens, in the namespace `dyingstar`: all pods must be
+`Running`.
 
-Then run:
+### Client URL
+
+In the dyingstar repository (godot files), edit `client.ini`:
+
+```ini
+[network]
+websocket_url="ws://horizon.dyingstar.local:80"
+```
+
+This route goes through Traefik and needs `minikube tunnel` running plus the
+`/etc/hosts` entries written by `start-dev.sh`. As an alternative (and the only way to
+reach the cluster from another machine of the LAN), use the port-forward relay:
 
 ```bash
-./scripts_linux/dev.sh                          # Deploy all services
-./scripts_linux/dev.sh horizon                  # Deploy only horizon
-./scripts_linux/dev.sh godotserver horizon      # Deploy specific services
-./scripts_linux/dev.sh --tail=false             # Pass extra args to skaffold
+./scripts_linux/expose-horizon.sh          # binds 0.0.0.0:7040 → horizon
 ```
 
-> **Note**: minikube must be able to pull from Harbor. If Harbor requires authentication, create an `imagePullSecret` in the `dyingstar-dev-local` namespace.
+```powershell
+.\scripts_windows\expose-horizon.ps1
+```
 
-You can also use Skaffold modules directly without the wrapper:
+then set `websocket_url="ws://127.0.0.1:7040"` (or `ws://<host-LAN-ip>:7040`).
+
+### Build a Service Locally
+
+`build-and-deploy` builds the image inside minikube's Docker daemon and patches the
+running Deployment to use it (`imagePullPolicy: Never`) — no registry push, no commit.
 
 ```bash
-skaffold dev -m godotserver,horizon,service-resourcesdynamic,keycloak,livekit,service-persistence  # all local builds
-skaffold dev -m horizon                                                                            # single service
-skaffold dev -m godotserver,horizon-harbor,service-resourcesdynamic,keycloak,livekit,service-persistence  # mix local + harbor
+./scripts_linux/build-and-deploy.sh                 # interactive menu listing every target
+./scripts_linux/build-and-deploy.sh horizon         # a single target
+./scripts_linux/build-and-deploy.sh all             # everything
 ```
+
+```powershell
+.\scripts_windows\build-and-deploy.ps1 horizon-data
+```
+
+The targets (`godotserver`, `horizon`, `horizon-plugins`, `horizon-data`,
+`resourcesdynamic`, `persistence`, `monitoring`) are declared in
+[`dev-projects.yaml`](dev-projects.yaml).
 
 ### Scenarii
 
 Couple scenarii in example, depend on what part you develop in local.
 
-In all scenarii, the godot client need to connect to Horizon running in the minikube.
-In dyingstar repository (godot files), edit the file `client.ini` and replace the IP with the value return with the command: `minikube ip`.
-
-In my case, it's *192.168.49.2*, so I define it:
-
-```ini
-[network]
-websocket_url="ws://192.168.49.2:7040"
-```
-
-
 #### No develop, only test
 
-For this case, we use all `develop` images. We build anothing in local.
-
-In file `dev-local.conf`, uncomment all lines (remove the `#`).
-
-On Linux:
-
-```bash
-./scripts_linux/dev.sh
-```
-
-On Windows, set all tools (suffix with `-harbor`):
-
-```
-skaffold dev -m godotserver-harbor,horizon-harbor,service-resourcesdynamic-harbor,keycloak-harbor,service-persistence-harbor
-```
+Nothing to build: `start-dev.sh` already deploys the `develop` images from Harbor.
 
 #### Develop godot client & server
 
-For this case, you develop only godot, so Horizon, services... are the `develop` version because we don't modify them.
+For this case, you develop only godot, so Horizon, services... are the `develop`
+version because we don't modify them.
 
-We must modify some files to allow horizon access the godot server you run locally (inside godot editor with `F5`):
+We must modify some files to allow horizon access the godot server you run locally
+(inside godot editor with `F5`):
 
-In file `horizon/values-dev-local.yaml`, uncomment 3 lines, to have:
+In file `horizon/values-dev.yaml`, uncomment 3 lines, to have:
 
 ```yaml
 extraEnv:
@@ -248,21 +240,8 @@ In file `horizon/values.yaml`, comments the 3 lines in `dependsOn`, to have:
 
 *This mean Horizon not wait godotserver pods up because we not use them in this scenario.*
 
-In file `dev-local.conf`, uncomment only the line `godotserver` (remove the `#`).
-
-On Linux:
-
-```bash
-./scripts_linux/dev.sh
-```
-
-On Windows, set all tools (suffix with `-harbor`):
-
-```
-skaffold dev -m godotserver,horizon-harbor,service-resourcesdynamic-harbor,keycloak-harbor
-```
-
-In godot, in menu *Debug* -> *Customize Run Instances...*, check *enable multiple instances* and set to 2.
+In godot, in menu *Debug* -> *Customize Run Instances...*, check *enable multiple
+instances* and set to 2.
 
 The second line will be the server, define:
 
@@ -271,34 +250,32 @@ The second line will be the server, define:
 
 You can run with *F5* key.
 
-In *Launch arguments*, you can append `--log-file /tmp/godot/player.log` and `--log-file /tmp/godot/server.log` for have log files.
+In *Launch arguments*, you can append `--log-file /tmp/godot/player.log` and
+`--log-file /tmp/godot/server.log` for have log files.
 
-After start run with *F5* in godot, open *Freelens*, go in *Workloads* and *pods*, you can delete the line starts with *horizon-*. This will restart Horizon and connect to your Godot server. After 20 - 40 seconds, you can connect to game server from client.
+After start run with *F5* in godot, open *Freelens*, go in *Workloads* and *pods*, you
+can delete the line starts with *horizon-*. This will restart Horizon and connect to
+your Godot server. After 20 - 40 seconds, you can connect to game server from client.
 
 #### Develop Horizon
 
-
-
-In file `dev-local.conf`, uncomment only the line `horizon` (remove the `#`).
-
-On Linux:
+Clone [horizonserver](https://github.com/DyingStar-game/horizonserver) next to this
+repository, then build the part you modified:
 
 ```bash
-./scripts_linux/dev.sh
+./scripts_linux/build-and-deploy.sh horizon           # the server itself
+./scripts_linux/build-and-deploy.sh horizon-plugins   # the plugins image
+./scripts_linux/build-and-deploy.sh horizon-data      # the ds_genericprops JSON files
 ```
 
-On Windows, set all tools (suffix with `-harbor`):
-
-```
-skaffold dev -m godotserver-harbor,horizon,service-resourcesdynamic-harbor,keycloak-harbor
-```
-
-**NOTE**: you can mix this chapter and previous chapter if you made modifications in godotserver and horizon in same time!
+**NOTE**: you can mix this chapter and previous chapter if you made modifications in
+godotserver and horizon in same time!
 
 #### Develop service Resourcesdynamic
 
-TODO: need mofdifications for this case
-
+```bash
+./scripts_linux/build-and-deploy.sh resourcesdynamic
+```
 
 ---
 
@@ -346,7 +323,7 @@ PostGIS available via NodePort (default `30432`).
 - **Hostnames**: `auth.dyingstar-game.com` (prod), `auth-preprod.dyingstar-game.com` (preprod), NodePort `30180` (dev-local)
 - **Realm**: `dyingstar` — imported on every start from the JSON baked into the image
 - **Discord IdP** is registered/updated by a Helm post-install Job (`kcadm.sh` script shipped in `../services/keycloak`)
-- **Required Secrets** (operator-managed in prod/preprod, inlined in `values-dev-local.yaml` for local dev):
+- **Required Secrets** (operator-managed in prod/preprod, inlined in `values-dev.yaml` for local dev):
   - `keycloak-admin` — keys `KEYCLOAK_ADMIN`, `KEYCLOAK_ADMIN_PASSWORD`
   - `keycloak-discord` — keys `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`
 - **Discord OAuth callback URLs** to register on the Discord developer portal:

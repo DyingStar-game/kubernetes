@@ -1,6 +1,5 @@
-# Local dev overrides for service-persistence (minikube)
-# Usage: helm upgrade --install -n dyingstar-dev-local service-persistence ./service-persistence -f service-persistence/values-dev-local.yaml
-# Or via Skaffold: skaffold dev -m service-persistence
+# Dev overrides for service-persistence (minikube, deployed by ArgoCD in namespace dyingstar)
+# Usage: helm upgrade --install -n dyingstar service-persistence ./service-persistence -f service-persistence/values-dev.yaml
 
 replicaCount: 1
 

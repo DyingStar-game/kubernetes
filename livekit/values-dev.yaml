@@ -1,7 +1,5 @@
-# Local dev overrides for livekit (minikube)
-# Usage:
-#   kubectl config use-context minikube
-#   ./scripts_linux/dev.sh livekit
+# Dev overrides for livekit (minikube, deployed by ArgoCD in namespace dyingstar)
+# Usage: helm upgrade --install -n dyingstar livekit ./livekit -f livekit/values-dev.yaml
 
 
 

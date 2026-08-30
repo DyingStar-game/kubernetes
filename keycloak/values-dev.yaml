@@ -1,7 +1,5 @@
-# Local dev overrides for keycloak (minikube)
-# Usage:
-#   kubectl config use-context minikube
-#   ./scripts_linux/dev.sh keycloak
+# Dev overrides for keycloak (minikube, deployed by ArgoCD in namespace dyingstar)
+# Usage: helm upgrade --install -n dyingstar keycloak ./keycloak -f keycloak/values-dev.yaml
 #
 # DEV ONLY: admin and Discord credentials are inlined here. Replace the
 # Discord values with credentials from a throwaway Discord application

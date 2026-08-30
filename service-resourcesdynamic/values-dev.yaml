@@ -1,6 +1,5 @@
-# Local dev overrides for service-resourcesdynamic (minikube)
-# Usage: helm upgrade --install -n dyingstar-dev-local service-resourcesdynamic ./service-resourcesdynamic -f service-resourcesdynamic/values-dev-local.yaml
-# Or via Skaffold: skaffold dev -p service-resourcesdynamic
+# Dev overrides for service-resourcesdynamic (minikube, deployed by ArgoCD in namespace dyingstar)
+# Usage: helm upgrade --install -n dyingstar service-resourcesdynamic ./service-resourcesdynamic -f service-resourcesdynamic/values-dev.yaml
 
 replicaCount: 1
 
