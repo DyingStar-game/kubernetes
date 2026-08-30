@@ -1,7 +1,7 @@
 ﻿<#
 .SYNOPSIS
     Build une image DyingStar depuis les sources locales et la deploie dans la
-    stack minikube/ArgoCD (remplace Skaffold). Equivalent Windows de
+    stack minikube/ArgoCD. Equivalent Windows de
     build-and-deploy.sh.
 
 .DESCRIPTION

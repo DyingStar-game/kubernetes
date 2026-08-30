@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This repository contains Helm charts for the **StarDeception** gaming platform microservices. It supports multiple deployment environments with per-environment configuration overlays, local development via Skaffold + minikube, and automated CI/CD via GitHub Actions.
+This repository contains Helm charts for the **StarDeception** gaming platform microservices. It supports multiple deployment environments with per-environment configuration overlays, local development on minikube (ArgoCD), and automated CI/CD via GitHub Actions.
 
 All container images are hosted on a private Harbor registry at `harbor.dyingstar-game.space/dyingstar/`.
 
@@ -13,7 +13,7 @@ All container images are hosted on a private Harbor registry at `harbor.dyingsta
 | **Production** | `dyingstar-prod` | `main` | GitHub Actions (repository_dispatch from service repos) |
 | **Preprod** | `dyingstar-preprod` | `develop` | GitHub Actions (repository_dispatch from service repos) |
 | **Dev Shared** | `dyingstar-dev-shared` | — | Manual `helm install` |
-| **Dev Local** | `dyingstar-dev-local` | any | Skaffold on minikube |
+| **Dev Local** | `dyingstar` | any | ArgoCD on minikube |
 
 ## Helm Charts
 
@@ -33,7 +33,7 @@ Every chart follows the same template structure:
 - `values.yaml` — base configuration values (env-neutral defaults)
 - `values-prod.yaml` — production overrides
 - `values-preprod.yaml` — preprod overrides
-- `values-dev-local.yaml` — local dev overrides (minikube)
+- `values-dev.yaml` — local dev overrides (minikube)
 - `templates/_helpers.tpl` — shared helper templates (naming, labels, selectors)
 - `templates/deployment.yaml`, `service.yaml`, `serviceaccount.yaml` — core resources
 - `templates/hpa.yaml` — HorizontalPodAutoscaler (disabled by default)
@@ -54,7 +54,7 @@ helm upgrade --install -n dyingstar-prod <chart> ./<chart> -f <chart>/values-pro
 helm upgrade --install -n dyingstar-preprod <chart> ./<chart> -f <chart>/values-preprod.yaml
 
 # Local dev
-helm upgrade --install -n dyingstar-dev-local <chart> ./<chart> -f <chart>/values-dev-local.yaml
+helm upgrade --install -n dyingstar <chart> ./<chart> -f <chart>/values-dev.yaml
 ```
 
 Overlay files override only the values that differ per environment:
@@ -109,8 +109,8 @@ Application versions are tracked in `Chart.yaml` via `appVersion`. In CI/CD, ima
 2. Update `Chart.yaml` with the new chart name, description, and appVersion.
 3. Update `values.yaml` with the correct image repository, ports, and resource limits.
 4. Update `_helpers.tpl` — replace the chart name prefix in all helper definitions.
-5. Create `values-prod.yaml`, `values-preprod.yaml`, and `values-dev-local.yaml` overlays.
-6. Add the service to `skaffold.yaml` (default build + per-service profile).
+5. Create `values-prod.yaml`, `values-preprod.yaml`, and `values-dev.yaml` overlays.
+6. Add an ArgoCD Application under `argocd/dev/` (and `argocd/preprod/` if relevant), and a build target in `dev-projects.yaml` if the image is built locally.
 7. Add the chart name to both GitHub Actions workflow validation lists.
 8. Keep probes, autoscaling, ingress, and httproute disabled by default unless needed.
 
@@ -122,17 +122,21 @@ Application versions are tracked in `Chart.yaml` via `appVersion`. In CI/CD, ima
 - Preserve consistent indentation (2 spaces for YAML, aligned `nindent` values in templates).
 - Test changes with `helm template -n dyingstar-prod <chart> ./<chart> -f <chart>/values-prod.yaml` before deploying.
 
-## Local Development with Skaffold
+## Local Development
 
-Skaffold builds images using Dockerfiles from sibling service repos:
+The local stack runs on minikube and is reconciled by ArgoCD (`argocd/dev/`):
 
 ```bash
-# Deploy all services
-skaffold dev
+# Check prerequisites, then start the whole stack
+./scripts_linux/check-dev.sh
+./scripts_linux/start-dev.sh
 
-# Deploy a single service
-skaffold dev -p horizon
+# Build a local image and patch the running Deployment (targets in dev-projects.yaml)
+./scripts_linux/build-and-deploy.sh            # interactive menu
+./scripts_linux/build-and-deploy.sh horizon    # a single target
 ```
+
+Windows equivalents live in `scripts_windows/` (`check-dev.ps1`, `start-dev.ps1`, `build-and-deploy.ps1`).
 
 Required sibling repos:
 - `../StarDeception` — godotserver

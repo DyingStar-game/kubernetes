@@ -1,5 +1,0 @@
-# Dev-local overrides using pre-built Harbor develop image.
-image:
-  repository: harbor.dyingstar-game.space/dyingstar/monitoring
-  pullPolicy: Always
-  tag: "develop"

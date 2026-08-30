@@ -10,7 +10,8 @@ The in-game text chat connects over MQTT-over-WebSocket.
   ClusterIP (WebSocket): {{ include "textchat.fullname" . }}-mosquitto:{{ .Values.mosquitto.service.websocketPort }}
 {{- end }}
 
-Local dev: skaffold port-forwards the WebSocket port to 127.0.0.1:{{ .Values.mosquitto.service.websocketPort }}.
+Local dev: expose the WebSocket port with
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "textchat.fullname" . }}-mosquitto {{ .Values.mosquitto.service.websocketPort }}:{{ .Values.mosquitto.service.websocketPort }}
 Point the client's client.ini [chat] section at ws://127.0.0.1:{{ .Values.mosquitto.service.websocketPort }}.
 
 Auth: ANONYMOUS (local dev). Production swaps to JWT (mosquitto-go-auth + Keycloak).

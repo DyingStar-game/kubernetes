@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # build-and-deploy.sh — Build une image DyingStar depuis les sources locales et
-#                       la déploie dans la stack minikube/ArgoCD (remplace Skaffold).
+#                       la déploie dans la stack minikube/ArgoCD.
 #
 # Les cibles sont décrites dans dev-projects.yaml. Une cible vise soit le container
 # principal d'un Deployment, soit un de ses init containers (champ `initContainer`,
