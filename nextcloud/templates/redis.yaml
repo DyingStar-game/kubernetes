@@ -1,0 +1,104 @@
+{{- if .Values.redis.enabled }}
+{{/*
+Single-pod Redis, same pattern as livekit/templates/redis.yaml.
+
+Redis is NOT optional here: the data directory sits on NFS, and Nextcloud's
+transactional file locking must go through Redis for concurrent writes on a
+network share to be safe. Two modelers saving the same .blend at once without it
+is how you get a corrupted file.
+*/}}
+{{- if not .Values.redis.auth.existingSecret }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "nextcloud-ds.fullname" . }}-redis
+  labels:
+    {{- include "nextcloud-ds.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+type: Opaque
+stringData:
+  redis-password: {{ required "redis.auth.password is required when redis.auth.existingSecret is not set" .Values.redis.auth.password | quote }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "nextcloud-ds.fullname" . }}-redis
+  labels:
+    {{- include "nextcloud-ds.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "nextcloud-ds.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: redis
+  template:
+    metadata:
+      labels:
+        {{- include "nextcloud-ds.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: redis
+    spec:
+      containers:
+        - name: redis
+          image: "{{ .Values.redis.image.registry }}/{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
+          imagePullPolicy: {{ .Values.redis.image.pullPolicy }}
+          command:
+            - redis-server
+            - --requirepass
+            - $(REDIS_PASSWORD)
+            - --save
+            - ""
+            - --appendonly
+            - "no"
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "nextcloud-ds.redisSecretName" . }}
+                  key: redis-password
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+          {{- with .Values.redis.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - 'redis-cli -a "$REDIS_PASSWORD" ping | grep -q PONG'
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - 'redis-cli -a "$REDIS_PASSWORD" ping | grep -q PONG'
+            initialDelaySeconds: 3
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "nextcloud-ds.fullname" . }}-redis
+  labels:
+    {{- include "nextcloud-ds.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: redis
+      protocol: TCP
+      name: redis
+  selector:
+    {{- include "nextcloud-ds.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+{{- end }}

@@ -1,0 +1,44 @@
+Nextcloud for the DyingStar 3D modelers is deploying in namespace {{ .Release.Namespace }}.
+
+  URL:          https://{{ .Values.nextcloud.nextcloud.host }}
+  Data:         TrueNAS {{ .Values.truenas.server }}:{{ .Values.truenas.path }}/data  (NFS, PV {{ include "nextcloud-ds.dataPvName" . }})
+{{- if .Values.dbBackup.enabled }}
+  DB dumps:     TrueNAS {{ .Values.truenas.server }}:{{ .Values.truenas.path }}/backup  (nightly, {{ .Values.dbBackup.schedule }})
+{{- end }}
+  Shared folder:{{ if .Values.groupFolder.enabled }} {{ .Values.groupFolder.name }} — write: {{ .Values.groupFolder.writeGroup }}, read: {{ .Values.groupFolder.readGroup }}{{ else }} disabled{{ end }}
+
+1. Watch the rollout (the first start runs the DB migrations, allow a few minutes):
+
+   {{ include "nextcloud-ds.kubectl" . }} rollout status deploy/{{ .Release.Name }} --timeout=15m
+
+2. Check the bootstrap hook — it installs user_oidc + groupfolders and applies the
+   OIDC / group folder configuration on every start:
+
+   {{ include "nextcloud-ds.kubectl" . }} logs deploy/{{ .Release.Name }} -c nextcloud | grep '\[dyingstar\]'
+
+   Every line must be free of FAILED. If the app store was unreachable, re-run by
+   restarting the pod once egress works:
+
+   {{ include "nextcloud-ds.kubectl" . }} rollout restart deploy/{{ .Release.Name }}
+
+{{- if .Values.oidc.enabled }}
+
+3. Confirm the OIDC provider landed:
+
+   {{ include "nextcloud-ds.kubectl" . }} exec deploy/{{ .Release.Name }} -c nextcloud -- php occ user_oidc:provider
+
+   Then log in once with a GitHub account and check which Nextcloud groups the
+   claim produced — user_oidc may prefix them with the provider id:
+
+   {{ include "nextcloud-ds.kubectl" . }} exec deploy/{{ .Release.Name }} -c nextcloud -- php occ group:list
+{{- end }}
+
+4. The public read-only link is NOT created by this chart (Nextcloud has no occ
+   command for it). Log in as admin, open {{ .Values.groupFolder.name }}, share it
+   as a public link with "Read only", then advertise that URL.
+   See nextcloud/README.md §Public read-only access.
+
+Remaining manual steps are listed in nextcloud/README.md:
+  - TrueNAS dataset, NFS share and periodic snapshot task
+  - Keycloak realm, client, GitHub identity provider and groups
+  - Traefik gateway listener + DNS record for {{ .Values.nextcloud.nextcloud.host }}

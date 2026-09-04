@@ -1,0 +1,15 @@
+apiVersion: v2
+name: nextcloud
+description: Nextcloud for the DyingStar 3D modelers — public read-only, GitHub-authenticated writers, data on TrueNAS (NFS)
+type: application
+version: 0.1.0
+appVersion: "34.0.3"
+
+# Umbrella chart: the Nextcloud server itself comes from the official chart.
+# Everything DyingStar-specific (TrueNAS PV, PostgreSQL, Redis, OIDC bootstrap)
+# lives in this chart's own templates/, following the house style of the other
+# charts in this repository (see keycloak/, livekit/).
+dependencies:
+  - name: nextcloud
+    version: 9.2.6
+    repository: https://nextcloud.github.io/helm/

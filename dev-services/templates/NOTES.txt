@@ -10,5 +10,5 @@ PostGIS is available:
   Port-forward: kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "dev-services.fullname" . }}-postgis {{ .Values.postgis.service.port }}:{{ .Values.postgis.service.port }}
 {{- end }}
   Database: {{ .Values.postgis.auth.database }}
-  User:     {{ .Values.postgis.auth.username }}
+  User:     {{ if .Values.postgis.auth.existingSecret }}see secret/{{ .Values.postgis.auth.existingSecret }} (key: username){{ else }}{{ .Values.postgis.auth.username }}{{ end }}
 {{- end }}

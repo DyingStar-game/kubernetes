@@ -18,10 +18,11 @@ Helm charts for the **DyingStar** gaming platform microservices.
 | `godotserver` | Godot multiplayer game server (headless service) | `../DyingStar` |
 | `horizon` | Horizon game server (NodePort, high CPU) | `../horizonserver` |
 | `service-resourcesdynamic` | Dynamic resource manager API + WebSocket, with PostgreSQL | `../services/resourcesDynamic` |
-| `keycloak` | Keycloak identity provider (player auth + Discord IdP) | `../services/keycloak` |
+| `keycloak` | Keycloak identity provider (player auth + Discord IdP; a second, upstream-image instance runs in dev-shared for GitHub login) | `../services/keycloak` |
 | `livekit` | LiveKit Server (WebRTC SFU + TURN) for voice/video rooms | `../services/livekit` |
 | `service-persistence` | Persistence service — ScyllaDB-backed data layer (Rust) | `../services/persistence` |
 | `dev-services` | Shared developer infrastructure (PostGIS) | — |
+| `nextcloud` | Nextcloud 3D asset library (TrueNAS/NFS storage, GitHub login via Keycloak) — dev-shared only | — |
 
 ## Repository Structure
 
@@ -38,6 +39,7 @@ Helm charts for the **DyingStar** gaming platform microservices.
 ├── livekit/                       # Helm chart
 ├── service-persistence/           # Helm chart
 ├── dev-services/                  # Helm chart (shared dev infra)
+├── nextcloud/                     # Helm chart (shared dev infra, 3D asset library)
 ├── argocd/                        # ArgoCD Applications (dev + preprod)
 ├── dev-projects.yaml              # Local build targets (read by build-and-deploy)
 ├── scripts_linux/                 # Linux/macOS scripts (bash)
@@ -281,13 +283,45 @@ godotserver and horizon in same time!
 
 ## Shared Dev Services
 
-Shared infrastructure for all developers, deployed on the main cluster:
+Shared infrastructure for all developers, deployed on the main cluster.
+
+**PostGIS** (chart `dev-services`), available via NodePort (default `30432`). The
+deployed release overrides `postgis.auth.username` and `postgis.auth.password` on
+the command line, so they are not in git:
 
 ```bash
-helm upgrade --install -n dyingstar-dev-shared dev-services ./dev-services --create-namespace
+helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
+  dev-services ./dev-services --create-namespace \
+  --set postgis.auth.username=<user> --set postgis.auth.password=<password>
 ```
 
-PostGIS available via NodePort (default `30432`).
+**Nextcloud** — the 3D asset library for the modelers: files on TrueNAS over NFS,
+login with a GitHub account through a Keycloak instance dedicated to this
+namespace. Apart from TrueNAS, every component runs in `dyingstar-dev-shared`.
+
+It needs secrets, a TrueNAS dataset, DNS records and a configured Keycloak realm
+before the first install — the whole procedure is in
+[`nextcloud/README.md`](nextcloud/README.md). In short:
+
+```bash
+# 1. Keycloak for this namespace (upstream image, no player realm, no Discord)
+helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
+  keycloak ./keycloak -f keycloak/values-dev-shared.yaml \
+  --set postgresql.auth.password=<password>
+
+# 2. Realm, client, groups and the GitHub identity provider
+GITHUB_CLIENT_ID=... GITHUB_CLIENT_SECRET=... ./nextcloud/scripts/bootstrap-keycloak.sh
+
+# 3. Nextcloud itself
+helm dependency update ./nextcloud
+helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
+  nextcloud ./nextcloud -f nextcloud/values-dev-shared.yaml
+```
+
+| Service | URL |
+|---------|-----|
+| Nextcloud | `https://cloud.dev.dyingstar-game.space` |
+| Keycloak (dev-shared) | `https://auth.dev.dyingstar-game.space` |
 
 ---
 
@@ -342,6 +376,76 @@ kubectl --context=dyingstar -n dyingstar-prod create secret generic keycloak-dis
   --from-literal=DISCORD_CLIENT_ID='<id>' \
   --from-literal=DISCORD_CLIENT_SECRET='<secret>'
 ```
+
+### Nextcloud (dev-shared only)
+- **Chart**: umbrella over the official `nextcloud/nextcloud` chart, plus this repo's own PostgreSQL, Redis, TrueNAS PV and nightly `pg_dump` CronJob
+- **Hostname**: `cloud.dev.dyingstar-game.space`, exposed through the Traefik Gateway listener `nextcloud`
+- **Storage**: static NFS PersistentVolume on TrueNAS — ZFS periodic snapshots are the backup
+- **Auth**: `user_oidc` → the dev-shared Keycloak, realm `dyingstar-studio` → GitHub identity provider; write access = membership of the `ds-modelers` Keycloak group
+- **Required Secrets** in `dyingstar-dev-shared`: `nextcloud-admin`, `nextcloud-postgresql`, `nextcloud-redis`, `nextcloud-oidc`
+- Full setup guide: [`nextcloud/README.md`](nextcloud/README.md)
+
+### Keycloak (dev-shared instance)
+- **Values**: `keycloak/values-dev-shared.yaml` — same chart as prod/preprod, but the **upstream** `quay.io/keycloak/keycloak` image (no realm import, no Discord IdP Job) and `start` instead of `start --optimized`
+- **Hostname**: `auth.dev.dyingstar-game.space`, Traefik Gateway listener `keycloakdev`
+- **Realm**: `dyingstar-studio`, created by `nextcloud/scripts/bootstrap-keycloak.sh` (GitHub IdP, `nextcloud` client, groups `ds-modelers` / `ds-viewers`)
+- **Required Secret**: `keycloak-admin` — keys `KEYCLOAK_ADMIN`, `KEYCLOAK_ADMIN_PASSWORD`
+- Its database password is passed with `--set postgresql.auth.password` on every upgrade (that chart has no `existingSecret` support for PostgreSQL)
+- Entirely independent from the prod/preprod Keycloak instances — different namespace, database, admin account and realms
+
+> **One-off migration for every existing `keycloak` release.** The chart used to
+> select its server pods on `app.kubernetes.io/name` + `instance` only — labels
+> the bundled PostgreSQL Deployment and the Discord bootstrap Job also carry, so
+> the `keycloak` Service load-balanced part of its HTTP traffic onto PostgreSQL.
+> The fix adds `app.kubernetes.io/component: server` to the selector.
+>
+> **Do not just run `helm upgrade`.** Helm applies a Service before a Deployment:
+> the Service would start requiring `component: server`, which the running pods do
+> not carry yet, dropping its endpoints to zero — and the Deployment patch that
+> would fix them fails right after, because `spec.selector` is immutable. Without
+> `--atomic` nothing rolls back, so Keycloak ends up unreachable.
+>
+> The `repository_dispatch` workflows only run `kubectl rollout restart`, never
+> `helm upgrade`, so merging the chart change does not trigger this on its own.
+>
+> Delete the Deployment first (≈1-3 min of downtime while the new pod imports the
+> realm):
+>
+> ```bash
+> kubectl --context=dyingstar -n <namespace> delete deploy keycloak
+> helm upgrade --install --kube-context=dyingstar -n <namespace> \
+>   keycloak ./keycloak -f keycloak/values-<env>.yaml
+> kubectl --context=dyingstar -n <namespace> rollout status deploy/keycloak --timeout=10m
+> ```
+>
+> Or, with no downtime, label the running server pod first so the new Service
+> selector keeps matching it, and let the old ReplicaSet serve during the switch.
+> The `!app.kubernetes.io/component` clause is what keeps PostgreSQL out of it:
+>
+> ```bash
+> kubectl --context=dyingstar -n <namespace> label pod \
+>   -l 'app.kubernetes.io/name=keycloak,app.kubernetes.io/instance=keycloak,!app.kubernetes.io/component' \
+>   app.kubernetes.io/component=server
+> kubectl --context=dyingstar -n <namespace> delete deploy keycloak --cascade=orphan
+> helm upgrade --install --kube-context=dyingstar -n <namespace> \
+>   keycloak ./keycloak -f keycloak/values-<env>.yaml
+> # then drop the orphaned ReplicaSet once the new pod is Ready
+> kubectl --context=dyingstar -n <namespace> get rs -l app.kubernetes.io/name=keycloak
+> ```
+>
+> The database is a separate Deployment with its own PVC and is not affected.
+
+> **Rollout strategy on the bundled databases.** `keycloak`, `dev-services`
+> (PostGIS), `service-resourcesdynamic` and `livekit` (Redis) declared their
+> stateful Deployment with the default `RollingUpdate`. That starts the new pod
+> before stopping the old one, and on a single-node cluster both mount the same
+> ReadWriteOnce PVC — two engines writing one data directory, which corrupts it
+> (`PANIC: could not locate a valid checkpoint record`). All four now declare
+> `strategy: Recreate`, as `service-persistence` already did.
+>
+> `strategy` is a mutable field and is not part of the pod template, so applying
+> the fix triggers no rollout. Run a plain `helm upgrade` on each release
+> **before** the next change to its pod template.
 
 ---
 

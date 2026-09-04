@@ -58,3 +58,20 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Name of the PostGIS credentials Secret (existing one if provided, otherwise the
+chart-managed one). Keys: `username`, `password`.
+
+Prefer an existing Secret. PostgreSQL only honours POSTGRES_USER and
+POSTGRES_PASSWORD during the initial initdb: once the PVC holds a database, a
+value rotated in a chart-managed Secret never reaches PostgreSQL — it just stops
+matching the role that actually exists.
+*/}}
+{{- define "dev-services.postgisSecretName" -}}
+{{- if .Values.postgis.auth.existingSecret }}
+{{- .Values.postgis.auth.existingSecret }}
+{{- else }}
+{{- printf "%s-postgis" (include "dev-services.fullname" .) }}
+{{- end }}
+{{- end }}

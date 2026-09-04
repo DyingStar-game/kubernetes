@@ -9,9 +9,15 @@ postgis:
     tag: "18-3.6"
     pullPolicy: IfNotPresent
   auth:
+    database: planets
+    # Reference an existing Secret holding the credentials under the keys
+    # `username` and `password`. RECOMMENDED: PostgreSQL only honours
+    # POSTGRES_USER / POSTGRES_PASSWORD during the initial initdb, so a value
+    # rotated below on a later `helm upgrade` never reaches the database — it
+    # only makes the Secret stop matching the role that actually exists.
+    existingSecret: ""
     username: admin
     password: "changeme-dev"
-    database: planets
   extensions: "postgis,postgis_topology"
   service:
     type: NodePort

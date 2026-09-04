@@ -181,8 +181,14 @@ postgresql:
     pullPolicy: IfNotPresent
   auth:
     username: keycloak
-    password: "changeme-in-production"
     database: keycloak
+    # Reference an existing Secret holding the database password under the key
+    # `password`. RECOMMENDED outside dev-local: PostgreSQL only applies
+    # POSTGRES_PASSWORD at initdb time, so a value rotated here on a later
+    # `helm upgrade` reaches Keycloak but never the database — and Keycloak can
+    # no longer log in.
+    existingSecret: ""
+    password: "changeme-in-production"
   primary:
     persistence:
       enabled: true

@@ -1,0 +1,5 @@
+# Helm subchart archives — run `helm dependency update <chart>` to fetch them
+*/charts/*.tgz
+
+# Zabbix pre-shared keys — secrets, keep them out of the repository
+*.psk

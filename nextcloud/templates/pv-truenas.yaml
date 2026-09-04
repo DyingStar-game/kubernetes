@@ -1,0 +1,61 @@
+{{- if .Values.truenas.enabled }}
+{{- if .Values.truenas.createPV }}
+{{/*
+Static PersistentVolume pointing at the TrueNAS NFS export that holds the .blend
+files. Nothing is provisioned dynamically: the ZFS dataset (and its periodic
+snapshot task) is managed on TrueNAS, which is exactly the point — snapshots and
+replication stay a TrueNAS concern.
+
+`claimRef` pre-binds the PV to our PVC so no other claim in the cluster can grab
+it, and `Retain` guarantees the export survives a `helm uninstall`.
+*/}}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ include "nextcloud-ds.dataPvName" . }}
+  labels:
+    {{- include "nextcloud-ds.labels" . | nindent 4 }}
+    app.kubernetes.io/component: data
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  capacity:
+    storage: {{ .Values.truenas.capacity }}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: {{ .Values.truenas.reclaimPolicy }}
+  storageClassName: {{ .Values.truenas.storageClassName }}
+  {{- with .Values.truenas.mountOptions }}
+  mountOptions:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  claimRef:
+    namespace: {{ .Release.Namespace }}
+    name: {{ include "nextcloud-ds.dataPvcName" . }}
+  nfs:
+    server: {{ required "truenas.server is required (IP or FQDN of the TrueNAS box)" .Values.truenas.server | quote }}
+    path: {{ required "truenas.path is required (NFS export path of the ZFS dataset)" .Values.truenas.path | quote }}
+    readOnly: false
+---
+{{- end }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "nextcloud-ds.dataPvcName" . }}
+  labels:
+    {{- include "nextcloud-ds.labels" . | nindent 4 }}
+    app.kubernetes.io/component: data
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - ReadWriteMany
+  {{- if .Values.truenas.createPV }}
+  # Bind to *that* PV, never to a freshly provisioned one.
+  volumeName: {{ include "nextcloud-ds.dataPvName" . }}
+  {{- end }}
+  storageClassName: {{ .Values.truenas.storageClassName }}
+  resources:
+    requests:
+      storage: {{ .Values.truenas.capacity }}
+{{- end }}

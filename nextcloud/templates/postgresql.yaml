@@ -1,56 +1,68 @@
 {{- if .Values.postgresql.enabled }}
+{{/*
+Single-pod PostgreSQL, same pattern as keycloak/templates/postgresql.yaml.
+We deliberately do NOT use the Bitnami subchart shipped with the upstream
+Nextcloud chart (its images now live under `bitnamilegacy`).
+
+The database MUST stay on block storage (local-path): PostgreSQL over NFS is a
+well-known source of corruption. It is protected instead by the nightly pg_dump
+CronJob, which writes onto the TrueNAS volume so the ZFS snapshots cover it.
+*/}}
 {{- if not .Values.postgresql.auth.existingSecret }}
----
 apiVersion: v1
 kind: Secret
 metadata:
-  name: {{ include "keycloak.fullname" . }}-postgresql
+  name: {{ include "nextcloud-ds.fullname" . }}-postgresql
   labels:
-    {{- include "keycloak.labels" . | nindent 4 }}
+    {{- include "nextcloud-ds.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
 type: Opaque
 data:
-  password: {{ required "postgresql.auth.password is required when postgresql.auth.existingSecret is not set" .Values.postgresql.auth.password | b64enc | quote }}
-  postgres-password: {{ .Values.postgresql.auth.password | b64enc | quote }}
-{{- end }}
+  db-username: {{ .Values.postgresql.auth.username | b64enc | quote }}
+  db-password: {{ required "postgresql.auth.password is required when postgresql.auth.existingSecret is not set" .Values.postgresql.auth.password | b64enc | quote }}
+  db-database: {{ .Values.postgresql.auth.database | b64enc | quote }}
 ---
-{{- if .Values.postgresql.primary.persistence.enabled }}
+{{- end }}
+{{- if .Values.postgresql.persistence.enabled }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ include "keycloak.fullname" . }}-postgresql
+  name: {{ include "nextcloud-ds.fullname" . }}-postgresql
   labels:
-    {{- include "keycloak.labels" . | nindent 4 }}
+    {{- include "nextcloud-ds.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+  annotations:
+    helm.sh/resource-policy: keep
 spec:
   accessModes:
     - ReadWriteOnce
+  {{- with .Values.postgresql.persistence.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
   resources:
     requests:
-      storage: {{ .Values.postgresql.primary.persistence.size }}
+      storage: {{ .Values.postgresql.persistence.size }}
 ---
 {{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "keycloak.fullname" . }}-postgresql
+  name: {{ include "nextcloud-ds.fullname" . }}-postgresql
   labels:
-    {{- include "keycloak.labels" . | nindent 4 }}
+    {{- include "nextcloud-ds.labels" . | nindent 4 }}
     app.kubernetes.io/component: postgresql
 spec:
   replicas: 1
-  # Recreate, never RollingUpdate: the PVC is ReadWriteOnce, and a rolling update
-  # starts the new pod before stopping the old one. On a single-node cluster both
-  # land on the same node, where a RWO volume CAN be mounted twice — two engines
-  # writing the same data directory, which corrupts it.
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      {{- include "keycloak.selectorLabels" . | nindent 6 }}
+      {{- include "nextcloud-ds.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: postgresql
   template:
     metadata:
       labels:
-        {{- include "keycloak.selectorLabels" . | nindent 8 }}
+        {{- include "nextcloud-ds.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: postgresql
     spec:
       containers:
@@ -63,20 +75,26 @@ spec:
               protocol: TCP
           env:
             - name: POSTGRES_USER
-              value: {{ .Values.postgresql.auth.username | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "nextcloud-ds.postgresqlSecretName" . }}
+                  key: db-username
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "keycloak.postgresqlSecretName" . }}
-                  key: password
+                  name: {{ include "nextcloud-ds.postgresqlSecretName" . }}
+                  key: db-password
             - name: POSTGRES_DB
-              value: {{ .Values.postgresql.auth.database | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "nextcloud-ds.postgresqlSecretName" . }}
+                  key: db-database
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
-          {{- with .Values.postgresql.primary.resources }}
+          {{- with .Values.postgresql.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -102,9 +120,9 @@ spec:
             periodSeconds: 5
       volumes:
         - name: data
-          {{- if .Values.postgresql.primary.persistence.enabled }}
+          {{- if .Values.postgresql.persistence.enabled }}
           persistentVolumeClaim:
-            claimName: {{ include "keycloak.fullname" . }}-postgresql
+            claimName: {{ include "nextcloud-ds.fullname" . }}-postgresql
           {{- else }}
           emptyDir: {}
           {{- end }}
@@ -112,9 +130,9 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "keycloak.fullname" . }}-postgresql
+  name: {{ include "nextcloud-ds.fullname" . }}-postgresql
   labels:
-    {{- include "keycloak.labels" . | nindent 4 }}
+    {{- include "nextcloud-ds.labels" . | nindent 4 }}
     app.kubernetes.io/component: postgresql
 spec:
   type: ClusterIP
@@ -124,6 +142,6 @@ spec:
       protocol: TCP
       name: postgresql
   selector:
-    {{- include "keycloak.selectorLabels" . | nindent 4 }}
+    {{- include "nextcloud-ds.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: postgresql
 {{- end }}

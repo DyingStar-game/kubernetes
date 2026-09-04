@@ -33,6 +33,12 @@ metadata:
     app.kubernetes.io/component: postgresql
 spec:
   replicas: 1
+  # Recreate, never RollingUpdate: the PVC is ReadWriteOnce, and a rolling update
+  # starts the new pod before stopping the old one. On a single-node cluster both
+  # land on the same node, where a RWO volume CAN be mounted twice — two engines
+  # writing the same data directory, which corrupts it.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       {{- include "service-resourcesDynamic.selectorLabels" . | nindent 6 }}
