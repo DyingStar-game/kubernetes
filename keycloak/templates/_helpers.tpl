@@ -51,6 +51,21 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
+Selector for the Keycloak server pods only.
+
+`keycloak.selectorLabels` alone is NOT specific enough to select them: the
+bundled PostgreSQL Deployment and the Discord bootstrap Job stamp those same two
+labels on their pods (with an extra app.kubernetes.io/component). Used as a
+Service selector it sends part of the HTTP traffic to PostgreSQL, and as a
+Deployment selector it makes `kubectl exec deploy/keycloak` land in the wrong
+container. Always select the server through this.
+*/}}
+{{- define "keycloak.serverSelectorLabels" -}}
+{{ include "keycloak.selectorLabels" . }}
+app.kubernetes.io/component: server
+{{- end }}
+
+{{/*
 Create the name of the service account to use
 */}}
 {{- define "keycloak.serviceAccountName" -}}
@@ -80,5 +95,22 @@ Name of the Discord IdP secret (existing one if provided, otherwise the chart-ma
 {{- .Values.keycloak.discord.existingSecret }}
 {{- else }}
 {{- printf "%s-discord" (include "keycloak.fullname" .) }}
+{{- end }}
+{{- end }}
+
+{{/*
+Name of the PostgreSQL secret (existing one if provided, otherwise chart-managed).
+Key: `password`.
+
+Prefer an existing Secret. PostgreSQL only reads POSTGRES_PASSWORD during the
+initial initdb: once the PVC holds a database, a new value in a chart-managed
+Secret is applied to Keycloak but never to PostgreSQL, and Keycloak can no longer
+log in. An existing Secret takes the value out of `helm upgrade`'s hands.
+*/}}
+{{- define "keycloak.postgresqlSecretName" -}}
+{{- if .Values.postgresql.auth.existingSecret }}
+{{- .Values.postgresql.auth.existingSecret }}
+{{- else }}
+{{- printf "%s-postgresql" (include "keycloak.fullname" .) }}
 {{- end }}
 {{- end }}

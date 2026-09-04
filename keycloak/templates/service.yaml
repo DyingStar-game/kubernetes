@@ -22,4 +22,4 @@ spec:
       nodePort: {{ .Values.service.managementNodePort }}
       {{- end }}
   selector:
-    {{- include "keycloak.selectorLabels" . | nindent 4 }}
+    {{- include "keycloak.serverSelectorLabels" . | nindent 4 }}

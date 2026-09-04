@@ -1,4 +1,5 @@
 {{- if .Values.postgis.enabled }}
+{{- if not .Values.postgis.auth.existingSecret }}
 ---
 apiVersion: v1
 kind: Secret
@@ -9,7 +10,9 @@ metadata:
     app.kubernetes.io/component: postgis
 type: Opaque
 data:
-  password: {{ .Values.postgis.auth.password | b64enc | quote }}
+  username: {{ required "postgis.auth.username is required when postgis.auth.existingSecret is not set" .Values.postgis.auth.username | b64enc | quote }}
+  password: {{ required "postgis.auth.password is required when postgis.auth.existingSecret is not set" .Values.postgis.auth.password | b64enc | quote }}
+{{- end }}
 ---
 {{- if .Values.postgis.persistence.enabled }}
 apiVersion: v1
@@ -36,6 +39,12 @@ metadata:
     app.kubernetes.io/component: postgis
 spec:
   replicas: 1
+  # Recreate, never RollingUpdate: the PVC is ReadWriteOnce, and a rolling update
+  # starts the new pod before stopping the old one. On a single-node cluster both
+  # land on the same node, where a RWO volume CAN be mounted twice — two engines
+  # writing the same data directory, which corrupts it.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       {{- include "dev-services.selectorLabels" . | nindent 6 }}
@@ -56,11 +65,14 @@ spec:
               protocol: TCP
           env:
             - name: POSTGRES_USER
-              value: {{ .Values.postgis.auth.username | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "dev-services.postgisSecretName" . }}
+                  key: username
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "dev-services.fullname" . }}-postgis
+                  name: {{ include "dev-services.postgisSecretName" . }}
                   key: password
             - name: POSTGRES_DB
               value: {{ .Values.postgis.auth.database | quote }}
@@ -73,24 +85,22 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          # The user comes from the Secret now, so the probe reads it from the
+          # container's environment instead of being templated in.
           livenessProbe:
             exec:
               command:
-                - pg_isready
-                - -U
-                - {{ .Values.postgis.auth.username | quote }}
-                - -d
-                - {{ .Values.postgis.auth.database | quote }}
+                - sh
+                - -c
+                - 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
             initialDelaySeconds: 30
             periodSeconds: 10
           readinessProbe:
             exec:
               command:
-                - pg_isready
-                - -U
-                - {{ .Values.postgis.auth.username | quote }}
-                - -d
-                - {{ .Values.postgis.auth.database | quote }}
+                - sh
+                - -c
+                - 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
             initialDelaySeconds: 5
             periodSeconds: 5
       volumes:

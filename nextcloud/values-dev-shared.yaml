@@ -1,0 +1,103 @@
+# Shared-dev overrides for nextcloud — namespace dyingstar-dev-shared, on the
+# `dyingstar` cluster (the one serving prod + preprod).
+#
+# Usage:
+#   helm dependency update ./nextcloud
+#   helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
+#     nextcloud ./nextcloud -f nextcloud/values-dev-shared.yaml --create-namespace
+#
+# The release name MUST be `nextcloud` (resource names are referenced literally
+# in values.yaml — Helm cannot template subchart values).
+#
+# Required pre-existing Secrets in dyingstar-dev-shared (do NOT commit to git,
+# see README.md §Install):
+#   nextcloud-admin       keys: nextcloud-username, nextcloud-password
+#   nextcloud-postgresql  keys: db-username, db-password, db-database
+#   nextcloud-redis       keys: redis-password
+#   nextcloud-oidc        keys: client-id, client-secret, discovery-uri
+#
+# Also required outside this chart:
+#   - keycloak, deployed in THIS namespace from ../keycloak with
+#     values-dev-shared.yaml (everything but TrueNAS runs in dyingstar-dev-shared)
+#   - traefik/values-preprod.yaml       listener "nextcloud" (already added)
+#   - DNS A record cloud.dev.dyingstar-game.space → cluster ingress IP
+#   - the TrueNAS dataset + NFS share    (README.md §TrueNAS)
+#   - the Keycloak realm/client/IdP      (README.md §Authentication)
+
+truenas:
+  enabled: true
+  createPV: true
+  # ⚠ FILL IN — LAN address of the TrueNAS box and the NFS export path.
+  server: "192.168.1.10"
+  path: "/mnt/storage1/dyingstar/nextcloud"
+  capacity: 2Ti
+
+postgresql:
+  enabled: true
+  auth:
+    existingSecret: nextcloud-postgresql
+  persistence:
+    enabled: true
+    size: 10Gi
+
+redis:
+  enabled: true
+  auth:
+    existingSecret: nextcloud-redis
+
+oidc:
+  enabled: true
+  providerName: keycloak
+  existingSecret: nextcloud-oidc
+  scope: "openid profile email groups"
+  mappingUid: preferred_username
+  mappingGroups: groups
+
+groupFolder:
+  enabled: true
+  name: "3D-Assets"
+  quota: "unlimited"
+  writeGroup: ds-modelers
+  readGroup: ds-viewers
+
+dbBackup:
+  enabled: true
+  schedule: "15 2 * * *"
+  # Same timezone as the TrueNAS box, so 02:15 here really is 02:15 there.
+  timeZone: "Europe/Paris"
+  keepDays: 14
+
+nextcloud:
+  nextcloud:
+    host: cloud.dev.dyingstar-game.space
+    trustedDomains:
+      - cloud.dev.dyingstar-game.space
+    existingSecret:
+      enabled: true
+      secretName: nextcloud-admin
+      usernameKey: nextcloud-username
+      passwordKey: nextcloud-password
+
+  httpRoute:
+    enabled: true
+    parentRefs:
+      - name: traefik-gateway
+        namespace: traefik
+        sectionName: nextcloud
+    hostnames:
+      - cloud.dev.dyingstar-game.space
+
+  persistence:
+    enabled: true
+    size: 20Gi
+    nextcloudData:
+      enabled: true
+      existingClaim: nextcloud-data
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 768Mi
+    limits:
+      cpu: 4
+      memory: 4Gi

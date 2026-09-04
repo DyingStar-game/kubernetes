@@ -1,0 +1,111 @@
+# Shared-dev overrides for keycloak — namespace dyingstar-dev-shared, on the
+# `dyingstar` cluster.
+#
+# This is a SECOND, independent Keycloak instance: it has its own PostgreSQL, its
+# own admin account and its own realms, and it shares nothing with the
+# prod/preprod instances. It exists so the dev-shared namespace is self-contained
+# (everything but the TrueNAS box runs inside it).
+#
+# It backs the Nextcloud asset library — see nextcloud/README.md §Authentication.
+# Unlike prod/preprod it runs the UPSTREAM Keycloak image, not the DyingStar one:
+# it must not import the `dyingstar` player realm, and the Discord IdP is not
+# wanted here (contributors log in with GitHub instead).
+#
+# Usage:
+#   helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
+#     keycloak ./keycloak -f keycloak/values-dev-shared.yaml
+#
+# Required pre-existing Secrets in dyingstar-dev-shared (do NOT commit):
+#   keycloak-admin  keys: KEYCLOAK_ADMIN, KEYCLOAK_ADMIN_PASSWORD
+#   keycloak-db     key:  password
+#
+# GitHub OAuth App callback URL to register:
+#   https://auth.dev.dyingstar-game.space/realms/dyingstar-studio/broker/github/endpoint
+
+replicaCount: 1
+
+# Upstream image — no baked-in realm import, no bootstrap script.
+image:
+  repository: quay.io/keycloak/keycloak
+  pullPolicy: IfNotPresent
+  tag: "26.7.3"
+
+service:
+  type: ClusterIP
+  port: 8080
+  managementPort: 9000
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: 2
+    memory: 2Gi
+
+keycloak:
+  hostname: auth.dev.dyingstar-game.space
+  proxy: edge
+  # `start` and not `start --optimized`: the upstream image is not pre-built, so
+  # Keycloak runs its augmentation step on boot. Costs ~30s of startup, which the
+  # startupProbe below already allows for.
+  startCommand: "start"
+  existingSecret: keycloak-admin
+  # The realms here are created by nextcloud/scripts/bootstrap-keycloak.sh,
+  # not imported from the image.
+  realm: dyingstar-studio
+  discord:
+    enabled: false
+
+# KEYCLOAK_ADMIN / KEYCLOAK_ADMIN_PASSWORD (set by the chart) are deprecated
+# since Keycloak 26; pass the current names from the same Secret.
+env:
+  - name: KC_BOOTSTRAP_ADMIN_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-admin
+        key: KEYCLOAK_ADMIN
+  - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-admin
+        key: KEYCLOAK_ADMIN_PASSWORD
+
+# Exposure through the Traefik Gateway, like every other HTTPS service on this
+# cluster. Listener "keycloakdev" in traefik/values-preprod.yaml.
+ingress:
+  enabled: false
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: traefik-gateway
+      namespace: traefik
+      sectionName: keycloakdev
+  hostnames:
+    - auth.dev.dyingstar-game.space
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+
+postgresql:
+  enabled: true
+  auth:
+    username: keycloak
+    database: keycloak
+    # Out-of-band Secret rather than a chart value: PostgreSQL only applies
+    # POSTGRES_PASSWORD at initdb time, so a value regenerated on a later
+    # `helm upgrade` would reach Keycloak but never the database.
+    existingSecret: keycloak-db
+  primary:
+    persistence:
+      enabled: true
+      size: 5Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 1
+        memory: 1Gi

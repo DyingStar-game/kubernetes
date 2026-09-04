@@ -1,0 +1,46 @@
+{{/*
+Parameters consumed by the `before-starting` hook script (declared inline under
+nextcloud.nextcloud.hooks in values.yaml). The script runs on every pod start and
+is idempotent, so editing these values + `kubectl rollout restart` is enough to
+re-apply the configuration.
+
+The names below are hard-coded in values.yaml under nextcloud.nextcloud.extraEnv
+because Helm cannot template subchart values. Rename with care.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "nextcloud-ds.fullname" . }}-bootstrap
+  labels:
+    {{- include "nextcloud-ds.labels" . | nindent 4 }}
+data:
+  oidc-enabled: {{ .Values.oidc.enabled | quote }}
+  oidc-provider-name: {{ .Values.oidc.providerName | quote }}
+  oidc-scope: {{ .Values.oidc.scope | quote }}
+  oidc-mapping-uid: {{ .Values.oidc.mappingUid | quote }}
+  oidc-mapping-groups: {{ .Values.oidc.mappingGroups | quote }}
+  groupfolder-enabled: {{ .Values.groupFolder.enabled | quote }}
+  groupfolder-name: {{ .Values.groupFolder.name | quote }}
+  groupfolder-quota: {{ .Values.groupFolder.quota | quote }}
+  groupfolder-write-group: {{ .Values.groupFolder.writeGroup | quote }}
+  groupfolder-read-group: {{ .Values.groupFolder.readGroup | quote }}
+  trashbin-retention: {{ .Values.tuning.trashbinRetention | quote }}
+  versions-retention: {{ .Values.tuning.versionsRetention | quote }}
+  max-chunk-size: {{ .Values.tuning.maxChunkSize | quote }}
+  default-phone-region: {{ .Values.tuning.defaultPhoneRegion | quote }}
+{{- if .Values.oidc.enabled }}
+{{- if not .Values.oidc.existingSecret }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "nextcloud-ds.oidcSecretName" . }}
+  labels:
+    {{- include "nextcloud-ds.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  client-id: {{ required "oidc.clientId is required when oidc.enabled" .Values.oidc.clientId | quote }}
+  client-secret: {{ required "oidc.clientSecret is required when oidc.enabled (or set oidc.existingSecret)" .Values.oidc.clientSecret | quote }}
+  discovery-uri: {{ required "oidc.discoveryUri is required when oidc.enabled" .Values.oidc.discoveryUri | quote }}
+{{- end }}
+{{- end }}

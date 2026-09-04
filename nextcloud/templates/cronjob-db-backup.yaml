@@ -1,0 +1,90 @@
+{{- if and .Values.dbBackup.enabled .Values.postgresql.enabled .Values.truenas.enabled }}
+{{/*
+Nightly pg_dump written INTO the TrueNAS volume (subPath `backup/`).
+
+Why: the ZFS periodic snapshot task on TrueNAS only sees the NFS dataset. The
+PostgreSQL PVC lives on cluster-local storage and would not be captured, so a
+snapshot alone would restore the files without the metadata that makes them
+visible in Nextcloud. Dumping the DB onto the same dataset makes each ZFS
+snapshot a self-contained restore point.
+
+Schedule this a few minutes BEFORE the TrueNAS snapshot task.
+*/}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "nextcloud-ds.fullname" . }}-db-backup
+  labels:
+    {{- include "nextcloud-ds.labels" . | nindent 4 }}
+    app.kubernetes.io/component: db-backup
+spec:
+  schedule: {{ .Values.dbBackup.schedule | quote }}
+  {{- with .Values.dbBackup.timeZone }}
+  # Without this a CronJob runs on the controller-manager's clock (UTC), while
+  # the TrueNAS snapshot task runs on the NAS's local clock — and the dump would
+  # silently land after the snapshot it is supposed to precede.
+  timeZone: {{ . | quote }}
+  {{- end }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            {{- include "nextcloud-ds.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: db-backup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: pg-dump
+              image: "{{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
+              imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
+              env:
+                - name: PGHOST
+                  value: {{ include "nextcloud-ds.fullname" . }}-postgresql
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "nextcloud-ds.postgresqlSecretName" . }}
+                      key: db-username
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "nextcloud-ds.postgresqlSecretName" . }}
+                      key: db-password
+                - name: PGDATABASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "nextcloud-ds.postgresqlSecretName" . }}
+                      key: db-database
+                - name: KEEP_DAYS
+                  value: {{ .Values.dbBackup.keepDays | quote }}
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -eu
+                  mkdir -p /backup
+                  out="/backup/nextcloud-$(date -u +%Y%m%dT%H%M%SZ).sql.gz"
+                  echo "dumping ${PGDATABASE} to ${out}"
+                  pg_dump --clean --if-exists --no-owner --no-privileges | gzip -9 > "${out}.part"
+                  mv "${out}.part" "${out}"
+                  echo "pruning dumps older than ${KEEP_DAYS} days"
+                  find /backup -name 'nextcloud-*.sql.gz' -type f -mtime "+${KEEP_DAYS}" -print -delete
+                  ls -lh /backup
+              volumeMounts:
+                - name: data
+                  mountPath: /backup
+                  subPath: backup
+              {{- with .Values.dbBackup.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: {{ include "nextcloud-ds.dataPvcName" . }}
+{{- end }}

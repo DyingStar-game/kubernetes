@@ -1,0 +1,412 @@
+# Default values for the DyingStar Nextcloud chart.
+#
+# This is an *umbrella* chart:
+#   - everything under the top-level `nextcloud:` key is passed to the official
+#     Nextcloud chart (https://github.com/nextcloud/helm) — note the resulting
+#     `nextcloud.nextcloud.*` paths, which are the upstream chart's own
+#     `nextcloud:` section;
+#   - every other top-level key (truenas, postgresql, redis, oidc, groupFolder,
+#     tuning, dbBackup) belongs to this chart's own templates/.
+#
+# The release MUST be named `nextcloud` (see README.md): a few resource names are
+# hard-coded in the subchart values below because Helm cannot template them.
+
+nameOverride: ""
+fullnameOverride: ""
+
+# kube-context pinned in the commands printed by NOTES.txt. This workspace has
+# two contexts (`dyingstar` and `minikube`); a bare kubectl would run against
+# whichever is current. Set to "" to omit the flag.
+kubeContext: dyingstar
+
+# ─── TrueNAS (NFS) — where the .blend files actually live ───────────────────────
+# A static PersistentVolume, on purpose: the ZFS dataset and its periodic
+# snapshot task are managed on TrueNAS, which is what makes the snapshots useful.
+# See README.md §TrueNAS for the dataset / NFS share settings to apply.
+truenas:
+  enabled: true
+  # Set to false if you provision the PVC some other way (democratic-csi,
+  # csi-driver-nfs, …). The PVC is still created and still named <release>-data.
+  createPV: true
+  # IP or FQDN of the TrueNAS box, reachable from every node.
+  server: ""
+  # NFS export path of the ZFS dataset (TrueNAS: Datasets → path column).
+  path: ""
+  # Advisory only for a static PV — no quota is enforced by Kubernetes.
+  # The real limit is the ZFS dataset quota set on TrueNAS.
+  capacity: 2Ti
+  # Dummy class: no provisioner answers to it, so nothing else can hijack the PV.
+  storageClassName: truenas-nfs
+  reclaimPolicy: Retain
+  mountOptions:
+    - nfsvers=4.1
+    - hard
+    - noatime
+    - nodiratime
+    - rsize=1048576
+    - wsize=1048576
+    - nconnect=8
+    - timeo=600
+    - retrans=2
+
+# ─── PostgreSQL (bundled, single-pod) ───────────────────────────────────────────
+# Same pattern as keycloak/ and dev-services/. Stays on cluster-local block
+# storage — never put a PostgreSQL data directory on NFS.
+postgresql:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: postgres
+    tag: "16-alpine"
+    pullPolicy: IfNotPresent
+  auth:
+    username: nextcloud
+    database: nextcloud
+    password: "changeme-in-dev-shared"
+    # Reference an existing Secret with keys db-username / db-password / db-database.
+    existingSecret: ""
+  persistence:
+    enabled: true
+    size: 10Gi
+    # Empty → cluster default (local-path).
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1
+      memory: 1Gi
+
+# ─── Redis (bundled, single-pod) ────────────────────────────────────────────────
+# Mandatory here: it backs Nextcloud's transactional file locking, without which
+# concurrent writes to the same .blend on an NFS share can corrupt it.
+redis:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: redis
+    tag: "7.4-alpine"
+    pullPolicy: IfNotPresent
+  auth:
+    password: "changeme-in-dev-shared"
+    # Reference an existing Secret with key redis-password.
+    existingSecret: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ─── Authentication (Keycloak → GitHub) ─────────────────────────────────────────
+# Nextcloud speaks OIDC through the `user_oidc` app. GitHub is plain OAuth2 (no
+# OIDC discovery, no id_token), so it cannot be plugged in directly — Keycloak
+# brokers it, which also gives us group mapping. See README.md §Authentication.
+oidc:
+  enabled: true
+  # Identifier of the provider inside Nextcloud, and the label on the login button.
+  providerName: keycloak
+  # Keycloak realm discovery document.
+  discoveryUri: ""
+  clientId: nextcloud
+  clientSecret: ""
+  # Reference an existing Secret with keys client-id / client-secret / discovery-uri.
+  existingSecret: ""
+  # `groups` must be in the scope list for group provisioning to work, and the
+  # Keycloak client needs a Group Membership mapper emitting that claim.
+  scope: "openid profile email groups"
+  # Claim used as the Nextcloud user id. `preferred_username` is what Keycloak
+  # fills with the GitHub login when GitHub is the identity provider.
+  mappingUid: preferred_username
+  mappingGroups: groups
+
+# ─── Shared folder & permissions ────────────────────────────────────────────────
+# A Group Folder (app `groupfolders`): a folder that belongs to no single user,
+# with per-group ACLs — the right shape for a shared asset library.
+groupFolder:
+  enabled: true
+  name: "3D-Assets"
+  # `unlimited`, or a size like "500GB".
+  quota: "unlimited"
+  # Nextcloud group granted write/share/delete. Must match a Keycloak group name.
+  writeGroup: ds-modelers
+  # Nextcloud group granted read-only. Must match a Keycloak group name.
+  readGroup: ds-viewers
+
+# ─── Nextcloud tuning ───────────────────────────────────────────────────────────
+tuning:
+  # .blend files are big; unbounded versions/trash would eat the dataset. ZFS
+  # snapshots on TrueNAS remain the long-term safety net.
+  trashbinRetention: "auto, 30"
+  versionsRetention: "auto, 30"
+  # Upload chunk size in bytes (100 MiB). The 10 MiB default makes multi-GB
+  # .blend uploads needlessly slow.
+  maxChunkSize: "104857600"
+  defaultPhoneRegion: "FR"
+
+# ─── Nightly pg_dump onto the TrueNAS volume ────────────────────────────────────
+# Makes each ZFS snapshot a self-contained restore point (files + database).
+dbBackup:
+  enabled: true
+  # Run it shortly BEFORE the TrueNAS periodic snapshot task.
+  schedule: "15 2 * * *"
+  # Must match the TrueNAS box's timezone, otherwise `schedule` is interpreted in
+  # UTC and the ordering against the snapshot task breaks. Empty = UTC.
+  timeZone: "Europe/Paris"
+  keepDays: 14
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ════════════════════════════════════════════════════════════════════════════════
+# Values passed to the upstream Nextcloud chart
+# ════════════════════════════════════════════════════════════════════════════════
+nextcloud:
+
+  replicaCount: 1
+
+  image:
+    registry: docker.io
+    repository: library/nextcloud
+    flavor: apache
+    pullPolicy: IfNotPresent
+
+  nextcloud:
+    # Overridden per environment.
+    host: nextcloud.local
+    username: admin
+    password: "changeme-in-dev-shared"
+    trustedDomains: []
+    datadir: /var/www/html/data
+
+    extraEnv:
+      # Behind Traefik: Nextcloud must build https:// URLs even though the
+      # gateway talks to it in clear HTTP.
+      - name: OVERWRITEPROTOCOL
+        value: "https"
+      # Pod CIDR — Traefik's pod IP, so X-Forwarded-For is trusted.
+      # k3s default; adjust if your cluster uses another range.
+      - name: TRUSTED_PROXIES
+        value: "10.42.0.0/16"
+      # .blend files run to several GB.
+      - name: PHP_UPLOAD_LIMIT
+        value: "16G"
+      - name: PHP_MEMORY_LIMIT
+        value: "1024M"
+      # Apache's LimitRequestBody, 0 = unlimited (default is 1 GiB).
+      - name: APACHE_BODY_LIMIT
+        value: "0"
+
+      # ── parameters read by the before-starting hook below ──
+      # Names below are fixed; they resolve against the ConfigMap/Secret created
+      # by templates/bootstrap-config.yaml for a release named `nextcloud`.
+      - name: DS_OIDC_ENABLED
+        valueFrom: { configMapKeyRef: { name: nextcloud-bootstrap, key: oidc-enabled } }
+      - name: DS_OIDC_PROVIDER
+        valueFrom: { configMapKeyRef: { name: nextcloud-bootstrap, key: oidc-provider-name } }
+      - name: DS_OIDC_SCOPE
+        valueFrom: { configMapKeyRef: { name: nextcloud-bootstrap, key: oidc-scope } }
+      - name: DS_OIDC_MAPPING_UID
+        valueFrom: { configMapKeyRef: { name: nextcloud-bootstrap, key: oidc-mapping-uid } }
+      - name: DS_OIDC_MAPPING_GROUPS
+        valueFrom: { configMapKeyRef: { name: nextcloud-bootstrap, key: oidc-mapping-groups } }
+      - name: DS_GF_ENABLED
+        valueFrom: { configMapKeyRef: { name: nextcloud-bootstrap, key: groupfolder-enabled } }
+      - name: DS_GF_NAME
+        valueFrom: { configMapKeyRef: { name: nextcloud-bootstrap, key: groupfolder-name } }
+      - name: DS_GF_QUOTA
+        valueFrom: { configMapKeyRef: { name: nextcloud-bootstrap, key: groupfolder-quota } }
+      - name: DS_GF_WRITE_GROUP
+        valueFrom: { configMapKeyRef: { name: nextcloud-bootstrap, key: groupfolder-write-group } }
+      - name: DS_GF_READ_GROUP
+        valueFrom: { configMapKeyRef: { name: nextcloud-bootstrap, key: groupfolder-read-group } }
+      - name: DS_TRASHBIN_RETENTION
+        valueFrom: { configMapKeyRef: { name: nextcloud-bootstrap, key: trashbin-retention } }
+      - name: DS_VERSIONS_RETENTION
+        valueFrom: { configMapKeyRef: { name: nextcloud-bootstrap, key: versions-retention } }
+      - name: DS_MAX_CHUNK_SIZE
+        valueFrom: { configMapKeyRef: { name: nextcloud-bootstrap, key: max-chunk-size } }
+      - name: DS_PHONE_REGION
+        valueFrom: { configMapKeyRef: { name: nextcloud-bootstrap, key: default-phone-region } }
+      - name: DS_OIDC_CLIENT_ID
+        valueFrom: { secretKeyRef: { name: nextcloud-oidc, key: client-id, optional: true } }
+      - name: DS_OIDC_CLIENT_SECRET
+        valueFrom: { secretKeyRef: { name: nextcloud-oidc, key: client-secret, optional: true } }
+      - name: DS_OIDC_DISCOVERY
+        valueFrom: { secretKeyRef: { name: nextcloud-oidc, key: discovery-uri, optional: true } }
+
+    # Silences the "interned strings buffer" admin warning and gives long
+    # uploads room to finish.
+    phpConfigs:
+      zz-dyingstar.ini: |
+        max_execution_time = 3600
+        max_input_time = 3600
+        opcache.interned_strings_buffer = 32
+
+    # `before-starting` runs on EVERY container start (unlike post-installation,
+    # which only runs on the very first install), so this script is written to be
+    # idempotent: edit values, `kubectl rollout restart`, done. The chart hashes
+    # the hooks into a pod annotation, so a `helm upgrade` that changes this
+    # script restarts the pod on its own.
+    #
+    # It never exits non-zero: a failing hook aborts the entrypoint and puts the
+    # pod in CrashLoopBackOff. Failures are logged with the [dyingstar] prefix
+    # instead — grep the pod logs after a deploy.
+    hooks:
+      before-starting: |
+        #!/bin/sh
+        set -u
+        occ() { php /var/www/html/occ "$@"; }
+        log() { echo "[dyingstar] $*"; }
+
+        log "bootstrap: start"
+
+        for app in user_oidc groupfolders; do
+          if occ app:list --output=json 2>/dev/null | grep -q "\"${app}\""; then
+            log "app ${app}: already installed"
+          else
+            log "app ${app}: installing from the app store"
+            occ app:install "${app}" || log "app ${app}: INSTALL FAILED (app store unreachable?)"
+          fi
+          occ app:enable "${app}" || log "app ${app}: ENABLE FAILED"
+        done
+        occ app:disable firstrunwizard >/dev/null 2>&1 || true
+
+        log "applying tuning"
+        occ config:system:set trashbin_retention_obligation --value="${DS_TRASHBIN_RETENTION}" || log "trashbin retention FAILED"
+        occ config:system:set versions_retention_obligation --value="${DS_VERSIONS_RETENTION}" || log "versions retention FAILED"
+        occ config:system:set default_phone_region --value="${DS_PHONE_REGION}" || true
+        occ config:app:set files max_chunk_size --value="${DS_MAX_CHUNK_SIZE}" || true
+        occ config:system:set skeletondirectory --value="" || true
+
+        if [ "${DS_OIDC_ENABLED}" = "true" ] && [ -n "${DS_OIDC_DISCOVERY:-}" ]; then
+          log "configuring OIDC provider '${DS_OIDC_PROVIDER}'"
+          occ config:app:set user_oidc allow_multiple_user_backends --value=1 || true
+          occ user_oidc:provider "${DS_OIDC_PROVIDER}" --clientid="${DS_OIDC_CLIENT_ID}" --clientsecret="${DS_OIDC_CLIENT_SECRET}" --discoveryuri="${DS_OIDC_DISCOVERY}" --scope="${DS_OIDC_SCOPE}" --unique-uid=0 --mapping-uid="${DS_OIDC_MAPPING_UID}" --mapping-display-name=name --mapping-email=email --mapping-groups="${DS_OIDC_MAPPING_GROUPS}" --group-provisioning=1 || log "user_oidc:provider FAILED - run 'occ user_oidc:provider --help' and check the option names for this app version"
+        else
+          log "OIDC disabled or no discovery URI, skipping"
+        fi
+
+        if [ "${DS_GF_ENABLED}" = "true" ]; then
+          occ group:add "${DS_GF_WRITE_GROUP}" >/dev/null 2>&1 || true
+          occ group:add "${DS_GF_READ_GROUP}" >/dev/null 2>&1 || true
+          # The local admin needs to be a member to create the public share link.
+          occ group:adduser "${DS_GF_WRITE_GROUP}" "${NEXTCLOUD_ADMIN_USER:-admin}" >/dev/null 2>&1 || true
+
+          fid=$(occ groupfolders:list --output=json 2>/dev/null | php -r '$d=json_decode(stream_get_contents(STDIN),true); if(is_array($d)){foreach($d as $f){ if(is_array($f) && isset($f["mount_point"]) && $f["mount_point"]===getenv("DS_GF_NAME")){ echo $f["id"]; break; } }}' 2>/dev/null)
+          if [ -z "${fid}" ]; then
+            log "group folder '${DS_GF_NAME}': creating"
+            fid=$(occ groupfolders:create "${DS_GF_NAME}" 2>/dev/null | tr -cd '0-9')
+          else
+            log "group folder '${DS_GF_NAME}': already exists (id ${fid})"
+          fi
+
+          if [ -n "${fid}" ]; then
+            occ groupfolders:group "${fid}" "${DS_GF_WRITE_GROUP}" write share delete || log "groupfolders:group write FAILED"
+            occ groupfolders:group "${fid}" "${DS_GF_READ_GROUP}" read || log "groupfolders:group read FAILED"
+            occ groupfolders:quota "${fid}" "${DS_GF_QUOTA}" || true
+          else
+            log "group folder '${DS_GF_NAME}': could not determine id, skipping ACLs"
+          fi
+        fi
+
+        log "bootstrap: done"
+
+  # Nextcloud background jobs (cron). Required: without it group folder scans,
+  # trash/version expiry and file scans never run.
+  cronjob:
+    enabled: true
+    type: sidecar
+    sidecar:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 1
+          memory: 512Mi
+
+  # Bundled Bitnami subcharts stay off — we ship our own PostgreSQL and Redis.
+  internalDatabase:
+    enabled: false
+  mariadb:
+    enabled: false
+  postgresql:
+    enabled: false
+  redis:
+    enabled: false
+
+  externalDatabase:
+    enabled: true
+    type: postgresql
+    # <release>-postgresql Service, from templates/postgresql.yaml.
+    host: nextcloud-postgresql:5432
+    existingSecret:
+      enabled: true
+      secretName: nextcloud-postgresql
+      usernameKey: db-username
+      passwordKey: db-password
+      databaseKey: db-database
+
+  externalRedis:
+    enabled: true
+    # <release>-redis Service, from templates/redis.yaml.
+    host: nextcloud-redis
+    port: "6379"
+    existingSecret:
+      enabled: true
+      secretName: nextcloud-redis
+      passwordKey: redis-password
+
+  persistence:
+    enabled: true
+    # /var/www/html — code, config, custom_apps, themes, tmp. Cluster-local.
+    accessMode: ReadWriteOnce
+    size: 20Gi
+    nextcloudData:
+      enabled: true
+      # PVC created by templates/pv-truenas.yaml (<release>-data).
+      # Mounted at /var/www/html/data, so the files land in <dataset>/data/.
+      existingClaim: nextcloud-data
+      accessMode: ReadWriteMany
+
+  service:
+    type: ClusterIP
+    port: 8080
+
+  # Exposure goes through Traefik's Gateway API, like keycloak — never an Ingress
+  # (there is no nginx controller in this cluster).
+  ingress:
+    enabled: false
+  httpRoute:
+    enabled: false
+    parentRefs: []
+    hostnames: []
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 2
+      memory: 2Gi
+
+  # Nextcloud can take a while to run migrations after an image bump.
+  startupProbe:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    failureThreshold: 60
+  livenessProbe:
+    enabled: true
+  readinessProbe:
+    enabled: true
+
+  hpa:
+    enabled: false

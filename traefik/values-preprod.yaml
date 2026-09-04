@@ -89,3 +89,26 @@ gateway:
       certificateRefs:
         - kind: Secret
           name: grafana-tls
+    nextcloud:
+      port: 443
+      protocol: HTTPS
+      hostname: "cloud.dev.dyingstar-game.space"
+      namespacePolicy:
+        from: All
+      mode: Terminate
+      certificateRefs:
+        - kind: Secret
+          name: nextcloud-tls
+    # Second Keycloak instance, the one living in dyingstar-dev-shared.
+    # Distinct from the "keycloak" listener above, which fronts the preprod
+    # player realm at auth-preprod.dyingstar-game.com.
+    keycloakdev:
+      port: 443
+      protocol: HTTPS
+      hostname: "auth.dev.dyingstar-game.space"
+      namespacePolicy:
+        from: All
+      mode: Terminate
+      certificateRefs:
+        - kind: Secret
+          name: keycloak-dev-tls
