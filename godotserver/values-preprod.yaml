@@ -21,3 +21,19 @@ resources:
 env:
   - name: DEBUG_GDB
     value: "0"
+
+# Crash dumps survive the crash. The image sets DOTNET_DbgEnableMiniDump=1 with
+# DOTNET_DbgMiniDumpName=/tmp/coredump.%d.%t, but a container's /tmp dies with the
+# container, and Kubernetes restarts the container right after a crash (2026-09-13:
+# SIGSEGV at 23:06:46, restart at 23:06:48, nothing left to read). An emptyDir lives
+# as long as the POD, so it survives a container restart; read it from the new
+# container with `kubectl cp <pod>:/tmp/ ./dumps/`. It does not survive a rollout.
+# DOTNET_DbgMiniDumpType=2 writes the heap: a dump can weigh several GiB, hence the
+# size limit (the pod is evicted if it is exceeded, better than filling the node).
+volumes:
+  - name: crash-dumps
+    emptyDir:
+      sizeLimit: 8Gi
+volumeMounts:
+  - name: crash-dumps
+    mountPath: /tmp
