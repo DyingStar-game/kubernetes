@@ -14,6 +14,13 @@
     au reconcile suivant, chaque Application dev correspondante declare un bloc
     `ignoreDifferences` sur l'image et l'imagePullPolicy (argocd/dev/game/*.yaml).
 
+    Une cible peut declarer un `hook` (dev-projects.yaml) : scripts_windows/hooks/<hook>.ps1
+    est appele avec `prepare` avant le docker build et `cleanup` apres (meme si le
+    build echoue). C'est la que sont reproduits les traitements que la CI applique
+    aux sources avant le build (ex. godotserver : dev tools OFF).
+
+    Variable d'environnement NO_CACHE=1 : docker build --no-cache (comme la CI).
+
 .PARAMETER Target
     Nom d'une cible de dev-projects.yaml, ou "all". Si omis, un menu interactif
     est propose.
@@ -142,6 +149,9 @@ function Read-DevProjects {
         $init = ''
         if ($e.ContainsKey('initContainer')) { $init = $e['initContainer'] }
 
+        $hook = ''
+        if ($e.ContainsKey('hook')) { $hook = $e['hook'] }
+
         [void]$projects.Add([pscustomobject]@{
             Name          = $e['name']
             Path          = $e['path']
@@ -149,6 +159,7 @@ function Read-DevProjects {
             Deployment    = $e['deployment']
             Image         = $image
             InitContainer = $init
+            Hook          = $hook
             Namespace     = $config['namespace']
             Tag           = $config['tag']
         })
@@ -200,9 +211,45 @@ function Invoke-BuildAndDeploy {
         throw "Le Dockerfile '$dockerfilePath' n'existe pas."
     }
 
-    Write-Step "Build de l'image $imageRef..."
-    docker build -t $imageRef -f $dockerfilePath $Project.Path
-    Assert-LastExitCode "Le build de l'image $imageRef a echoue"
+    # Hook de preparation des sources (cf. .DESCRIPTION). Le `cleanup` est dans un
+    # finally : les fichiers modifies par `prepare` sont restaures meme si le build
+    # echoue.
+    $hookScript = $null
+    $hookStateDir = $null
+    if ($Project.Hook) {
+        $hookScript = Join-Path $PSScriptRoot ("hooks\{0}.ps1" -f $Project.Hook)
+        if (-not (Test-Path -LiteralPath $hookScript -PathType Leaf)) {
+            throw "Hook '$hookScript' introuvable."
+        }
+        $hookStateDir = Join-Path ([System.IO.Path]::GetTempPath()) ("ds-hook-{0}" -f [guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $hookStateDir | Out-Null
+    }
+
+    $buildOpts = @()
+    if ($env:NO_CACHE -eq '1') { $buildOpts += '--no-cache' }
+
+    try {
+        if ($hookScript) {
+            Write-Step "Hook $($Project.Hook) : prepare..."
+            Push-Location -LiteralPath $Project.Path
+            try { & $hookScript -Mode prepare -StateDir $hookStateDir }
+            finally { Pop-Location }
+        }
+
+        Write-Step "Build de l'image $imageRef..."
+        docker build @buildOpts -t $imageRef -f $dockerfilePath $Project.Path
+        Assert-LastExitCode "Le build de l'image $imageRef a echoue"
+    }
+    finally {
+        if ($hookScript) {
+            Write-Step "Hook $($Project.Hook) : cleanup..."
+            Push-Location -LiteralPath $Project.Path
+            try { & $hookScript -Mode cleanup -StateDir $hookStateDir }
+            catch { Write-Fail "Le cleanup du hook '$($Project.Hook)' a echoue : $($_.Exception.Message)" }
+            finally { Pop-Location }
+            Remove-Item -LiteralPath $hookStateDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
 
     # Cible du patch : un init container nomme, ou le container principal.
     # On utilise un strategic merge patch : `name` est la merge key de containers

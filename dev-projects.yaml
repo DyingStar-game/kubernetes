@@ -8,15 +8,23 @@
 #   image          (optionnel) nom de l'image locale buildée — défaut : `name`
 #   initContainer  (optionnel) si présent, on patche cet init container du Deployment
 #                  au lieu du container principal
+#   hook           (optionnel) nom d'un script scripts_linux/hooks/<hook>.sh
+#                  (scripts_windows/hooks/<hook>.ps1) appelé avec `prepare` avant le
+#                  docker build et `cleanup` après — reproduit les traitements que
+#                  la CI applique aux sources avant de builder
 
 namespace: dyingstar
 tag: dev
 
 projects:
+  # Le hook rejoue les étapes de DyingStar/.github/workflows/build-server-preprod.yaml
+  # (dev tools OFF dans globals.gd, [stream] channel dans server.ini — GODOT_STREAM_CHANNEL,
+  # défaut dev) puis restaure les fichiers.
   - name: godotserver
     path: ../DyingStar
     dockerfile: .docker/Dockerfile
     deployment: godotserver
+    hook: godotserver
 
   # Build « split » (serveur Horizon seul) — le monolithe .docker/Dockerfile
   # recompile tout le workspace Rust et n'est pas adapté au dev local.

@@ -208,6 +208,12 @@ The targets (`godotserver`, `horizon`, `horizon-plugins`, `horizon-data`,
 `resourcesdynamic`, `persistence`, `monitoring`) are declared in
 [`dev-projects.yaml`](dev-projects.yaml).
 
+A target may declare a `hook`: `scripts_linux/hooks/<hook>.sh` (or
+`scripts_windows/hooks/<hook>.ps1`) runs with `prepare` before the `docker build` and
+`cleanup` after it (always, even on failure). This is where the source tweaks the CI
+applies before building are replayed locally. Set `NO_CACHE=1` to build with
+`docker build --no-cache` like the CI does.
+
 ### Scenarii
 
 Couple scenarii in example, depend on what part you develop in local.
@@ -258,6 +264,36 @@ In *Launch arguments*, you can append `--log-file /tmp/godot/player.log` and
 After start run with *F5* in godot, open *Freelens*, go in *Workloads* and *pods*, you
 can delete the line starts with *horizon-*. This will restart Horizon and connect to
 your Godot server. After 20 - 40 seconds, you can connect to game server from client.
+
+#### Build the godot server image locally
+
+To run your local godot sources as a pod in minikube (instead of the `develop` image
+from Harbor, or the editor `F5` run above):
+
+```bash
+./scripts_linux/build-and-deploy.sh godotserver
+GODOT_STREAM_CHANNEL=preprod ./scripts_linux/build-and-deploy.sh godotserver   # same [stream] channel as preprod
+```
+
+The `godotserver` hook replays the steps of `DyingStar/.github/workflows/build-server-preprod.yaml`
+on the `../DyingStar` sources before the build, then restores the files (your uncommitted
+changes are kept):
+
+- `scenes/globals/globals.gd`: dev tools (`spawn_wheel`, `zapette`, `toggle_eva`,
+  `build_chunk_skirts`) switched OFF, with the same check as the CI;
+- `server.ini`: `[stream] channel` set to `GODOT_STREAM_CHANNEL` (default `dev`; the
+  preprod CI uses `preprod`);
+- `assets_blender/` is already excluded by `.dockerignore`, nothing to do.
+
+The build is long (Godot import + export + `dotnet publish`, several minutes) and needs
+a lot of disk space in the minikube VM.
+
+To run several game server instances (the ArgoCD dev Application ignores `replicas`,
+like the image, so this survives the reconcile; `values-dev.yaml` stays at 1):
+
+```bash
+kubectl scale deployment godotserver -n dyingstar --replicas=6
+```
 
 #### Develop Horizon
 
