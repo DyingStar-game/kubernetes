@@ -27,9 +27,12 @@ spec:
 
   # Le build local (./scripts_linux/build-and-deploy.sh) patche l'image du container principal
   # avec imagePullPolicy: Never — sans ceci, selfHeal l'annulerait au reconcile.
+  # Le nombre d'instances est aussi un réglage local : values-dev.yaml reste à 1 et
+  # chaque dev scale à la main (kubectl scale deployment godotserver -n dyingstar --replicas=N).
   ignoreDifferences:
     - group: apps
       kind: Deployment
       jsonPointers:
+        - /spec/replicas
         - /spec/template/spec/containers/0/image
         - /spec/template/spec/containers/0/imagePullPolicy

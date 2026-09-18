@@ -11,10 +11,16 @@
 # reconcile suivant, chaque Application dev correspondante déclare un bloc
 # `ignoreDifferences` sur l'image et l'imagePullPolicy (argocd/dev/game/*.yaml).
 #
+# Une cible peut déclarer un `hook` (dev-projects.yaml) : scripts_linux/hooks/<hook>.sh
+# est appelé avec `prepare` avant le docker build et `cleanup` après (même si le
+# build échoue ou est interrompu). C'est là que sont reproduits les traitements
+# que la CI applique aux sources avant le build (ex. godotserver : dev tools OFF).
+#
 # Usage :
 #   ./scripts_linux/build-and-deploy.sh                 # menu interactif
 #   ./scripts_linux/build-and-deploy.sh horizon-data    # une cible précise
 #   ./scripts_linux/build-and-deploy.sh all             # toutes les cibles
+#   NO_CACHE=1 ./scripts_linux/build-and-deploy.sh godotserver   # docker build --no-cache
 
 set -e
 
@@ -44,7 +50,7 @@ usage() {
 
 # Parse le YAML avec Python (pas de dépendance externe type yq).
 # Sortie : une ligne par projet retenu, champs séparés par '|' :
-#   name|path|dockerfile|deployment|image|initContainer|namespace|tag
+#   name|path|dockerfile|deployment|image|initContainer|namespace|tag|hook
 # Code de sortie 2 si la cible demandée n'existe pas.
 parse_projects() {
   local target=$1
@@ -65,8 +71,9 @@ for p in data.get('projects', []):
     if target == 'all' or target == name:
         image = p.get('image', name)
         init = p.get('initContainer', '')
+        hook = p.get('hook', '')
         print('|'.join([name, p['path'], p['dockerfile'], p['deployment'],
-                        image, init, ns, tag]))
+                        image, init, ns, tag, hook]))
         found_any = True
 
 if not found_any:
@@ -76,7 +83,7 @@ PY_EOF
 
 # Liste courte pour le menu et l'usage : name|deployment|initContainer
 list_targets() {
-  parse_projects all | while IFS='|' read -r name path dockerfile deployment image init ns tag; do
+  parse_projects all | while IFS='|' read -r name path dockerfile deployment image init ns tag hook; do
     echo "$name|$deployment|$init"
   done
 }
@@ -84,7 +91,7 @@ list_targets() {
 # Build et déploiement d'une cible.
 build_and_deploy() {
   local name=$1 proj_dir=$2 dockerfile=$3 deployment=$4
-  local image=$5 init_container=$6 namespace=$7 tag=$8
+  local image=$5 init_container=$6 namespace=$7 tag=$8 hook=$9
 
   echo "=================================================="
   echo "🚀 Traitement de : $name"
@@ -99,8 +106,44 @@ build_and_deploy() {
     return 1
   fi
 
+  # Hook de préparation des sources (cf. en-tête). `cleanup` est garanti par un
+  # trap : les fichiers modifiés par `prepare` sont restaurés même si le build
+  # échoue ou si l'utilisateur interrompt avec Ctrl-C.
+  local hook_script=""
+  if [ -n "$hook" ]; then
+    hook_script="$PWD/scripts_linux/hooks/$hook.sh"
+    if [ ! -x "$hook_script" ]; then
+      echo "❌ Erreur : hook '$hook_script' introuvable ou non exécutable."
+      return 1
+    fi
+    HOOK_STATE_DIR=$(mktemp -d)
+    export HOOK_STATE_DIR
+    run_hook() { (cd "$proj_dir" && "$hook_script" "$1"); }
+    hook_cleanup() {
+      local rc=$?
+      trap - EXIT INT TERM
+      echo "🧹 Hook $hook : cleanup..."
+      run_hook cleanup || echo "⚠️  Le cleanup du hook '$hook' a échoué — vérifiez l'état de $proj_dir."
+      rm -rf "$HOOK_STATE_DIR"
+      return $rc
+    }
+    trap 'hook_cleanup; exit 130' INT TERM
+    trap 'hook_cleanup' EXIT
+    echo "🪝 Hook $hook : prepare..."
+    run_hook prepare
+  fi
+
+  local -a build_opts=()
+  if [ "${NO_CACHE:-0}" = "1" ]; then
+    build_opts+=(--no-cache)
+  fi
+
   echo "📦 Build de l'image $image:$tag..."
-  docker build -t "$image:$tag" -f "$proj_dir/$dockerfile" "$proj_dir"
+  docker build "${build_opts[@]}" -t "$image:$tag" -f "$proj_dir/$dockerfile" "$proj_dir"
+
+  if [ -n "$hook" ]; then
+    hook_cleanup
+  fi
 
   # Cible du patch : un init container nommé, ou le container principal.
   # On utilise un strategic merge patch : `name` est la merge key de containers
@@ -234,10 +277,10 @@ eval "$(minikube -p minikube docker-env)"
 # de resourcesDynamic déclare une directive « # syntax= ».
 export DOCKER_BUILDKIT=1
 
-while IFS='|' read -r name proj_dir dockerfile deployment image init namespace tag; do
+while IFS='|' read -r name proj_dir dockerfile deployment image init namespace tag hook; do
   [ -z "$name" ] && continue
   build_and_deploy "$name" "$proj_dir" "$dockerfile" "$deployment" \
-                   "$image" "$init" "$namespace" "$tag"
+                   "$image" "$init" "$namespace" "$tag" "$hook"
 done <<< "$FOUND"
 
 echo "🎉 Opération terminée avec succès !"
