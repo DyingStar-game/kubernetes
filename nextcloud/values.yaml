@@ -89,6 +89,13 @@ redis:
     tag: "7.4-alpine"
     pullPolicy: IfNotPresent
   auth:
+    # MUST be URL-safe: [A-Za-z0-9._~-] only. The upstream chart injects it
+    # verbatim into PHP's session.save_path as `tcp://host:6379?auth=<password>`,
+    # so a `+` arrives at Redis as a space and authentication fails — which
+    # breaks every login with no error message. Generate with
+    # `openssl rand -hex 32`, never `openssl rand -base64`.
+    # The chart enforces this below, but ONLY when existingSecret is empty; a
+    # Secret you create yourself is not validated.
     password: "changeme-in-dev-shared"
     # Reference an existing Secret with key redis-password.
     existingSecret: ""

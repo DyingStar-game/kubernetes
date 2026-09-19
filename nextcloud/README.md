@@ -202,11 +202,20 @@ apt-get install -y nfs-common
 dnf install -y nfs-utils
 ```
 
-Verify from a node before deploying:
+Verify from a node before deploying — and **unmount it again**:
 
 ```bash
+mkdir -p /mnt/test
 mount -t nfs4 -o nfsvers=4.1 192.168.1.10:/mnt/storage1/dyingstar/nextcloud /mnt/test
+ls -ln /mnt/test          # data/ and backup/ must show up as 33:33
+umount /mnt/test
 ```
+
+The `umount` is not optional. The kernel NFS client shares one transport per
+server, so a manual mount left behind makes kubelet's mount of the same export
+fail with `mount.nfs: … is busy or already mounted or sharecache fail` — the
+options do not match (this PV asks for `nconnect=8`, the test mount above does
+not). The pod then sits in `ContainerCreating` forever.
 
 ---
 
@@ -406,13 +415,14 @@ kubectl $KC -n $NS create secret generic nextcloud-admin \
   --from-literal=nextcloud-username=admin \
   --from-literal=nextcloud-password="$(openssl rand -base64 24)"
 
+# hex, not base64 — see the warning below
 kubectl $KC -n $NS create secret generic nextcloud-postgresql \
   --from-literal=db-username=nextcloud \
   --from-literal=db-database=nextcloud \
-  --from-literal=db-password="$(openssl rand -base64 24)"
+  --from-literal=db-password="$(openssl rand -hex 32)"
 
 kubectl $KC -n $NS create secret generic nextcloud-redis \
-  --from-literal=redis-password="$(openssl rand -base64 24)"
+  --from-literal=redis-password="$(openssl rand -hex 32)"
 
 # From the output of bootstrap-keycloak.sh
 kubectl $KC -n $NS create secret generic nextcloud-oidc \
@@ -420,6 +430,15 @@ kubectl $KC -n $NS create secret generic nextcloud-oidc \
   --from-literal=client-secret='<printed by the script>' \
   --from-literal=discovery-uri='https://auth.dev.dyingstar-game.space/realms/dyingstar-studio/.well-known/openid-configuration'
 ```
+
+> **The Redis and database passwords must be URL-safe** — `[A-Za-z0-9._~-]`
+> only, hence `openssl rand -hex 32`. The upstream chart writes PHP's
+> `session.save_path` as `tcp://nextcloud-redis:6379?auth=<password>`, a URL
+> query string: a `+` in the password arrives at Redis as a space, AUTH fails,
+> no session can start, and **every login silently bounces back to the login
+> page with no error**. `openssl rand -base64` emits `+` and `/`, so do not use
+> it here. The admin password below is never embedded in a URL and can be
+> anything.
 
 Read the admin password back with:
 
@@ -590,6 +609,8 @@ KC=--context=dyingstar
 
 | Symptom | Cause / fix |
 |---|---|
+| Pod `Pending`, event `persistentvolumeclaim "nextcloud-data" not found` | The PVC (and probably the PV) were deleted by hand — both carry `helm.sh/resource-policy: keep`, so Helm never removes them on its own. Re-run `helm upgrade`: Helm recreates any resource that is in the manifest but missing from the cluster. The TrueNAS data is untouched. |
+| Pod stuck `ContainerCreating`, event `mount.nfs: … is busy or already mounted or sharecache fail` | The same export is already mounted on that node with different options — usually the §1.5 test mount left behind. `umount` it on the node (`grep nfs /proc/1/mounts` to find it); kubelet retries on its own. |
 | Pod stuck `ContainerCreating`, event `mount.nfs: access denied` | The node IP is not in the NFS share's *Networks* list, or `nfs-common` is missing on the node. |
 | Pod stuck `ContainerCreating`, event about `subPath` | `data/` or `backup/` does not exist on the dataset, and *Maproot User* is not `root` so kubelet cannot create them. See §1.2 / §1.3. |
 | PostgreSQL `CrashLoopBackOff`, logs say `PANIC: could not locate a valid checkpoint record` | Two `postgres` processes wrote the same data directory. The Deployment used the default `RollingUpdate`, which starts the new pod before stopping the old one; on a single-node cluster both mount the same ReadWriteOnce PVC. Fixed in the charts (`strategy: Recreate`) — the corrupted volume still has to be discarded, see below. |
@@ -602,8 +623,30 @@ KC=--context=dyingstar
 | `user_oidc:provider FAILED` in the logs | Option names drift between `user_oidc` releases. Run `$NC php occ user_oidc:provider --help` and adjust the hook in `values.yaml`. |
 | Large uploads fail around 1 GB | `APACHE_BODY_LIMIT` / `PHP_UPLOAD_LIMIT` did not take effect — check them with `$NC env | grep -E 'APACHE_BODY|PHP_UPLOAD'`. |
 | Uploads time out on slow links | Traefik's `idleTimeout` is 3600s in `traefik/values-preprod.yaml`; raise it there if needed. |
+| Login form reloads with no error message; log shows `session_start(): Redis connection not available` | The Redis password is not URL-safe. It goes into `session.save_path` as `tcp://host:6379?auth=<password>`, where `+` becomes a space. Rotate it to `openssl rand -hex 32` — see §8 below. |
 | "Transactional file locking should be configured" warning | Redis is down. `kubectl $KC -n $NS logs deploy/nextcloud-redis`. |
 | TLS certificate never issued | The gateway listener is missing or the DNS record does not resolve yet. `kubectl $KC -n traefik get gateway traefik-gateway -o yaml` and `kubectl $KC -n traefik get certificate`. |
+
+### Rotating the Redis password to a URL-safe value
+
+Redis here is a pure cache started with `--save "" --appendonly no`, so nothing
+is lost.
+
+```bash
+NS=dyingstar-dev-shared; KC=--context=dyingstar
+
+kubectl $KC -n $NS create secret generic nextcloud-redis \
+  --from-literal=redis-password="$(openssl rand -hex 32)" \
+  --dry-run=client -o yaml | kubectl $KC -n $NS apply -f -
+
+kubectl $KC -n $NS rollout restart deploy/nextcloud-redis
+kubectl $KC -n $NS rollout status deploy/nextcloud-redis --timeout=5m
+kubectl $KC -n $NS rollout restart deploy/nextcloud
+kubectl $KC -n $NS rollout status deploy/nextcloud --timeout=10m
+```
+
+Restart Redis **before** Nextcloud: the new password only takes effect in the
+Redis process on restart, and Nextcloud picks it up from the Secret at pod start.
 
 ### Rebuilding a corrupted Keycloak database
 

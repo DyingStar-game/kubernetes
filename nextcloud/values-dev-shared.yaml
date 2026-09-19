@@ -28,9 +28,9 @@ truenas:
   enabled: true
   createPV: true
   # ⚠ FILL IN — LAN address of the TrueNAS box and the NFS export path.
-  server: "192.168.1.10"
+  server: "192.168.20.68"
   path: "/mnt/storage1/dyingstar/nextcloud"
-  capacity: 2Ti
+  capacity: 500Mi
 
 postgresql:
   enabled: true
