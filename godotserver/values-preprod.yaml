@@ -42,6 +42,6 @@ volumeMounts:
 # class on the cluster (NFS, e.g. the TrueNAS export used by nextcloud): set
 # storageClassName (or existingClaim) before enabling.
 sharedCache:
-  enabled: false
+  enabled: true
   storageClassName: ""
   size: 50Gi
