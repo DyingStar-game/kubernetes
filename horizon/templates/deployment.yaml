@@ -102,6 +102,12 @@ spec:
               subPath: props
             - name: genericprops
               mountPath: /app/ds_genericprops
+            # plugins.toml: entrypoint.sh copies /app/data/plugins.toml to
+            # /app/plugins.toml (the server user must own it — game_servers is
+            # rewritten in place with sed -i, and the emptyDir content is root-owned).
+            - name: genericprops
+              mountPath: /app/data
+              readOnly: true
             {{- end }}
             {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}

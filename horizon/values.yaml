@@ -196,13 +196,16 @@ pluginsImage:
   pullPolicy: IfNotPresent
   tag: ""
 
-# Data image for the ds_genericprops JSON files (props/*_def.json and
-# startup_items.json). Copied into a shared emptyDir by the copy-props init
-# container and mounted at /app/props + /app/ds_genericprops.
+# Data image for the plugins' runtime data: the ds_genericprops JSON files
+# (props/*_def.json and startup_items.json) and plugins.toml. Copied into a
+# shared emptyDir by the copy-props init container and mounted at /app/props +
+# /app/ds_genericprops + /app/data (entrypoint.sh installs /app/data/plugins.toml
+# as /app/plugins.toml).
 #
 # Enabled by default, unlike pluginsImage: these files are no longer baked into
 # the server image, so a chart consumer that forgot to turn this on would get a
-# server that starts but cannot create a single object.
+# server that refuses to start (no plugins.toml) — or, with an older server
+# image, one that starts but cannot create a single object.
 dataImage:
   enabled: true
   repository: harbor.dyingstar-game.space/dyingstar/horizon-data
