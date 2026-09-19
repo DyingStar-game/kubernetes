@@ -8,6 +8,9 @@ network share to be safe. Two modelers saving the same .blend at once without it
 is how you get a corrupted file.
 */}}
 {{- if not .Values.redis.auth.existingSecret }}
+{{- if not (regexMatch "^[A-Za-z0-9._~-]+$" (.Values.redis.auth.password | default "")) }}
+{{- fail "redis.auth.password must contain only A-Z a-z 0-9 . _ ~ - : the upstream chart injects it verbatim into a PHP session.save_path URL (tcp://host:6379?auth=<password>), where '+' decodes to a space and '&' '#' '/' '%' truncate or corrupt the value. Generate it with `openssl rand -hex 32`, never `openssl rand -base64`." }}
+{{- end }}
 apiVersion: v1
 kind: Secret
 metadata:

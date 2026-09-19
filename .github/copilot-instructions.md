@@ -23,6 +23,7 @@ All container images are hosted on a private Harbor registry at `harbor.dyingsta
 | `horizon` | Horizon game server (NodePort, high CPU) |
 | `service-resourcesdynamic` | Dynamic resource manager API + WebSocket, with PostgreSQL |
 | `dev-services` | Shared developer infrastructure (PostGIS) |
+| `nextcloud` | Nextcloud 3D asset library for modelers (dev-shared only; TrueNAS/NFS, Keycloak+GitHub auth) |
 
 ## Conventions
 
