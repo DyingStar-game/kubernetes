@@ -295,6 +295,16 @@ like the image, so this survives the reconcile; `values-dev.yaml` stays at 1):
 kubectl scale deployment godotserver -n dyingstar --replicas=6
 ```
 
+Every godotserver pod shares the same tile cache and prebaked collision shapes
+(`sharedCache` in `godotserver/values*.yaml`): one ReadWriteMany PVC
+(`godotserver-shared-cache`) is mounted with a `subPath` on
+`user://tile_cache` and `user://prebaked_collision`, so a pod scaled up for
+dynamic server meshing starts with what the others already streamed/baked
+instead of redoing it. The PVC is `helm.sh/resource-policy: keep`: delete it by
+hand to wipe the cache. On minikube the hostpath `standard` class is enough; on
+preprod/prod set `sharedCache.storageClassName` to an NFS-backed class (or
+`sharedCache.existingClaim`) before turning it on.
+
 #### Develop Horizon
 
 Clone [horizonserver](https://github.com/DyingStar-game/horizonserver) next to this
