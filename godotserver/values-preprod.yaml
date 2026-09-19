@@ -37,3 +37,11 @@ volumes:
 volumeMounts:
   - name: crash-dumps
     mountPath: /tmp
+
+# Tiles + prebaked collision shared by every pod. Needs a ReadWriteMany-capable
+# class on the cluster (NFS, e.g. the TrueNAS export used by nextcloud): set
+# storageClassName (or existingClaim) before enabling.
+sharedCache:
+  enabled: false
+  storageClassName: ""
+  size: 50Gi

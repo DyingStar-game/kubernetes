@@ -169,3 +169,22 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+# Shared cache between every godotserver pod (dynamic server meshing: a freshly
+# scaled pod must start fast, so it must not re-stream the tiles nor rebuild the
+# collision meshes that another pod already produced). One ReadWriteMany PVC is
+# mounted with a subPath on each Godot user:// directory listed below, so the
+# pod's own layer keeps everything else (logs, chunk_cache, ...).
+sharedCache:
+  enabled: false
+  # Reuse a claim created outside this chart instead of provisioning one.
+  existingClaim: ""
+  # Must support ReadWriteMany (NFS-like). Empty string = cluster default class.
+  storageClassName: ""
+  size: 20Gi
+  # Godot user:// data dir inside the image (server runs as root, config/name="DyingStar").
+  userDataDir: /root/.local/share/godot/app_userdata/DyingStar
+  # Sub-directories of userDataDir to share (each one is a subPath of the PVC).
+  directories:
+    - prebaked_collision
+    - tile_cache

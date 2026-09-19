@@ -1,0 +1,25 @@
+{{- if and .Values.sharedCache.enabled (not .Values.sharedCache.existingClaim) }}
+{{/*
+ReadWriteMany claim shared by every godotserver pod (see sharedCache in values.yaml).
+`keep` so a `helm uninstall` / re-install does not throw away hours of tile
+streaming and collision prebake.
+*/}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "godotserver.fullname" . }}-shared-cache
+  labels:
+    {{- include "godotserver.labels" . | nindent 4 }}
+    app.kubernetes.io/component: shared-cache
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - ReadWriteMany
+  {{- with .Values.sharedCache.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.sharedCache.size }}
+{{- end }}

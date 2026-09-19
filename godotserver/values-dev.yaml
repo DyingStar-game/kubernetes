@@ -21,3 +21,10 @@ resources:
 env:
   - name: DEBUG_GDB
     value: "0"
+
+# Tiles + prebaked collision shared by every pod (minikube is single-node, so the
+# hostpath `standard` class happily hands out a ReadWriteMany PV).
+sharedCache:
+  enabled: true
+  storageClassName: standard
+  size: 20Gi

@@ -60,13 +60,29 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.volumeMounts }}
+          {{- if or .Values.volumeMounts .Values.sharedCache.enabled }}
           volumeMounts:
+            {{- if .Values.sharedCache.enabled }}
+            {{- range .Values.sharedCache.directories }}
+            - name: shared-cache
+              mountPath: {{ printf "%s/%s" $.Values.sharedCache.userDataDir . }}
+              subPath: {{ . }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
-      {{- with .Values.volumes }}
+      {{- if or .Values.volumes .Values.sharedCache.enabled }}
       volumes:
+        {{- if .Values.sharedCache.enabled }}
+        - name: shared-cache
+          persistentVolumeClaim:
+            claimName: {{ .Values.sharedCache.existingClaim | default (printf "%s-shared-cache" (include "godotserver.fullname" .)) }}
+        {{- end }}
+        {{- with .Values.volumes }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
