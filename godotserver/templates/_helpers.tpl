@@ -60,3 +60,16 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Shared cache claim name (namespaced) and the cluster-scoped PV it binds to when
+sharedCache.nfs is enabled. The PV is prefixed with the namespace because prod
+and preprod both install the release as "godotserver".
+*/}}
+{{- define "godotserver.sharedCachePvcName" -}}
+{{- printf "%s-shared-cache" (include "godotserver.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{- define "godotserver.sharedCachePvName" -}}
+{{- printf "%s-%s-shared-cache" .Release.Namespace (include "godotserver.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}

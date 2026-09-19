@@ -1,0 +1,38 @@
+{{- if and .Values.sharedCache.enabled (not .Values.sharedCache.existingClaim) .Values.sharedCache.nfs.enabled }}
+{{/*
+Static PersistentVolume pointing at the TrueNAS NFS export that holds the shared
+tile cache / prebaked collision. Same pattern as nextcloud/templates/pv-truenas.yaml:
+the cluster has no ReadWriteMany-capable provisioner (local-path is RWO only),
+so the export is declared by hand and the ZFS dataset stays a TrueNAS concern.
+
+`claimRef` pre-binds the PV to our PVC so no other claim in the cluster can grab
+it, and `Retain` guarantees the export survives a `helm uninstall`.
+*/}}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ include "godotserver.sharedCachePvName" . }}
+  labels:
+    {{- include "godotserver.labels" . | nindent 4 }}
+    app.kubernetes.io/component: shared-cache
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  capacity:
+    storage: {{ .Values.sharedCache.size }}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: {{ .Values.sharedCache.nfs.reclaimPolicy }}
+  storageClassName: {{ required "sharedCache.storageClassName is required with sharedCache.nfs.enabled (dummy class, e.g. truenas-nfs)" .Values.sharedCache.storageClassName }}
+  {{- with .Values.sharedCache.nfs.mountOptions }}
+  mountOptions:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  claimRef:
+    namespace: {{ .Release.Namespace }}
+    name: {{ include "godotserver.sharedCachePvcName" . }}
+  nfs:
+    server: {{ required "sharedCache.nfs.server is required (IP or FQDN of the TrueNAS box)" .Values.sharedCache.nfs.server | quote }}
+    path: {{ required "sharedCache.nfs.path is required (NFS export path of the ZFS dataset)" .Values.sharedCache.nfs.path | quote }}
+    readOnly: false
+{{- end }}

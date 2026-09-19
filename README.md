@@ -301,9 +301,13 @@ Every godotserver pod shares the same tile cache and prebaked collision shapes
 `user://tile_cache` and `user://prebaked_collision`, so a pod scaled up for
 dynamic server meshing starts with what the others already streamed/baked
 instead of redoing it. The PVC is `helm.sh/resource-policy: keep`: delete it by
-hand to wipe the cache. On minikube the hostpath `standard` class is enough; on
-preprod/prod set `sharedCache.storageClassName` to an NFS-backed class (or
-`sharedCache.existingClaim`) before turning it on.
+hand to wipe the cache. On minikube the hostpath `standard` class is enough. On
+the `dyingstar` cluster the only dynamic class (`local-path`) is ReadWriteOnce
+only, so preprod/prod use a **static NFS PV on TrueNAS** (`sharedCache.nfs`,
+same pattern as the nextcloud chart): before enabling it, create the dataset and
+NFS share on TrueNAS with the settings of [nextcloud/README.md §1](nextcloud/README.md)
+(Maproot = root, node subnet only) at the `sharedCache.nfs.path` of the
+environment (`/mnt/storage1/dyingstar/godotserver-preprod` / `-prod`).
 
 #### Develop Horizon
 

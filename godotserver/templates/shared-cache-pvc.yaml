@@ -7,7 +7,7 @@ streaming and collision prebake.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ include "godotserver.fullname" . }}-shared-cache
+  name: {{ include "godotserver.sharedCachePvcName" . }}
   labels:
     {{- include "godotserver.labels" . | nindent 4 }}
     app.kubernetes.io/component: shared-cache
@@ -16,8 +16,14 @@ metadata:
 spec:
   accessModes:
     - ReadWriteMany
+  {{- if .Values.sharedCache.nfs.enabled }}
+  # Bind to *that* PV, never to a freshly provisioned one.
+  volumeName: {{ include "godotserver.sharedCachePvName" . }}
+  storageClassName: {{ required "sharedCache.storageClassName is required with sharedCache.nfs.enabled (dummy class, e.g. truenas-nfs)" .Values.sharedCache.storageClassName }}
+  {{- else }}
   {{- with .Values.sharedCache.storageClassName }}
   storageClassName: {{ . }}
+  {{- end }}
   {{- end }}
   resources:
     requests:

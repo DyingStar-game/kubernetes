@@ -21,10 +21,14 @@ env:
   - name: DEBUG_GDB
     value: "0"
 
-# Tiles + prebaked collision shared by every pod. Needs a ReadWriteMany-capable
-# class on the cluster (NFS, e.g. the TrueNAS export used by nextcloud): set
-# storageClassName (or existingClaim) before enabling.
+# Tiles + prebaked collision shared by every pod, on a static NFS PV backed by
+# a TrueNAS dataset (local-path is RWO only). Create the dataset + NFS share on
+# TrueNAS first (same settings as nextcloud/README.md §1, Maproot = root).
 sharedCache:
   enabled: false
-  storageClassName: ""
+  storageClassName: truenas-nfs
   size: 100Gi
+  nfs:
+    enabled: true
+    server: "192.168.20.68"
+    path: "/mnt/storage1/dyingstar/godotserver-prod"

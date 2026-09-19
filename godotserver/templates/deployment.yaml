@@ -78,7 +78,7 @@ spec:
         {{- if .Values.sharedCache.enabled }}
         - name: shared-cache
           persistentVolumeClaim:
-            claimName: {{ .Values.sharedCache.existingClaim | default (printf "%s-shared-cache" (include "godotserver.fullname" .)) }}
+            claimName: {{ .Values.sharedCache.existingClaim | default (include "godotserver.sharedCachePvcName" .) }}
         {{- end }}
         {{- with .Values.volumes }}
         {{- toYaml . | nindent 8 }}

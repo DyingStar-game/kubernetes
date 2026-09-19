@@ -180,8 +180,31 @@ sharedCache:
   # Reuse a claim created outside this chart instead of provisioning one.
   existingClaim: ""
   # Must support ReadWriteMany (NFS-like). Empty string = cluster default class.
+  # With nfs.enabled this is a dummy class (no provisioner answers to it, so
+  # nothing else can hijack the PV): the same value goes on the PV and the PVC.
   storageClassName: ""
   size: 20Gi
+  # Static NFS PersistentVolume (TrueNAS export), same pattern as the nextcloud
+  # chart: the cluster's only dynamic class (local-path) is RWO only, so on
+  # preprod/prod the export is declared by hand and pre-bound to the claim.
+  # The godot server runs as root and kubelet creates the subPath directories as
+  # root, so the share needs Maproot = root (see nextcloud/README.md §1.3).
+  nfs:
+    enabled: false
+    # IP or FQDN of the TrueNAS box, reachable from every node.
+    server: ""
+    # NFS export path of the ZFS dataset (TrueNAS: Datasets → path column).
+    path: ""
+    reclaimPolicy: Retain
+    mountOptions:
+      - nfsvers=4.1
+      - hard
+      - noatime
+      - nodiratime
+      - rsize=1048576
+      - wsize=1048576
+      - timeo=600
+      - retrans=2
   # Godot user:// data dir inside the image (server runs as root, config/name="DyingStar").
   userDataDir: /root/.local/share/godot/app_userdata/DyingStar
   # Sub-directories of userDataDir to share (each one is a subPath of the PVC).
