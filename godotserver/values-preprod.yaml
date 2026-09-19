@@ -10,10 +10,10 @@ image:
 
 resources:
   requests:
-    cpu: 3
-    memory: 2Gi
+    cpu: 1
+    memory: 12Gi
   limits:
-    cpu: 20
+    cpu: 10
     memory: 12Gi
 
 # Disable the gdb crash-debug wrapper in preprod (lower overhead).
