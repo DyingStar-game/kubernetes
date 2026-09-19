@@ -301,10 +301,13 @@ Clone [horizonserver](https://github.com/DyingStar-game/horizonserver) next to t
 repository, then build the part you modified:
 
 ```bash
-./scripts_linux/build-and-deploy.sh horizon           # the server itself
-./scripts_linux/build-and-deploy.sh horizon-plugins   # the plugins image
-./scripts_linux/build-and-deploy.sh horizon-data      # the ds_genericprops JSON files
+./scripts_linux/build-and-deploy.sh horizon           # the server itself (Horizon/ workspace)
+./scripts_linux/build-and-deploy.sh horizon-plugins   # the plugins .so (ds_*/ crates)
+./scripts_linux/build-and-deploy.sh horizon-data      # the ds_genericprops JSON files + .docker/plugins.toml
 ```
+
+`plugins.toml` (split/merge rules, bridges, log levels…) ships in `horizon-data`, not in
+the plugins image: after editing it, rebuild `horizon-data`, not `horizon-plugins`.
 
 **NOTE**: you can mix this chapter and previous chapter if you made modifications in
 godotserver and horizon in same time!

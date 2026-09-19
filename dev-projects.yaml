@@ -35,6 +35,9 @@ projects:
 
   # Images d'init de horizon : leur contenu est recopié dans un emptyDir partagé
   # au démarrage du pod (cf. horizon/templates/deployment.yaml).
+  #   horizon-plugins : les .so des plugins (code Rust)
+  #   horizon-data    : JSON ds_genericprops + .docker/plugins.toml (config des
+  #                     plugins : split_rule, bridges, log_level...)
   - name: horizon-plugins
     path: ../horizonserver
     dockerfile: .docker/Dockerfile.plugins
