@@ -50,10 +50,10 @@ extraEnv:
 resources:
   requests:
     cpu: 10
-    memory: 2Gi
+    memory: 12Gi
   limits:
     cpu: 18
-    memory: 4Gi
+    memory: 12Gi
 
 dataImage:
   enabled: true
