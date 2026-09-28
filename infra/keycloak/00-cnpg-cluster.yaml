@@ -1,0 +1,27 @@
+# Base de données du Keycloak de dev-local.
+#
+# Why CloudNativePG: the operator is already installed by
+# argocd/dev/infra/cnpg-op-app.yaml, so this reuses an existing dependency
+# instead of shipping a second StatefulSet + a second password to remember.
+#
+# The generated `<cluster>-app` secret is NOT used by the Keycloak CR: we keep
+# explicit dev credentials in 01-db-secret.yaml, shared by the CNPG bootstrap
+# and the Keycloak CR, so a stale CNPG secret can never desynchronise the two.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: keycloak-db
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  instances: 1
+  # minikube's default StorageClass (hostpath) is enough, and this is the
+  # smallest disk the dev stack is allowed to reserve.
+  storage:
+    size: 1Gi
+  bootstrap:
+    initdb:
+      database: keycloak
+      owner: keycloak
+      secret:
+        name: keycloak-db-secret

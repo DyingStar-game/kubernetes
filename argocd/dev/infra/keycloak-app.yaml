@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak
+  namespace: argocd
+spec:
+  project: infra
+  # Deux sources dans une seule Application : l'opérateur upstream + nos CR.
+  # L'opérateur ne réconcilie que les CR de son propre namespace
+  # (QUARKUS_OPERATOR_SDK_CONTROLLERS_KEYCLOAKCONTROLLER_NAMESPACES=
+  # JOSDK_WATCH_CURRENT), d'où le namespace `keycloak` pour les deux.
+  sources:
+    # 1. Opérateur Keycloak upstream + ses CRD (le kustomization.yaml du repo
+    #    upstream force déjà le namespace `keycloak`).
+    - repoURL: 'https://github.com/keycloak/keycloak-k8s-resources.git'
+      targetRevision: 26.7.0
+      path: kubernetes
+    # 2. Nos ressources Keycloak de dev-local : CR Keycloak, base CloudNativePG,
+    #    secrets, import du realm `dyingstar`, HTTPRoute via Traefik.
+    - repoURL: 'file:///mnt/local-repo.git'
+      targetRevision: HEAD
+      path: infra/keycloak
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: keycloak
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # Les CRD upstream font 519 Ko et 426 Ko : un apply côté client ArgoCD
+      # échouerait sur l'annotation last-applied-configuration (max 262 144
+      # octets). ServerSideApply est donc obligatoire ici, pas cosmétique.
+      - ServerSideApply=true
+    # Au tout premier sync, les CRD Keycloak/CloudNativePG sont installés en
+    # parallèle par cette app et par cnpg-op-app : le retry absorbe ce race.
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m

@@ -1,4 +1,4 @@
-# Default values for service-resourcesDynamic.
+# Default values for service-social.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
@@ -7,7 +7,7 @@ replicaCount: 1
 
 # This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
 image:
-  repository: harbor.dyingstar-game.space/dyingstar/resourcesdynamic
+  repository: harbor.dyingstar-game.space/dyingstar/social
   # This sets the pull policy for images.
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
@@ -53,8 +53,10 @@ securityContext: {}
 service:
   # This sets the service type more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
   type: ClusterIP
-  # API port (Hono server)
-  port: 3001
+  # API port. Must stay equal to the app's own default PORT: no PORT env var is
+  # injected, so this single value drives the container port, the Service port
+  # and the HTTPRoute backend.
+  port: 3000
   # WebSocket port
   wsPort: 9200
 
@@ -169,11 +171,104 @@ tolerations: []
 affinity: {}
 
 # Environment variables for the container
-# DATABASE_URL is automatically configured to use the PostgreSQL subchart
+# POSTGRES_HOST / POSTGRES_PORT / POSTGRES_USER / POSTGRES_DB / POSTGRES_PASSWORD
+# and DATABASE_URL are already generated from the `database` block below by
+# templates/deployment.yaml — do NOT redeclare them here.
 # Note: env vars using templates are handled in deployment.yaml
-env: []
-  # - name: ENABLE_MSG_PACK
-  #   value: "true"
+# Note: Helm REPLACES lists, it does not merge them. An overlay that redefines
+# `env` must therefore repeat the whole list; the OIDC settings live in their own
+# `oidc` block for exactly that reason.
+env:
+  # The API listens on its own default (see `service.port`), so no PORT here.
+  - name: NODE_ENV
+    value: "production"
+  # The player client authenticates with a bearer token, not cookies, so a
+  # wildcard origin works. Revisit if the API ever sets cookies.
+  - name: CORS_ORIGIN
+    value: "*"
+  # Dev escape hatch (X-Player-Id / X-Player-Name instead of a JWT). It is
+  # ignored when NODE_ENV=production, hence the "false" there.
+  - name: AUTH_DEV_BYPASS
+    value: "false"
+  # OIDC_ISSUER is intentionally absent: it has no environment-neutral value.
+  # Each overlay sets it — dev: http://auth.dyingstar.local/realms/dyingstar
+  # (infra/keycloak/03-keycloak.yaml), preprod:
+  # https://auth-preprod.dyingstar-game.com/realms/dyingstar, prod:
+  # https://auth.dyingstar-game.com/realms/dyingstar.
+  # OIDC_JWKS_URL (defaults to ${OIDC_ISSUER}/protocol/openid-connect/certs) and
+  # OIDC_AUDIENCE (skips the audience check) are left unset on purpose: an empty
+  # env var is not the same as an absent one for every dotenv reader.
+  # Shared secret for the game server / other services (header X-Internal-Key).
+  # The name is literal because Helm does not evaluate templates in values: if
+  # you switch to `internalApiKey.existingSecret`, change `name:` here too.
+  - name: INTERNAL_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: service-social-internal-key
+        key: INTERNAL_API_KEY
+  # Reputation: penalties (positive numbers, subtracted), thresholds (negative
+  # scores) and rehabilitation. Thresholds are quoted strings: Kubernetes only
+  # accepts string env values.
+  - name: REPUTATION_BLOCK_PENALTY
+    value: "1"
+  - name: REPUTATION_REPORT_PENALTY
+    value: "2"
+  - name: REPUTATION_UPHELD_REPORT_PENALTY
+    value: "10"
+  - name: REPUTATION_WARN_AT
+    value: "-10"
+  - name: REPUTATION_MUTE_AT
+    value: "-25"
+  - name: REPUTATION_MUTE_HOURS
+    value: "24"
+  - name: REPUTATION_SUSPEND_AT
+    value: "-50"
+  - name: REPUTATION_SUSPEND_HOURS
+    value: "168"
+  - name: REPUTATION_ESCALATE_AT
+    value: "-75"
+  - name: REPUTATION_REHAB_AFTER_DAYS
+    value: "7"
+  - name: REPUTATION_REHAB_STEP
+    value: "1"
+  - name: REPUTATION_REHAB_INTERVAL_MINUTES
+    value: "60"
+
+# Keycloak / OIDC. Rendered by templates/deployment.yaml rather than listed in
+# `env` because the issuer changes with the environment and Helm replaces lists
+# instead of merging them: each overlay would have to repeat the whole `env`.
+# The issuer has no environment-neutral value, hence empty by default — an
+# empty issuer is skipped, the API then rejects every request.
+oidc:
+  # dev: http://auth.dyingstar.local/realms/dyingstar (infra/keycloak/03-keycloak.yaml)
+  # preprod: https://auth-preprod.dyingstar-game.com/realms/dyingstar
+  # prod: https://auth.dyingstar-game.com/realms/dyingstar
+  issuer: ""
+  # Defaults to <issuer>/protocol/openid-connect/certs when left empty.
+  jwksUrl: ""
+  # Expected `aud` claim for player tokens; empty skips the audience check.
+  audience: ""
+  # Expected `aud` claim for service-to-service tokens (client_credentials,
+  # `azp` = svc-*). Distinct de `audience` (token joueur). Ex: social-api.
+  serviceAudience: ""
+
+# Comma-separated allowlist of Keycloak clientIds allowed to call /api/internal/*
+# (checked against the token's `azp`). Rendered as INTERNAL_SERVICE_CLIENTS.
+# Any clientId not listed here — including the player client `dyingstar-game` —
+# is rejected with 403 SERVICE_FORBIDDEN.
+internalServiceClients: ""
+
+# Shared secret presented by the game server in the X-Internal-Key header.
+# Same pattern as livekit's keys Secret: the chart only creates one when
+# `create` is true and no `existingSecret` is given, so preprod/prod point at a
+# Secret managed outside the chart.
+internalApiKey:
+  create: false
+  # Name of a pre-existing Secret holding the INTERNAL_API_KEY key. Empty means
+  # "use the chart-created <fullname>-internal-key".
+  existingSecret: ""
+  # Only used when `create` is true. Never put a real secret in values-prod.yaml.
+  key: ""
 
 # PostgreSQL connection settings (used by deployment template)
 database:
@@ -181,19 +276,19 @@ database:
   host: ""  # Leave empty to use subchart service name
   # Secret holding the `password` key. Leave empty to use the chart-managed
   # <fullname>-postgresql Secret. In dev-local the database is a CloudNativePG
-  # Cluster declared in service-resourcesdynamic/database/, so we point at its
+  # Cluster declared in service-social/database/, so we point at its
   # Secret.
   existingSecret: ""
   port: 5432
-  name: resources_dynamic
-  user: resources_dynamic
+  name: social
+  user: social
 
 # Environment variables from secrets or configmaps
 envFrom: []
   # - secretRef:
-  #     name: resources-dynamic-secrets
+  #     name: social-secrets
   # - configMapRef:
-  #     name: resources-dynamic-config
+  #     name: social-config
 
 # PostgreSQL configuration (standalone deployment, not subchart)
 postgresql:
@@ -204,9 +299,9 @@ postgresql:
     tag: "16-alpine"
     pullPolicy: IfNotPresent
   auth:
-    username: resources_dynamic
+    username: social
     password: "changeme-in-production"
-    database: resources_dynamic
+    database: social
   primary:
     persistence:
       enabled: true

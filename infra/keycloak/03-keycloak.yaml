@@ -1,0 +1,95 @@
+# Keycloak de dev-local, réconcilié par l'opérateur upstream installé par
+# argocd/dev/infra/keycloak-app.yaml (namespace `keycloak`).
+#
+# Pourquoi la CR vit dans le namespace `keycloak` et pas `dyingstar` : le
+# Deployment de l'opérateur est configuré avec
+#   QUARKUS_OPERATOR_SDK_CONTROLLERS_KEYCLOAKCONTROLLER_NAMESPACES=JOSDK_WATCH_CURRENT
+# donc il n'observe que son propre namespace. L'alternative upstream qui
+# supervise tout le cluster existe (kubernetes/cluster-wide, qui passe les
+# contrôleurs en WATCH_ALL) — cf. README.md, "Keycloak (dev-local, via Operator)".
+apiVersion: k8s.keycloak.org/v2beta1
+kind: Keycloak
+metadata:
+  name: keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  instances: 1
+
+  # image volontairement absente : l'opérateur utilise RELATED_IMAGE_KEYCLOAK
+  # (quay.io/keycloak/keycloak:26.7.0), ce qui garantit que le serveur et
+  # l'opérateur restent sur la même version.
+
+  db:
+    vendor: postgres
+    # Service -rw créé par CloudNativePG (00-cnpg-cluster.yaml).
+    host: keycloak-db-rw
+    database: keycloak
+    usernameSecret:
+      name: keycloak-db-secret
+      key: username
+    passwordSecret:
+      name: keycloak-db-secret
+      key: password
+
+  bootstrapAdmin:
+    # Secret 02-admin-secret.yaml (admin / admin) : évite d'avoir à décoder
+    # `keycloak-initial-admin` avec base64 à chaque cluster neuf.
+    user:
+      secret: keycloak-admin
+
+  http:
+    # HTTP en clair : devant Traefik, cf. 05-httproute.yaml. Le certificat de la
+    # Gateway dev est auto-signé, terminer le TLS ici ne ferait qu'ajouter un
+    # avertissement navigateur sur chaque écran d'auth.
+    httpEnabled: true
+    # Sans ce nom, le Service s'appellerait `keycloak-service` (nom de la CR +
+    # "-service") et la HTTPRoute devrait le deviner.
+    serviceName: keycloak
+
+  # UN SEUL issuer, avec un nom lisible en `dyingstar.local` :
+  #   http://auth.dyingstar.local/realms/<realm>
+  #
+  # Pourquoi ça marche pour tout le monde (navigateur ET pods) : avec `hostname`
+  # fixé, Keycloak ne résout dynamiquement que schéma/port/contexte (via
+  # X-Forwarded-*), le hostname reste statique. Un token émis depuis le
+  # navigateur (port 80 via Traefik) et un token validé depuis un pod (port 8080
+  # en direct) portent donc le même `iss` — pas de second issuer à gérer.
+  # `backchannelDynamic` complète : les URLs backchannel (JWKS, token, userinfo)
+  # sont résolues depuis les headers de la requête, donc un pod qui appelle le
+  # Service en interne obtient des URLs internes et n'a jamais besoin de résoudre
+  # `auth.dyingstar.local` (qui n'existe que dans /etc/hosts côté machine, cf.
+  # hosts_config.txt). Il exige une URL complète avec le scheme — d'où le `http://`.
+  #
+  # `strict: false` est en fait ignoré dès que `hostname` est défini (doc
+  # hostname v2) ; on le laisse à false pour ne jamais rejeter les sondes de
+  # l'opérateur, qui interrogent le serveur par IP.
+  # ⚠ Ne jamais changer `hostname` sans mettre à jour au même endroit
+  # 05-httproute.yaml et hosts_config.txt : les trois doivent être alignés.
+  hostname:
+    hostname: http://auth.dyingstar.local
+    backchannelDynamic: true
+    strict: false
+
+
+  # Traefik réécrit X-Forwarded-* ; sans ça Keycloak se voit derrière un
+  # proxy alors qu'il est en frontal, et casse redirections et liens du realm.
+  proxy:
+    headers: xforwarded
+
+  # Pas d'Ingress : le trafic passe par la Gateway Traefik et la HTTPRoute.
+  ingress:
+    enabled: false
+
+  networkPolicy:
+    enabled: false
+
+  # Défauts de l'opérateur (1700Mi requests / 2Gi limits) trop gros pour une
+  # stack locale qui partage la RAM avec Godot, Horizon et LiveKit.
+  resources:
+    requests:
+      cpu: 250m
+      memory: 768Mi
+    limits:
+      cpu: 2
+      memory: 2Gi

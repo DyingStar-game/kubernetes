@@ -1,0 +1,33 @@
+# Expose le Keycloak de dev-local via la Gateway Traefik.
+#
+# Listener `web` (HTTP :80) et non `websecure` : le certificat de la Gateway dev
+# est auto-signé (traefik-default-cert, cluster-issuer local-selfsigned-issuer),
+# donc le navigateur importerait un avertissement sur chaque écran d'auth.
+#
+# L'hôte DOIT rester aligné avec spec.hostname.hostname de 03-keycloak.yaml :
+# c'est lui qui devient l'issuer des tokens. Il est déclaré dans
+# hosts_config.txt, que scripts_linux/start-dev.sh recopie dans /etc/hosts.
+# Convention de nommage alignée sur prod (`auth.dyingstar-game.com`) et preprod
+# (`auth-preprod.dyingstar-game.com`).
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  parentRefs:
+    - name: traefik-gateway
+      namespace: traefik
+      sectionName: web
+  hostnames:
+    - "auth.dyingstar.local"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        # Nom imposé par spec.http.serviceName de la CR Keycloak.
+        - name: keycloak
+          port: 8080

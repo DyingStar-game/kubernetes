@@ -16,17 +16,17 @@ resources:
     cpu: 250m
     memory: 128Mi
 
+# The database is NOT declared by this chart in dev-local: it is a CloudNativePG
+# Cluster (service-resourcesdynamic/database/) applied as a second source by the
+# same ArgoCD app. `database.host` is the `<cluster>-rw` Service CloudNativePG
+# creates; the Secret is the one its initdb was bootstrapped with.
+# port / name / user are inherited from values.yaml.
+database:
+  host: resourcesdynamic-db-rw
+  existingSecret: resourcesdynamic-db-auth
+
+# Must stay false here: values.yaml defaults to true, which is what preprod and
+# prod rely on. The rest of the postgresql block is dead config in dev and is
+# deliberately not repeated here.
 postgresql:
-  enabled: true
-  auth:
-    password: "devpassword"
-  primary:
-    persistence:
-      enabled: false
-    resources:
-      requests:
-        cpu: 50m
-        memory: 128Mi
-      limits:
-        cpu: 250m
-        memory: 256Mi
+  enabled: false

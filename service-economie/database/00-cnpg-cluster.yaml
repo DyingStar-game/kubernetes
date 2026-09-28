@@ -1,0 +1,26 @@
+# Database of service-economie (dev-local).
+#
+# Applied by the game Application `service-economie` as a second source
+# (argocd/dev/game/service-economie-app.yaml), so the application and its
+# database are reconciled together. The operator comes from the infra app
+# argocd/dev/infra/cnpg-op-app.yaml (namespace cnpg-system).
+#
+# CloudNativePG creates the Service `<cluster>-rw`, which is what
+# service-economie/values-dev.yaml points at via `database.host`.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: economie-db
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  instances: 1
+  # minikube's default StorageClass (hostpath) is enough for a dev database.
+  storage:
+    size: 1Gi
+  bootstrap:
+    initdb:
+      database: economie
+      owner: economie
+      secret:
+        name: economie-db-auth

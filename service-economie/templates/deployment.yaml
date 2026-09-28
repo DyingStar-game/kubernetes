@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "service-resourcesDynamic.fullname" . }}
+  name: {{ include "service-economie.fullname" . }}
   labels:
-    {{- include "service-resourcesDynamic.labels" . | nindent 4 }}
+    {{- include "service-economie.labels" . | nindent 4 }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
   selector:
     matchLabels:
-      {{- include "service-resourcesDynamic.selectorLabels" . | nindent 6 }}
+      {{- include "service-economie.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       {{- with .Values.podAnnotations }}
@@ -18,7 +18,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "service-resourcesDynamic.labels" . | nindent 8 }}
+        {{- include "service-economie.labels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -27,7 +27,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "service-resourcesDynamic.serviceAccountName" . }}
+      serviceAccountName: {{ include "service-economie.serviceAccountName" . }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -49,7 +49,7 @@ spec:
               protocol: TCP
           env:
             - name: POSTGRES_HOST
-              value: "{{ if .Values.database.host }}{{ .Values.database.host }}{{ else }}{{ include "service-resourcesDynamic.fullname" . }}-postgresql{{ end }}"
+              value: "{{ if .Values.database.host }}{{ .Values.database.host }}{{ else }}{{ include "service-economie.fullname" . }}-postgresql{{ end }}"
             - name: POSTGRES_PORT
               value: "{{ .Values.database.port }}"
             - name: POSTGRES_USER
@@ -62,11 +62,31 @@ spec:
                   # Empty existingSecret = the chart-managed <fullname>-postgresql
                   # Secret (see postgresql.auth in values.yaml). Set it to point
                   # at an external database, e.g. the CloudNativePG Cluster
-                  # declared in service-resourcesdynamic/database/ for dev-local.
-                  name: {{ .Values.database.existingSecret | default (printf "%s-postgresql" (include "service-resourcesDynamic.fullname" .)) }}
+                  # declared in service-economie/database/ for dev-local.
+                  name: {{ .Values.database.existingSecret | default (printf "%s-postgresql" (include "service-economie.fullname" .)) }}
                   key: password
             - name: DATABASE_URL
               value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)"
+            {{- with .Values.oidc.issuer }}
+            - name: OIDC_ISSUER
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.oidc.jwksUrl }}
+            - name: OIDC_JWKS_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.oidc.audience }}
+            - name: OIDC_AUDIENCE
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.oidc.serviceAudience }}
+            - name: OIDC_SERVICE_AUDIENCE
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.internalServiceClients }}
+            - name: INTERNAL_SERVICE_CLIENTS
+              value: {{ . | quote }}
+            {{- end }}
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
