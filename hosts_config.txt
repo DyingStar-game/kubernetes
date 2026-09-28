@@ -5,3 +5,6 @@ telepresence.dyingstar.local
 chat.dyingstar.local
 vocal.dyingstar.local
 otlp.dyingstar.local
+auth.dyingstar.local
+economie.dyingstar.local
+social.dyingstar.local

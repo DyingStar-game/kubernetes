@@ -1,0 +1,210 @@
+# Importe le realm `dyingstar` dans la CR Keycloak (03-keycloak.yaml) via le job
+# kcadm que l'opérateur génère. Le realm est inliné ici : depuis la v2beta1 du
+# CRD, `spec.realmConfig.configMapRef` n'existe plus, le schéma est validé
+# champ par champ.
+#
+# Le job est rejoué à chaque changement de ce fichier ; côté realm les objets
+# sont upsertés (pas de doublons).
+#
+# DEV ONLY : le compte de test ci-dessous est en clair et ne doit jamais quitter
+# le cluster minikube local.
+#
+# L'issuer n'est PAS écrit dans le realm : Keycloak le dérive du hostname de la
+# CR (03-keycloak.yaml) et l'écrire ici le désynchroniserait.
+apiVersion: k8s.keycloak.org/v2beta1
+kind: KeycloakRealmImport
+metadata:
+  name: dyingstar-realm
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  keycloakCRName: keycloak
+  # Sans ces ressources, le job d'import hériterait des défauts de l'opérateur
+  # (1700Mi requests), bien trop gros pour du dev.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1
+      memory: 1Gi
+  realm:
+    realm: dyingstar
+    displayName: DyingStar (dev-local)
+    enabled: true
+    # Indispensable : l'issuer est en HTTP (cf. 03-keycloak.yaml).
+    sslRequired: none
+    registrationAllowed: false
+    loginWithEmailAllowed: true
+    duplicateEmailsAllowed: false
+    resetPasswordAllowed: true
+    editUsernameAllowed: false
+    bruteForceProtected: false
+    accessTokenLifespan: 300
+    ssoSessionIdleTimeout: 1800
+    ssoSessionMaxLifespan: 36000
+    roles:
+      realm:
+        - name: player
+          description: Joueur de DyingStar
+        - name: moderator
+          description: Modération du chat
+        # Rôles de capacité des services machine-to-machine (client_credentials).
+        # Noms exacts, consommés tels quels par les APIs economie / social :
+        # ne jamais les renommer ni les préfixer (ex: /dyingstar).
+        # Économie
+        - name: economie:wallet:read
+        - name: economie:wallet:ensure
+        - name: economie:wallet:credit
+        - name: economie:wallet:debit
+        - name: economie:corporation:read
+        - name: economie:corporation:manage
+        # Social
+        - name: social:profile:write
+        - name: social:player:write
+        - name: social:corporation:read
+        - name: social:corporation:write
+        - name: social:sanctions:read
+        - name: social:reputation:write
+    groups:
+      - name: players
+      - name: staff
+    users:
+      - username: devplayer
+        email: devplayer@dyingstar.local
+        emailVerified: true
+        enabled: true
+        firstName: Dev
+        lastName: Player
+        credentials:
+          - type: password
+            value: devplayer
+            temporary: false
+        realmRoles:
+          - player
+        groups:
+          - /players
+    clients:
+      # Client public du client de jeu : le flow OIDC s'ouvre dans le navigateur.
+      - clientId: dyingstar-game
+        name: DyingStar client de jeu (Godot / navigateur)
+        description: Client public, flow standard + PKCE.
+        enabled: true
+        protocol: openid-connect
+        publicClient: true
+        standardFlowEnabled: true
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: false
+        rootUrl: http://localhost
+        baseUrl: /
+        redirectUris:
+          - http://localhost:*
+          - http://127.0.0.1:*
+          - http://horizon.dyingstar.local/*
+          - http://argocd.dyingstar.local/*
+          # Redirect natif du launcher (scheme custom). Le clientId reste
+          # `dyingstar-game` : le renommer casserait les launchers déjà installés,
+          # et l'API ne l'accepte de toute façon jamais sur /api/internal/*
+          # (azp joueur != svc-*).
+          - dyingstar://auth/callback
+        webOrigins:
+          - "*"
+        attributes:
+          pkce.code.challenge.method: S256
+          # Plusieurs URIs séparées par `##` (format Keycloak 26).
+          post.logout.redirect.uris: http://localhost:*##dyingstar://auth/callback
+
+        defaultClientScopes:
+          - openid
+          - profile
+          - email
+          - roles
+          - web-origins
+        optionalClientScopes:
+          - offline_access
+          - address
+          - phone
+      # Client confidentiel pour les backchannels service-to-service
+      # (godotserver, horizon, chatauth).
+      - clientId: dyingstar-service
+        name: DyingStar services (godotserver, horizon, chatauth)
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: true
+        serviceAccountsEnabled: true
+        secret: dyingstar-service
+        attributes:
+          client_credentials.use_refresh_token: "true"
+      # ── Clients de service machine-to-machine (grant_type=client_credentials) ──
+      #
+      # Ils sont déclarés ICI pour tout ce que KeycloakRealmImport sait décrire
+      # et que KeycloakOIDCClient n'expose pas : le mapper d'audience. Le secret
+      # et l'assignation des rôles au service account sont posés par les CRs
+      # KeycloakOIDCClient de 06-service-clients.yaml (auth.secretRef +
+      # serviceAccountRoles) : aucun secret n'est donc écrit ici, Keycloak en
+      # génère un à la création, que l'opérateur remplace par celui du Secret.
+      #
+      # ⚠ Le `clientId` est codé en dur dans les APIs : ne jamais le renommer.
+      - clientId: svc-game
+        name: DyingStar game server (client_credentials)
+        description: Serveur de jeu -> economie-api + social-api.
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: true
+        protocolMappers:
+          - name: economie-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: economie-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: social-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: social-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+      - clientId: svc-market
+        name: DyingStar market (client_credentials)
+        description: Marché -> economie-api uniquement (pas d'audience social-api).
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: true
+        protocolMappers:
+          - name: economie-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: economie-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+      # Keycloak crée ces deux clients (consoles) à la création du realm ; on
+      # les déclare pour figer leurs redirections sur l'issuer (cf.
+      # 03-keycloak.yaml, hostname en URL complète -> restituée telle quelle,
+      # donc sans port).
+      - clientId: account-console
+        enabled: true
+        protocol: openid-connect
+        publicClient: true
+        redirectUris:
+          - http://auth.dyingstar.local/*
+      - clientId: security-admin-console
+        enabled: true
+        protocol: openid-connect
+        publicClient: true
+        redirectUris:
+          - http://auth.dyingstar.local/*

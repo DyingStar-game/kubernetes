@@ -1,0 +1,82 @@
+# Identité machine des clients de service du realm `dyingstar`.
+#
+# Réconcilié par le CRD `KeycloakOIDCClient` (v2alpha1) de l'opérateur
+# keycloak-k8s-resources 26.7.0 — vérifiable avec :
+#   kubectl api-resources | grep keycloak
+#   kubectl explain keycloakoidcclient.spec.client
+#
+# Répartition volontaire des responsabilités entre deux CRs :
+#   - 04-realm-import.yaml (KeycloakRealmImport) : mapper d'audience, que
+#     KeycloakOIDCClient n'expose pas ;
+#   - ce fichier (KeycloakOIDCClient) : auth.secretRef (le secret ne sort jamais
+#     du Secret Kubernetes) et serviceAccountRoles (assignation des rôles au
+#     service account), que KeycloakRealmImport ne sait pas faire.
+#
+# ⚠ Le `metadata.name` est le `clientId` : il est codé en dur dans les APIs
+# (`INTERNAL_SERVICE_CLIENTS=svc-game,svc-market`). Ne jamais le renommer.
+#
+# Pré-requis : le Secret référencé par `auth.secretRef` doit exister AVANT que
+# le CR soit réconcilié (création hors-bande, cf. infra/keycloak/README.md) ; le
+# CR reste NotReady tant qu'il est absent. Aucune valeur de secret n'est
+# committée ici.
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: KeycloakOIDCClient
+metadata:
+  name: svc-game
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  keycloakCRName: keycloak
+  realm: dyingstar
+  client:
+    enabled: true
+    # Client credentials uniquement : ni flow navigateur, ni direct grant.
+    loginFlows:
+      - SERVICE_ACCOUNT
+    auth:
+      method: client-secret
+      secretRef:
+        name: svc-game-client-secret
+        key: secret
+    # Les 12 rôles de capacité (rôles realm), assignés au service account
+    # `service-account-svc-game`.
+    serviceAccountRoles:
+      - economie:wallet:read
+      - economie:wallet:ensure
+      - economie:wallet:credit
+      - economie:wallet:debit
+      - economie:corporation:read
+      - economie:corporation:manage
+      - social:profile:write
+      - social:player:write
+      - social:corporation:read
+      - social:corporation:write
+      - social:sanctions:read
+      - social:reputation:write
+---
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: KeycloakOIDCClient
+metadata:
+  name: svc-market
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  keycloakCRName: keycloak
+  realm: dyingstar
+  client:
+    enabled: true
+    loginFlows:
+      - SERVICE_ACCOUNT
+    auth:
+      method: client-secret
+      secretRef:
+        name: svc-market-client-secret
+        key: secret
+    # Volontairement restreint : le marché ne gère que les wallets. Il n'a donc
+    # ni `economie:corporation:manage` (API économie -> 403 FORBIDDEN) ni aucune
+    # audience `social-api` (04-realm-import.yaml), d'où le 403 sur les
+    # endpoints social.
+    serviceAccountRoles:
+      - economie:wallet:read
+      - economie:wallet:credit
+      - economie:wallet:debit

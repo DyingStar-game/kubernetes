@@ -55,6 +55,16 @@ projects:
     dockerfile: docker/Dockerfile
     deployment: service-resourcesdynamic
 
+  - name: economie
+    path: ../services/economie
+    dockerfile: docker/Dockerfile
+    deployment: service-economie
+
+  - name: social
+    path: ../services/social
+    dockerfile: docker/Dockerfile
+    deployment: service-social
+
   - name: persistence
     path: ../services/persistence
     dockerfile: docker/Dockerfile

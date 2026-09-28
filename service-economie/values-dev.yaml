@@ -1,0 +1,71 @@
+# Dev overrides for service-economie (minikube, deployed by ArgoCD in namespace dyingstar)
+# Usage: helm upgrade --install -n dyingstar service-economie ./service-economie -f service-economie/values-dev.yaml
+
+replicaCount: 1
+
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/economie
+  pullPolicy: Always
+  tag: "develop"
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 128Mi
+
+# The database is NOT declared by this chart in dev-local: it is a CloudNativePG
+# Cluster (service-economie/database/) applied as a second source by the
+# same ArgoCD app. `database.host` is the `<cluster>-rw` Service CloudNativePG
+# creates; the Secret is the one its initdb was bootstrapped with.
+# port / name / user are inherited from values.yaml.
+database:
+  host: economie-db-rw
+  existingSecret: economie-db-auth
+
+# Must stay false here: values.yaml defaults to true, which is what preprod and
+# prod will rely on once the chart is promoted to those environments. The rest of
+# the postgresql block is dead config in dev and is deliberately not repeated here.
+postgresql:
+  enabled: false
+
+# Issuer of the dev-local Keycloak, declared as `hostname` in
+# infra/keycloak/03-keycloak.yaml — the tokens it issues carry this value, so
+# pointing anywhere else makes every JWT fail validation. It resolves through
+# the minikube tunnel (hostname registered in hosts_config.txt).
+oidc:
+  issuer: "http://auth.dyingstar.local/realms/dyingstar"
+  # Audience attendue des tokens de service (client_credentials) : le client
+  # `svc-*` doit porter `economie-api` dans `aud` (mapper d'audience déclaré
+  # dans infra/keycloak/04-realm-import.yaml).
+  serviceAudience: "economie-api"
+
+# Clients Keycloak autorisés sur /api/internal/* (claim `azp`). Les clientIds
+# hors de cette liste sont rejetés en 403 SERVICE_FORBIDDEN.
+internalServiceClients: "svc-game,svc-market"
+
+# DEV ONLY: the chart creates service-economie-internal-key from this value, the
+# way livekit creates its keys Secret when no existingKeysSecret is set. The game
+# server (and any other caller) must present the same value in X-Internal-Key.
+internalApiKey:
+  create: true
+  key: "dev-internal-key"
+
+# Exposed through the dev Traefik gateway (traefik/values-dev.yaml) on
+# `economie.dyingstar.local`, which the minikube tunnel resolves; the hostname is
+# registered in hosts_config.txt and written to /etc/hosts by start-dev.sh.
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: traefik-gateway
+      namespace: traefik
+      sectionName: web
+  hostnames:
+    - "economie.dyingstar.local"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /

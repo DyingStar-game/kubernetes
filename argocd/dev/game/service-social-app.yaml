@@ -1,24 +1,24 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: service-resourcesdynamic
+  name: service-social
   namespace: argocd
 spec:
   project: game
   # Two sources, so the application and its database land in a single sync:
-  # service-resourcesdynamic is a game service, and its CloudNativePG Cluster
+  # service-social is a game service, and its CloudNativePG Cluster
   # is part of it, not a platform resource like Keycloak's.
   sources:
     - repoURL: 'file:///mnt/local-repo.git'
-      path: service-resourcesdynamic
+      path: service-social
       targetRevision: HEAD
       helm:
         valueFiles:
-          - $values/service-resourcesdynamic/values-dev.yaml
+          - $values/service-social/values-dev.yaml
     # The database, no longer a Deployment inside the chart. CloudNativePG
-    # creates the `resourcesdynamic-db-rw` Service that values-dev.yaml points at.
+    # creates the `social-db-rw` Service that values-dev.yaml points at.
     - repoURL: 'file:///mnt/local-repo.git'
-      path: service-resourcesdynamic/database
+      path: service-social/database
       targetRevision: HEAD
   destination:
     server: 'https://kubernetes.default.svc'

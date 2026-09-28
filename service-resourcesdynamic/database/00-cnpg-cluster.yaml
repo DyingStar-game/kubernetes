@@ -1,0 +1,27 @@
+# Database of service-resourcesdynamic (dev-local).
+#
+# Applied by the game Application `service-resourcesdynamic` as a second source
+# (argocd/dev/game/service-resourcesdynamic-app.yaml), so the application and its
+# database are reconciled together. The operator comes from the infra app
+# argocd/dev/infra/cnpg-op-app.yaml (namespace cnpg-system).
+#
+# CloudNativePG creates the Service `<cluster>-rw`, which is what
+# service-resourcesdynamic/values-dev.yaml points at via `database.host`.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: resourcesdynamic-db
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  instances: 1
+  # minikube's default StorageClass (hostpath) is enough for a dev database.
+  # This replaces an emptyDir: the data now survives `minikube stop`.
+  storage:
+    size: 1Gi
+  bootstrap:
+    initdb:
+      database: resources_dynamic
+      owner: resources_dynamic
+      secret:
+        name: resourcesdynamic-db-auth

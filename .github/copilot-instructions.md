@@ -63,7 +63,10 @@ Overlay files override only the values that differ per environment:
 - `replicaCount`
 - `image.repository` and `image.pullPolicy`
 - `service.nodePort` (for NodePort services like horizon)
-- `postgresql.auth.password` (for service-resourcesdynamic)
+- `postgresql.enabled: false` (for service-resourcesdynamic in dev-local: its
+  database is a CloudNativePG Cluster declared in
+  `service-resourcesdynamic/database/`, and `database.host` /
+  `database.existingSecret` point at it)
 
 ### Naming & Labels
 

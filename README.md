@@ -18,6 +18,8 @@ Helm charts for the **DyingStar** gaming platform microservices.
 | `godotserver` | Godot multiplayer game server (headless service) | `../DyingStar` |
 | `horizon` | Horizon game server (NodePort, high CPU) | `../horizonserver` |
 | `service-resourcesdynamic` | Dynamic resource manager API + WebSocket, with PostgreSQL | `../services/resourcesDynamic` |
+| `service-economie` | Economie service API + WebSocket (currencies, wallets, transactions), with PostgreSQL | `../services/economie` |
+| `service-social` | Social service API + WebSocket (friends, chat, presence), with PostgreSQL | `../services/social` |
 | `keycloak` | Keycloak identity provider (player auth + Discord IdP; a second, upstream-image instance runs in dev-shared for GitHub login) | `../services/keycloak` |
 | `livekit` | LiveKit Server (WebRTC SFU + TURN) for voice/video rooms | `../services/livekit` |
 | `service-persistence` | Persistence service — ScyllaDB-backed data layer (Rust) | `../services/persistence` |
@@ -35,11 +37,14 @@ Helm charts for the **DyingStar** gaming platform microservices.
 ├── godotserver/                   # Helm chart
 ├── horizon/                       # Helm chart
 ├── service-resourcesdynamic/      # Helm chart
+│   └── database/                  #   raw manifests: CNPG Cluster (dev-local, ArgoCD 2nd source)
 ├── keycloak/                      # Helm chart
 ├── livekit/                       # Helm chart
 ├── service-persistence/           # Helm chart
 ├── dev-services/                  # Helm chart (shared dev infra)
 ├── nextcloud/                     # Helm chart (shared dev infra, 3D asset library)
+├── infra/                         # Raw manifests for platform resources (ArgoCD infra apps)
+│   └── keycloak/                  # Keycloak dev-local (CR + CNPG Cluster + realm)
 ├── argocd/                        # ArgoCD Applications (dev + preprod)
 ├── dev-projects.yaml              # Local build targets (read by build-and-deploy)
 ├── scripts_linux/                 # Linux/macOS scripts (bash)
@@ -189,6 +194,254 @@ reach the cluster from another machine of the LAN), use the port-forward relay:
 
 then set `websocket_url="ws://127.0.0.1:7040"` (or `ws://<host-LAN-ip>:7040`).
 
+### Keycloak (dev-local, via Operator)
+
+The dev-local identity provider is **not** the Helm chart anymore: it is a
+`Keycloak` custom resource reconciled by the **upstream Keycloak Operator**.
+Both the operator and our CRs are declared by a single infra Application,
+[`argocd/dev/infra/keycloak-app.yaml`](argocd/dev/infra/keycloak-app.yaml)
+(name `keycloak`, project `infra`), with two sources:
+
+- `github.com/keycloak/keycloak-k8s-resources` @ `26.7.0`, path `kubernetes` —
+  the operator and its CRDs
+- this repo, path [`infra/keycloak/`](infra/keycloak) — our own resources:
+
+| File | Role |
+| --- | --- |
+| `00-cnpg-cluster.yaml` | PostgreSQL via CloudNativePG (opérateur déjà installé par `argocd/dev/infra/cnpg-op-app.yaml`), PVC 1Gi |
+| `01-db-secret.yaml` | Credentials de la base, partagées entre le bootstrap CNPG et la CR Keycloak |
+| `02-admin-secret.yaml` | Credentials admin fixes (`admin` / `admin`) via `spec.bootstrapAdmin` |
+| `03-keycloak.yaml` | La CR Keycloak (base, hostname, proxy, ressources) |
+| `04-realm-import.yaml` | Realm `dyingstar`, rôles de capacité, clients OIDC (dont `svc-*` + mappers d'audience), importé par le job `kcadm` de l'opérateur |
+| `05-httproute.yaml` | Exposition via la Gateway Traefik |
+| `06-service-clients.yaml` | Clients de service `KeycloakOIDCClient` (`svc-game`, `svc-market`) : `secretRef` + rôles du service account |
+
+Key points:
+
+- **The CR lives in the `keycloak` namespace, not `dyingstar`.** The operator
+  Deployment ships with
+  `QUARKUS_OPERATOR_SDK_CONTROLLERS_KEYCLOAKCONTROLLER_NAMESPACES=JOSDK_WATCH_CURRENT`,
+  i.e. it only reconciles CRs living in its own namespace. Upstream also ships a
+  `kubernetes/cluster-wide` kustomization (watches every namespace) — switching
+  the infra Application to it would let this CR move to `dyingstar`, at the cost
+  of a cluster-scoped operator.
+- **One single issuer, with a readable name:**
+
+  ```text
+  http://auth.dyingstar.local/realms/dyingstar
+  ```
+
+  Same `auth.*` convention as prod (`auth.dyingstar-game.com`) and preprod
+  (`auth-preprod.dyingstar-game.com`), in the dev `dyingstar.local` domain. It
+  still is a *single* issuer for both callers, thanks to two settings:
+
+  - `spec.hostname.hostname` is a **full URL and static**, so Keycloak only
+    resolves scheme/port/context-path dynamically (from `X-Forwarded-*`). A token
+    minted by the browser (port 80, through Traefik) and a token validated from a
+    pod (port 8080, direct) carry the same `iss`.
+  - `spec.hostname.backchannelDynamic: true` resolves the backchannel URLs
+    (JWKS, token, userinfo) from the request headers, so an in-cluster caller
+    gets internal URLs and never has to resolve `auth.dyingstar.local` (it only
+    exists in `/etc/hosts`, via `hosts_config.txt` + `minikube tunnel`). This is
+    why the hostname is a full URL — Keycloak requires the scheme.
+
+  `spec.hostname.strict` is left `false`; it is ignored anyway once `hostname` is
+  set, and it keeps the operator probes (which reach the server by IP) safe.
+- **HTTP, listener `web` (port 80).** The dev Gateway certificate is self-signed
+  (`traefik-default-cert`), so terminating TLS here would only add a browser
+  warning on every login screen.
+- Admin console: <http://auth.dyingstar.local/admin> (`admin` / `admin`).
+  `spec.bootstrapAdmin` only applies to the initial creation of the `master`
+  realm: if you change the admin password in the console, this Secret no longer
+  has any effect.
+- **Three places must stay in sync** when changing the hostname:
+  `spec.hostname.hostname` (03), `hostnames` (05) and `hosts_config.txt`.
+- DEV ONLY credentials everywhere (`admin` / `admin`, `keycloak` / `keycloak`,
+  `devplayer` / `devplayer`, `dyingstar-service`). Same rule as
+  `keycloak/values-dev.yaml`: never reuse them anywhere else.
+
+Health check:
+
+```bash
+kubectl get cluster -n keycloak                        # keycloak-db  1/1 Ready
+kubectl get keycloak,keycloakrealmimport -n keycloak   # Ready=True
+kubectl get httproute keycloak -n keycloak              # Accepted=True
+curl -sI http://auth.dyingstar.local/realms/dyingstar/.well-known/openid-configuration
+```
+
+> **One-off cleanup.** Before this setup, the dev and the infra roots both
+> declared an Application named `keycloak-operator-official`, which cannot
+> coexist. There is now a single `keycloak` Application. If the old name lingers
+> (or after a `git revert`), delete it once by hand:
+> `kubectl delete application keycloak-operator-official -n argocd`.
+
+### Keycloak — service identities (machine-to-machine, `client_credentials`)
+
+The game server does not present a shared secret anymore: it asks Keycloak for a
+token at
+`POST /realms/dyingstar/protocol/openid-connect/token` with
+`grant_type=client_credentials`, `client_id`, `client_secret`, and sends
+`Authorization: Bearer <access_token>`. The APIs `economie` / `social` validate
+that JWT against the realm JWKS and accept it only if `azp` is an allow-listed
+client and `aud` targets their own API. **The realm-side contract below is coded
+in the APIs; never rename any of it.**
+
+| clientId | `aud` in the access token | realm roles on the service account |
+| --- | --- | --- |
+| `svc-game` | `economie-api`, `social-api` | the 12 capacity roles |
+| `svc-market` | `economie-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit` |
+
+The 12 realm roles (no realm prefix):
+
+```text
+economie:wallet:read  economie:wallet:ensure  economie:wallet:credit  economie:wallet:debit
+economie:corporation:read  economie:corporation:manage
+social:profile:write  social:player:write  social:corporation:read
+social:corporation:write  social:sanctions:read  social:reputation:write
+```
+
+#### Which CRD does what (verified against the deployed operator)
+
+The operator is `keycloak-k8s-resources` @ `26.7.0`; its CRDs are:
+
+```bash
+kubectl api-resources | grep keycloak
+# keycloaks, keycloakrealmimports, keycloakoidcclients, keycloaksamlclients
+```
+
+There is **no** `KeycloakUser` / `KeycloakGroup` / realm-role kind. The clients
+are therefore split across two CRs by capability:
+
+| Concern | CRD | File |
+| --- | --- | --- |
+| Realm roles, clients, audience mappers | `KeycloakRealmImport` | `04-realm-import.yaml` |
+| Client secret (`auth.secretRef`), service-account roles (`serviceAccountRoles`) | `KeycloakOIDCClient` (v2alpha1) | `06-service-clients.yaml` |
+
+Two consequences worth knowing:
+
+- **No `kcadm` Job is needed for role assignment** — `KeycloakOIDCClient` exposes
+  `spec.client.serviceAccountRoles`. It is only the audience mapper (and the
+  realm-level token lifespan) that `KeycloakOIDCClient` cannot express, hence the
+  client is declared in both CRs: the realm import owns the mappers/scopes, the
+  `KeycloakOIDCClient` owns the secret and the role bindings. A `kcadm` Job would
+  be needed only if a future operator dropped `serviceAccountRoles`; it would
+  then have to be idempotent (`kcadm update ...` + reconcile).
+- **Per-client access-token lifespan is not exposed by either CRD.** The 300 s
+  window is set at the realm level (`accessTokenLifespan: 300` in
+  `04-realm-import.yaml`), currently already the case in dev-local. The
+  preprod/prod realm ships from the `../services/keycloak` image and is outside
+  this repository — align it there separately.
+
+#### Secrets (never in git)
+
+Each service reads its secret from a Kubernetes Secret created **out of band**,
+one per environment, referenced by `spec.client.auth.secretRef`. Neither the
+realm import nor `06-service-clients.yaml` carries a value.
+
+```bash
+# Once per environment, BEFORE the KeycloakOIDCClient is reconciled:
+kubectl -n keycloak create secret generic svc-game-client-secret \
+  --from-literal=secret="$(openssl rand -hex 32)"
+kubectl -n keycloak create secret generic svc-market-client-secret \
+  --from-literal=secret="$(openssl rand -hex 32)"
+```
+
+The **game server** stores the same values in its own per-env secret manager
+(sealed-secret / external-secret / SOPS); only the client secret is needed, no
+other shared secret.
+
+#### Add a new service
+
+1. Realm roles: add the new `*.realm` roles in `04-realm-import.yaml` (exact
+   names, no `/realm` prefix).
+2. Audience: declare the client in `04-realm-import.yaml` with
+   `serviceAccountsEnabled: true` (browser flows off) and one
+   `oidc-audience-mapper` per target API; add the target API's audience to the
+   other services if needed.
+3. Secret: create `<clientId>-client-secret` (key `secret`) out of band.
+4. Identity: add a `KeycloakOIDCClient` in `06-service-clients.yaml`
+   (`loginFlows: [SERVICE_ACCOUNT]`, `auth.secretRef`, `serviceAccountRoles`).
+5. API side (outside this repo): add the clientId to `INTERNAL_SERVICE_CLIENTS`
+   and, if it is a new API, set `OIDC_SERVICE_AUDIENCE`.
+
+#### Revoke or rotate
+
+- **Revoke**: set `spec.client.enabled: false` on the `KeycloakOIDCClient` (or
+  delete the CR). New tokens stop being issued immediately; **tokens already
+  issued stay valid for at most 300 s**, which is the whole point of the short
+  lifespan.
+- **Rotate**: re-render the Secret (`kubectl create secret ... --dry-run=client
+  -o yaml | kubectl apply -f -`, or your manager's rotate command). The operator
+  picks up the change via `secretRef`; the old secret is invalid on the next
+  token request, and already-issued tokens again expire within 300 s.
+
+#### Values to report to the APIs, per environment
+
+| Env | Issuer (`OIDC_ISSUER`) | `OIDC_SERVICE_AUDIENCE` | `INTERNAL_SERVICE_CLIENTS` |
+| --- | --- | --- | --- |
+| dev-local | `http://auth.dyingstar.local/realms/dyingstar` | `economie-api` / `social-api` | `svc-game,svc-market` |
+| preprod | `https://auth-preprod.dyingstar-game.com/realms/dyingstar` | `economie-api` / `social-api` | `svc-game,svc-market` |
+| prod | `https://auth.dyingstar-game.com/realms/dyingstar` | `economie-api` / `social-api` | `svc-game,svc-market` |
+
+`OIDC_SERVICE_AUDIENCE` is per API (economie vs social); `INTERNAL_SERVICE_CLIENTS`
+is the same allowlist for both. **A clientId absent from `INTERNAL_SERVICE_CLIENTS`
+is rejected with `403 SERVICE_FORBIDDEN`**, and a token whose `aud` does not match
+the API is rejected as well. The player client (`dyingstar-game`) carries
+`azp = dyingstar-game`, which is never in the allowlist: player tokens are never
+accepted on `/api/internal/*`.
+
+In the charts, both values are rendered from `service-<name>/values-dev.yaml`
+(`oidc.serviceAudience`, `internalServiceClients`); preprod/prod overlays set the
+same two keys. Run the assertions with
+[`scripts_linux/verify-service-auth.sh`](scripts_linux/verify-service-auth.sh).
+
+### Databases (dev-local, via CloudNativePG)
+
+The dev-local stack does not let application charts declare their own PostgreSQL
+anymore: databases are reconciled by the
+[CloudNativePG operator](https://cloudnative-pg.io/) installed by
+`argocd/dev/infra/cnpg-op-app.yaml` (namespace `cnpg-system`), and the consumers
+point at them with `database.host` / `database.existingSecret`.
+
+Each database belongs to the Application that needs it, so it travels with it:
+
+| Cluster | Namespace | Database / owner | Manifests | ArgoCD app (project) | Consumer |
+| --- | --- | --- | --- | --- | --- |
+| `keycloak-db` | `keycloak` | `keycloak` | [`infra/keycloak/`](infra/keycloak) | `keycloak` (infra) | `Keycloak` CR (`spec.db`) |
+| `resourcesdynamic-db` | `dyingstar` | `resources_dynamic` | [`service-resourcesdynamic/database/`](service-resourcesdynamic/database) | `service-resourcesdynamic` (game) | `service-resourcesdynamic` (`database.host`) |
+| `economie-db` | `dyingstar` | `economie` | [`service-economie/database/`](service-economie/database) | `service-economie` (game) | `service-economie` (`database.host`) |
+| `social-db` | `dyingstar` | `social` | [`service-social/database/`](service-social/database) | `service-social` (game) | `service-social` (`database.host`) |
+
+`service-resourcesdynamic/database/` is a **second source** of the game
+Application, not a Helm template: the chart and its database are reconciled in
+one sync. `service-resourcesdynamic` is a game service, so its database is
+declared in the game tree — unlike Keycloak, which is an auth platform and lives
+in the infra tree. Same layout for `service-economie/database/` and
+`service-social/database/`. (The `argocd/dev/game/` directory itself only holds
+`Application` objects: `root-game` scans it, so manifests must not be dropped
+there.)
+
+Conventions:
+
+- A Cluster is named `<service>-db`; CloudNativePG then exposes the
+  `<service>-db-rw` Service, which is what the consumer connects to.
+- Credentials are declared in the repo next to the Cluster (DEV ONLY) and used
+  twice: `bootstrap.initdb.secret` on the Cluster, and the consumer Secret
+  (`database.existingSecret`). The password key is always `password`.
+- Dev-local databases have a 1Gi PVC. They used to be `emptyDir` in some charts,
+  so data now survives `minikube stop` — a behaviour change, not a regression.
+
+```bash
+kubectl get clusters.postgresql.cnpg.io -A              # both 1/1 Ready
+kubectl get pods -n dyingstar -l cnpg.io/cluster=resourcesdynamic-db
+```
+
+**Still not on CloudNativePG** (deliberately, out of scope for dev-local):
+`service-persistence` (ScyllaDB), `nextcloud` + `livekit` (Redis), the
+`dev-shared` namespace (PostGIS 50Gi, Nextcloud PostgreSQL 10Gi — no ArgoCD, and
+no CNPG operator on the `dyingstar` cluster yet), and Harbor's internal database
+in preprod.
+
 ### Build a Service Locally
 
 `build-and-deploy` builds the image inside minikube's Docker daemon and patches the
@@ -205,8 +458,8 @@ running Deployment to use it (`imagePullPolicy: Never`) — no registry push, no
 ```
 
 The targets (`godotserver`, `horizon`, `horizon-plugins`, `horizon-data`,
-`resourcesdynamic`, `persistence`, `monitoring`) are declared in
-[`dev-projects.yaml`](dev-projects.yaml).
+`resourcesdynamic`, `economie`, `social`, `persistence`, `monitoring`) are
+declared in [`dev-projects.yaml`](dev-projects.yaml).
 
 A target may declare a `hook`: `scripts_linux/hooks/<hook>.sh` (or
 `scripts_windows/hooks/<hook>.ps1`) runs with `prepare` before the `docker build` and
@@ -332,6 +585,18 @@ godotserver and horizon in same time!
 ./scripts_linux/build-and-deploy.sh resourcesdynamic
 ```
 
+#### Develop service Economie
+
+```bash
+./scripts_linux/build-and-deploy.sh economie
+```
+
+#### Develop service Social
+
+```bash
+./scripts_linux/build-and-deploy.sh social
+```
+
 ---
 
 ## Shared Dev Services
@@ -442,8 +707,38 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
 
 ### Service Resources Dynamic
 - **Ports**: 3001 (HTTP API), 9200 (WebSocket)
-- **Database**: Bundled PostgreSQL (configurable per environment)
+- **Database**: CloudNativePG in dev-local, bundled PostgreSQL in preprod/prod
+  (the chart only sets `postgresql.enabled: false` for dev — see
+  [Databases (dev-local)](#databases-dev-local-via-cloudnativepg))
 - Environment variable `DATABASE_URL` is auto-configured from chart values
+
+### Service Economie
+- **Ports**: 3000 (HTTP API), 9200 (WebSocket). No `PORT` env var is injected:
+  `service.port` must stay equal to the app's own default
+- **Database**: CloudNativePG `economie-db` in dev-local, bundled PostgreSQL in
+  preprod/prod (the chart only sets `postgresql.enabled: false` for dev — see
+  [Databases (dev-local)](#databases-dev-local-via-cloudnativepg))
+- **Dev hostname**: `economie.dyingstar.local` (Traefik HTTPRoute)
+- **Env**: `POSTGRES_*` and `DATABASE_URL` are generated by the Deployment
+  template from `database`; `OIDC_ISSUER` comes from the per-environment `oidc`
+  block (empty by default); `INTERNAL_API_KEY` is read from the Secret
+  `service-economie-internal-key`, created by the chart in dev from
+  `internalApiKey.key`; the rest (`NODE_ENV`, `CORS_ORIGIN`,
+  `AUTH_DEV_BYPASS`, `ECONOMY_*`) lives in `env` in `values.yaml`
+
+### Service Social
+- **Ports**: 3000 (HTTP API), 9200 (WebSocket). No `PORT` env var is injected:
+  `service.port` must stay equal to the app's own default
+- **Database**: CloudNativePG `social-db` in dev-local, bundled PostgreSQL in
+  preprod/prod (the chart only sets `postgresql.enabled: false` for dev — see
+  [Databases (dev-local)](#databases-dev-local-via-cloudnativepg))
+- **Dev hostname**: `social.dyingstar.local` (Traefik HTTPRoute)
+- **Env**: `POSTGRES_*` and `DATABASE_URL` are generated by the Deployment
+  template from `database`; `OIDC_ISSUER` comes from the per-environment `oidc`
+  block (empty by default); `INTERNAL_API_KEY` is read from the Secret
+  `service-social-internal-key`, created by the chart in dev from
+  `internalApiKey.key`; the rest (`NODE_ENV`, `CORS_ORIGIN`, `AUTH_DEV_BYPASS`,
+  `REPUTATION_*`) lives in `env` in `values.yaml`
 
 ### Service Persistence
 - **Port**: 9100 (WebSocket, Rust)
