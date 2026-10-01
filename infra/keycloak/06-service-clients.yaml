@@ -16,9 +16,31 @@
 # (`INTERNAL_SERVICE_CLIENTS=svc-game,svc-market`). Ne jamais le renommer.
 #
 # Pré-requis : le Secret référencé par `auth.secretRef` doit exister AVANT que
-# le CR soit réconcilié (création hors-bande, cf. infra/keycloak/README.md) ; le
-# CR reste NotReady tant qu'il est absent. Aucune valeur de secret n'est
-# committée ici.
+# le CR soit réconcilié, sinon le CR reste NotReady. En dev-local (minikube) les
+# deux Secrets sont livrés ci-dessous avec des valeurs en clair — DEV ONLY, même
+# règle que 01-db-secret.yaml / 02-admin-secret.yaml. Hors dev, les créer
+# hors-bande (cf. README.md § « Keycloak — service identities »).
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: svc-game-client-secret
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+type: Opaque
+stringData:
+  secret: svc-game-dev-secret
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: svc-market-client-secret
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+type: Opaque
+stringData:
+  secret: svc-market-dev-secret
+---
 apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakOIDCClient
 metadata:

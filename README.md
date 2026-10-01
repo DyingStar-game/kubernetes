@@ -210,11 +210,11 @@ Both the operator and our CRs are declared by a single infra Application,
 | --- | --- |
 | `00-cnpg-cluster.yaml` | PostgreSQL via CloudNativePG (opérateur déjà installé par `argocd/dev/infra/cnpg-op-app.yaml`), PVC 1Gi |
 | `01-db-secret.yaml` | Credentials de la base, partagées entre le bootstrap CNPG et la CR Keycloak |
-| `02-admin-secret.yaml` | Credentials admin fixes (`admin` / `admin`) via `spec.bootstrapAdmin` |
+| `02-admin-secret.yaml` | Credentials admin fixes (`admin` / `devpass`) via `spec.bootstrapAdmin` |
 | `03-keycloak.yaml` | La CR Keycloak (base, hostname, proxy, ressources) |
 | `04-realm-import.yaml` | Realm `dyingstar`, rôles de capacité, clients OIDC (dont `svc-*` + mappers d'audience), importé par le job `kcadm` de l'opérateur |
 | `05-httproute.yaml` | Exposition via la Gateway Traefik |
-| `06-service-clients.yaml` | Clients de service `KeycloakOIDCClient` (`svc-game`, `svc-market`) : `secretRef` + rôles du service account |
+| `06-service-clients.yaml` | Clients de service `KeycloakOIDCClient` (`svc-game`, `svc-market`) : `secretRef` + rôles du service account, et leurs Secrets dev (`svc-*-client-secret`) |
 
 Key points:
 
@@ -250,13 +250,13 @@ Key points:
 - **HTTP, listener `web` (port 80).** The dev Gateway certificate is self-signed
   (`traefik-default-cert`), so terminating TLS here would only add a browser
   warning on every login screen.
-- Admin console: <http://auth.dyingstar.local/admin> (`admin` / `admin`).
+- Admin console: <http://auth.dyingstar.local/admin> (`admin` / `devpass`).
   `spec.bootstrapAdmin` only applies to the initial creation of the `master`
   realm: if you change the admin password in the console, this Secret no longer
   has any effect.
 - **Three places must stay in sync** when changing the hostname:
   `spec.hostname.hostname` (03), `hostnames` (05) and `hosts_config.txt`.
-- DEV ONLY credentials everywhere (`admin` / `admin`, `keycloak` / `keycloak`,
+- DEV ONLY credentials everywhere (`admin` / `devpass`, `keycloak` / `keycloak`,
   `devplayer` / `devplayer`, `dyingstar-service`). Same rule as
   `keycloak/values-dev.yaml`: never reuse them anywhere else.
 
@@ -332,11 +332,11 @@ Two consequences worth knowing:
   preprod/prod realm ships from the `../services/keycloak` image and is outside
   this repository — align it there separately.
 
-#### Secrets (never in git)
+#### Secrets
 
-Each service reads its secret from a Kubernetes Secret created **out of band**,
-one per environment, referenced by `spec.client.auth.secretRef`. Neither the
-realm import nor `06-service-clients.yaml` carries a value.
+Each service reads its secret from a Kubernetes Secret referenced by
+`spec.client.auth.secretRef`. **Outside dev**, that Secret is created **out of
+band**, one per environment, and never committed:
 
 ```bash
 # Once per environment, BEFORE the KeycloakOIDCClient is reconciled:
@@ -345,6 +345,11 @@ kubectl -n keycloak create secret generic svc-game-client-secret \
 kubectl -n keycloak create secret generic svc-market-client-secret \
   --from-literal=secret="$(openssl rand -hex 32)"
 ```
+
+**En dev-local**, pour que la stack soit auto-portante (mêmes valeurs en clair que
+`01-db-secret.yaml` / `02-admin-secret.yaml`), les deux Secrets sont livrés par
+`06-service-clients.yaml` (sync-wave `-1`), donc `verify-service-auth.sh` les
+trouve sans étape manuelle. Les valeurs sont locales au minikube — DEV ONLY.
 
 The **game server** stores the same values in its own per-env secret manager
 (sealed-secret / external-secret / SOPS); only the client secret is needed, no
