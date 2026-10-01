@@ -211,7 +211,7 @@ Both the operator and our CRs are declared by a single infra Application,
 | `00-cnpg-cluster.yaml` | PostgreSQL via CloudNativePG (opérateur déjà installé par `argocd/dev/infra/cnpg-op-app.yaml`), PVC 1Gi |
 | `01-db-secret.yaml` | Credentials de la base, partagées entre le bootstrap CNPG et la CR Keycloak |
 | `02-admin-secret.yaml` | Credentials admin fixes (`admin` / `devpass`) via `spec.bootstrapAdmin` |
-| `03-keycloak.yaml` | La CR Keycloak (base, hostname, proxy, ressources) |
+| `03-keycloak.yaml` | La CR Keycloak (base, hostname, proxy, ressources) + feature `client-admin-api:v2` requise par les CRs clients |
 | `04-realm-import.yaml` | Realm `dyingstar`, rôles de capacité, clients OIDC (dont `svc-*` + mappers d'audience), importé par le job `kcadm` de l'opérateur |
 | `05-httproute.yaml` | Exposition via la Gateway Traefik |
 | `06-service-clients.yaml` | Clients de service `KeycloakOIDCClient` (`svc-game`, `svc-market`) : `secretRef` + rôles du service account, et leurs Secrets dev (`svc-*-client-secret`) |
@@ -316,6 +316,11 @@ are therefore split across two CRs by capability:
 | --- | --- | --- |
 | Realm roles, clients, audience mappers | `KeycloakRealmImport` | `04-realm-import.yaml` |
 | Client secret (`auth.secretRef`), service-account roles (`serviceAccountRoles`) | `KeycloakOIDCClient` (v2alpha1) | `06-service-clients.yaml` |
+
+The `KeycloakOIDCClient` controller refuses to reconcile unless the Keycloak CR
+enables the `client-admin-api:v2` feature (`03-keycloak.yaml`): without it the
+CRs stay `NotReady` and the `svc-*` clients keep Keycloak's auto-generated
+secret, so `client_credentials` fails with `unauthorized_client`.
 
 Two consequences worth knowing:
 
