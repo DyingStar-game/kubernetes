@@ -16,6 +16,15 @@ metadata:
 spec:
   instances: 1
 
+  # L'API admin clients v2 est un feature flag. Le contrôleur des CRs
+  # `KeycloakOIDCClient` (06-service-clients.yaml) la teste explicitement
+  # (`hasFeatureEnabled` -> "client-admin-api:v2") et refuse de réconcilier sans
+  # elle : sans ce flag les clients `svc-*` gardent le secret auto-généré par
+  # Keycloak et le grant client_credentials échoue (`unauthorized_client`).
+  features:
+    enabled:
+      - client-admin-api:v2
+
   # image volontairement absente : l'opérateur utilise RELATED_IMAGE_KEYCLOAK
   # (quay.io/keycloak/keycloak:26.7.0), ce qui garantit que le serveur et
   # l'opérateur restent sur la même version.
