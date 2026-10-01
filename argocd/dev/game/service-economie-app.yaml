@@ -5,9 +5,6 @@ metadata:
   namespace: argocd
 spec:
   project: game
-  # Two sources, so the application and its database land in a single sync:
-  # service-economie is a game service, and its CloudNativePG Cluster
-  # is part of it, not a platform resource like Keycloak's.
   sources:
     - repoURL: 'file:///mnt/local-repo.git'
       path: service-economie
@@ -15,11 +12,12 @@ spec:
       helm:
         valueFiles:
           - $values/service-economie/values-dev.yaml
-    # The database, no longer a Deployment inside the chart. CloudNativePG
-    # creates the `economie-db-rw` Service that values-dev.yaml points at.
     - repoURL: 'file:///mnt/local-repo.git'
       path: service-economie/database
       targetRevision: HEAD
+    - repoURL: 'file:///mnt/local-repo.git'
+      targetRevision: HEAD
+      ref: values
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: dyingstar
@@ -29,12 +27,7 @@ spec:
       selfHeal: true
     syncOptions:
     - CreateNamespace=true
-    # Sans ceci, ignoreDifferences n'agit que sur la détection de drift : une sync
-    # déclenchée par un commit ré-appliquerait l'image Harbor sur le build local.
     - RespectIgnoreDifferences=true
-    # The postgresql.cnpg.io CRD is installed by the infra app cnpg-op-app; on a
-    # fresh cluster this Application can hit it before the CRD exists, hence the
-    # retry below.
     - ServerSideApply=true
     retry:
       limit: 10

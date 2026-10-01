@@ -33,7 +33,7 @@ spec:
       key: password
 
   bootstrapAdmin:
-    # Secret 02-admin-secret.yaml (admin / admin) : évite d'avoir à décoder
+    # Secret 02-admin-secret.yaml (admin / devpass) : évite d'avoir à décoder
     # `keycloak-initial-admin` avec base64 à chaque cluster neuf.
     user:
       secret: keycloak-admin
