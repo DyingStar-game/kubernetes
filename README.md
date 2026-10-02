@@ -291,6 +291,7 @@ in the APIs; never rename any of it.**
 | `svc-game` | `economie-api`, `social-api`, `mission-api` | the 16 capacity roles |
 | `svc-market` | `economie-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit` |
 | `svc-mission` | `economie-api`, `social-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit`, `social:corporation:read` |
+| `svc-admin` | `economie-api`, `social-api`, `mission-api` | the 16 capacity roles (console d'admin — client le plus privilégié) |
 
 The 16 realm roles (no realm prefix):
 
@@ -391,9 +392,9 @@ other shared secret.
 
 | Env | Issuer (`OIDC_ISSUER`) | `OIDC_SERVICE_AUDIENCE` | `INTERNAL_SERVICE_CLIENTS` |
 | --- | --- | --- | --- |
-| dev-local | `http://auth.dyingstar.local/realms/dyingstar` | `economie-api` / `social-api` / `mission-api` | `svc-game,svc-market,svc-mission` |
-| preprod | `https://auth-preprod.dyingstar-game.com/realms/dyingstar` | `economie-api` / `social-api` / `mission-api` | `svc-game,svc-market,svc-mission` |
-| prod | `https://auth.dyingstar-game.com/realms/dyingstar` | `economie-api` / `social-api` / `mission-api` | `svc-game,svc-market,svc-mission` |
+| dev-local | `http://auth.dyingstar.local/realms/dyingstar` | `economie-api` / `social-api` / `mission-api` | `svc-game,svc-market,svc-mission,svc-admin` |
+| preprod | `https://auth-preprod.dyingstar-game.com/realms/dyingstar` | `economie-api` / `social-api` / `mission-api` | `svc-game,svc-market,svc-mission,svc-admin` |
+| prod | `https://auth.dyingstar-game.com/realms/dyingstar` | `economie-api` / `social-api` / `mission-api` | `svc-game,svc-market,svc-mission,svc-admin` |
 
 `OIDC_SERVICE_AUDIENCE` is per API (economie / social / mission); `INTERNAL_SERVICE_CLIENTS`
 is the allowlist of callers for all of them. **A clientId absent from `INTERNAL_SERVICE_CLIENTS`
