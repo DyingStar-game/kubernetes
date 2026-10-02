@@ -47,7 +47,8 @@ PLAYER_UUID="${PLAYER_UUID:-00000000-0000-0000-0000-0000000000ff}"
 CORPORATION_UUID="${CORPORATION_UUID:-00000000-0000-0000-0000-0000000000aa}"
 SOCIAL_PROBE_PATH="${SOCIAL_PROBE_PATH:-/api/internal/health}"
 TOKEN_ENDPOINT="${ISSUER}/realms/${REALM}/protocol/openid-connect/token"
-
+ECONOMIE_BASE_URL="${ECONOMIE_BASE_URL:-http://economie.dyingstar.local}"
+SOCIAL_BASE_URL="${SOCIAL_BASE_URL:-http://social.dyingstar.local}"
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 PASS=0; FAIL=0
 ok()   { echo -e "  ${GREEN}[OK]${NC}    $1"; PASS=$((PASS+1)); }
