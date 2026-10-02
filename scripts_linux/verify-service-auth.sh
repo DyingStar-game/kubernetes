@@ -169,22 +169,23 @@ verify_token() {
 }
 
 # Volet 2 : tests HTTP. Retourne "<code> <fichier-body>".
+# $4 = corps JSON optionnel (envoyé avec Content-Type: application/json).
 http_code() {
-  local method="$1" url="$2" token="${3:-}" body_file
+  local method="$1" url="$2" token="${3:-}" data="${4:-}" body_file
   body_file="$(mktemp)"
-  local code
-  if [ -n "$token" ]; then
-    code="$(curl -s -o "$body_file" -w '%{http_code}' -X "$method" -H "Authorization: Bearer $token" "$url")"
-  else
-    code="$(curl -s -o "$body_file" -w '%{http_code}' -X "$method" "$url")"
+  local code args=(-s -o "$body_file" -w '%{http_code}' -X "$method")
+  [ -n "$token" ] && args+=(-H "Authorization: Bearer $token")
+  if [ -n "$data" ]; then
+    args+=(-H "Content-Type: application/json" -d "$data")
   fi
+  code="$(curl "${args[@]}" "$url")"
   printf '%s %s' "$code" "$body_file"
 }
 
 expect_code() {
-  local label="$1" expected="$2" method="$3" url="$4" token="${5:-}"
+  local label="$1" expected="$2" method="$3" url="$4" token="${5:-}" data="${6:-}"
   local out code file
-  out="$(http_code "$method" "$url" "$token")"; code="${out%% *}"; file="${out#* }"
+  out="$(http_code "$method" "$url" "$token" "$data")"; code="${out%% *}"; file="${out#* }"
   if [ "$code" = "$expected" ]; then
     ok "$label : HTTP $code"
   else
@@ -197,9 +198,9 @@ expect_code() {
 # plutôt que 403 sur une audience absente). `expected_codes` est une liste
 # séparée par des espaces : "401 403".
 expect_code_any() {
-  local label="$1" expected_codes="$2" method="$3" url="$4" token="${5:-}"
+  local label="$1" expected_codes="$2" method="$3" url="$4" token="${5:-}" data="${6:-}"
   local out code file
-  out="$(http_code "$method" "$url" "$token")"; code="${out%% *}"; file="${out#* }"
+  out="$(http_code "$method" "$url" "$token" "$data")"; code="${out%% *}"; file="${out#* }"
   case " $expected_codes " in
     *" $code "*) ok "$label : HTTP $code" ;;
     *) ko "$label : attendu l'un de [$expected_codes], obtenu $code — $(head -c 300 "$file" 2>/dev/null)" ;;
@@ -253,7 +254,8 @@ if [ -n "${ECONOMIE_BASE_URL:-}" ] || [ -n "${SOCIAL_BASE_URL:-}" ] || [ -n "${M
     sect "API economie ($ECONOMIE_BASE_URL)"
     expect_code "svc-game GET wallet"                200 GET  "$ECONOMIE_BASE_URL/api/internal/players/$PLAYER_UUID/wallet" "$GAME_TOKEN"
     if [ "${MUTATING:-0}" = "1" ]; then
-      expect_code "svc-game POST wallet/credit"     201 POST "$ECONOMIE_BASE_URL/api/internal/players/$PLAYER_UUID/wallet/credit" "$GAME_TOKEN"
+      # L'API economie exige un corps {amount: <nombre>} (entier, unités mineures).
+      expect_code "svc-game POST wallet/credit"     201 POST "$ECONOMIE_BASE_URL/api/internal/players/$PLAYER_UUID/wallet/credit" "$GAME_TOKEN" '{"amount":1}'
       info "vérifier en base que la ligne du ledger porte caller = svc-game"
     else
       info "MUTATING=1 non positionné : POST wallet/credit sauté (aucune écriture)"
