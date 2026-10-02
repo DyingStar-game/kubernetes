@@ -70,7 +70,7 @@ spec:
       secretRef:
         name: svc-game-client-secret
         key: secret
-    # Les 15 rôles de capacité (rôles realm), assignés au service account
+    # Les 16 rôles de capacité (rôles realm), assignés au service account
     # `service-account-svc-game`.
     serviceAccountRoles:
       - economie:wallet:read
@@ -85,9 +85,10 @@ spec:
       - social:corporation:write
       - social:sanctions:read
       - social:reputation:write
-      - mission:mission:read
-      - mission:mission:write
-      - mission:mission:manage
+      - mission:read
+      - mission:write
+      - mission:complete
+      - mission:manage
 ---
 apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakOIDCClient

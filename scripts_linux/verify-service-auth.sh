@@ -6,18 +6,20 @@
 # Deux volets :
 #   1. Toujours : décodage des JWT `client_credentials` obtenus auprès de
 #      Keycloak (azp, aud, sub, preferred_username, rôles, exp-iat=300).
-#   2. Si ECONOMIE_BASE_URL / SOCIAL_BASE_URL sont fournis : les tests HTTP des
-#      APIs (200/201/403/401). Le test mutatif (credit) n'est exécuté qu'avec
-#      MUTATING=1.
+#   2. Si ECONOMIE_BASE_URL / SOCIAL_BASE_URL / MISSION_BASE_URL sont fournis :
+#      les tests HTTP des APIs (200/201/403/401). Le test mutatif (credit) n'est
+#      exécuté qu'avec MUTATING=1.
 #
 # Aucune valeur de secret n'est écrite sur disque ni affichée : les secrets sont
-# lus depuis Kubernetes (ou passés via SVC_GAME_SECRET / SVC_MARKET_SECRET).
+# lus depuis Kubernetes (ou passés via SVC_GAME_SECRET / SVC_MARKET_SECRET /
+# SVC_MISSION_SECRET).
 #
 # Usage :
 #   ./scripts_linux/verify-service-auth.sh
 #   ISSUER=https://auth-preprod.dyingstar-game.com \
 #     ECONOMIE_BASE_URL=http://economie.dyingstar.local \
 #     SOCIAL_BASE_URL=http://social.dyingstar.local \
+#     MISSION_BASE_URL=http://mission.dyingstar.local \
 #     PLAYER_TOKEN="$PLAYER_JWT" \
 #     ./scripts_linux/verify-service-auth.sh
 #
@@ -28,11 +30,14 @@
 #   K8S_CONTEXT            contexte kubectl optionnel
 #   SVC_GAME_SECRET        sinon lu depuis le Secret svc-game-client-secret
 #   SVC_MARKET_SECRET      sinon lu depuis le Secret svc-market-client-secret
+#   SVC_MISSION_SECRET     sinon lu depuis le Secret svc-mission-client-secret
 #   ECONOMIE_BASE_URL      ex http://economie.dyingstar.local (sinon volet 2 sauté)
 #   SOCIAL_BASE_URL        ex http://social.dyingstar.local
-#   PLAYER_UUID            défaut uuid nul-ish ; à remplacer par un vrai joueur
-#   CORPORATION_UUID       défaut uuid nul-ish
+#   MISSION_BASE_URL       ex http://mission.dyingstar.local
+#   PLAYER_UUID            défaut uuid v4 ; à remplacer par un vrai joueur
+#   CORPORATION_UUID       défaut uuid v4
 #   SOCIAL_PROBE_PATH      défaut /api/internal/health
+#   MISSION_PROBE_PATH     défaut /api/internal/missions
 #   PLAYER_TOKEN           JWT du launcher, pour le test de non-contournement
 #   MUTATING=1             exécute POST wallet/credit (écrit au ledger)
 
@@ -48,9 +53,11 @@ K8S_NAMESPACE="${K8S_NAMESPACE:-keycloak}"
 PLAYER_UUID="${PLAYER_UUID:-00000000-0000-4000-8000-0000000000ff}"
 CORPORATION_UUID="${CORPORATION_UUID:-00000000-0000-4000-8000-0000000000aa}"
 SOCIAL_PROBE_PATH="${SOCIAL_PROBE_PATH:-/api/internal/health}"
+MISSION_PROBE_PATH="${MISSION_PROBE_PATH:-/api/internal/missions}"
 TOKEN_ENDPOINT="${ISSUER}/realms/${REALM}/protocol/openid-connect/token"
 ECONOMIE_BASE_URL="${ECONOMIE_BASE_URL:-http://economie.dyingstar.local}"
 SOCIAL_BASE_URL="${SOCIAL_BASE_URL:-http://social.dyingstar.local}"
+MISSION_BASE_URL="${MISSION_BASE_URL:-http://mission.dyingstar.local}"
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 PASS=0; FAIL=0
 ok()   { echo -e "  ${GREEN}[OK]${NC}    $1"; PASS=$((PASS+1)); }
@@ -212,24 +219,35 @@ info "endpoint: $TOKEN_ENDPOINT"
 # Rôles (source unique : contrat API)
 ECON_ROLES=(economie:wallet:read economie:wallet:ensure economie:wallet:credit economie:wallet:debit economie:corporation:read economie:corporation:manage)
 SOCIAL_ROLES=(social:profile:write social:player:write social:corporation:read social:corporation:write social:sanctions:read social:reputation:write)
-ALL_ROLES=("${ECON_ROLES[@]}" "${SOCIAL_ROLES[@]}")
+# L'API mission exige `mission:read` / `mission:write` / `mission:complete`
+# (noms exacts renvoyés dans ses erreurs 403), plus `mission:manage`.
+MISSION_ROLES=(mission:read mission:write mission:complete mission:manage)
+ALL_ROLES=("${ECON_ROLES[@]}" "${SOCIAL_ROLES[@]}" "${MISSION_ROLES[@]}")
 MARKET_ROLES=(economie:wallet:read economie:wallet:credit economie:wallet:debit)
+# svc-mission est un caller (economie + social), pas un appelé : il ne porte
+# jamais d'audience mission-api ni de rôle mission:*.
+MISSION_SVC_ROLES=(economie:wallet:read economie:wallet:credit economie:wallet:debit social:corporation:read)
 
 SVC_GAME_SECRET="$(fetch_secret svc-game-client-secret "${SVC_GAME_SECRET:-}")" || exit 1
 SVC_MARKET_SECRET="$(fetch_secret svc-market-client-secret "${SVC_MARKET_SECRET:-}")" || exit 1
+SVC_MISSION_SECRET="$(fetch_secret svc-mission-client-secret "${SVC_MISSION_SECRET:-}")" || exit 1
 
-AUD_EXPECT="economie-api social-api" AUD_ABSENT="" verify_token svc-game "$SVC_GAME_SECRET" "${ALL_ROLES[@]}"
+AUD_EXPECT="economie-api social-api mission-api" AUD_ABSENT="" verify_token svc-game "$SVC_GAME_SECRET" "${ALL_ROLES[@]}"
 GAME_TOKEN="$(get_token svc-game "$SVC_GAME_SECRET" 2>/dev/null || true)"
 
 AUD_EXPECT="economie-api" AUD_ABSENT="social-api" verify_token svc-market "$SVC_MARKET_SECRET" "${MARKET_ROLES[@]}"
 MARKET_TOKEN="$(get_token svc-market "$SVC_MARKET_SECRET" 2>/dev/null || true)"
 
+AUD_EXPECT="economie-api social-api" AUD_ABSENT="mission-api" verify_token svc-mission "$SVC_MISSION_SECRET" "${MISSION_SVC_ROLES[@]}"
+MISSION_TOKEN="$(get_token svc-mission "$SVC_MISSION_SECRET" 2>/dev/null || true)"
+
 # --------------------------------------------------------------------------
 # Volet 2 : APIs (si URLs fournies)
 # --------------------------------------------------------------------------
-if [ -n "${ECONOMIE_BASE_URL:-}" ] || [ -n "${SOCIAL_BASE_URL:-}" ]; then
+if [ -n "${ECONOMIE_BASE_URL:-}" ] || [ -n "${SOCIAL_BASE_URL:-}" ] || [ -n "${MISSION_BASE_URL:-}" ]; then
   : "${ECONOMIE_BASE_URL:=}"
   : "${SOCIAL_BASE_URL:=}"
+  : "${MISSION_BASE_URL:=}"
 
   if [ -n "$ECONOMIE_BASE_URL" ]; then
     sect "API economie ($ECONOMIE_BASE_URL)"
@@ -254,8 +272,23 @@ if [ -n "${ECONOMIE_BASE_URL:-}" ] || [ -n "${SOCIAL_BASE_URL:-}" ]; then
       info "sonde svc-game social sur $SOCIAL_PROBE_PATH (200/404 attendu)"
     fi
   fi
+
+  if [ -n "$MISSION_BASE_URL" ]; then
+    sect "API mission ($MISSION_BASE_URL)"
+    # Health public (aucun token) : prouve que le service répond.
+    expect_code "mission /api/health (public)" 200 GET "$MISSION_BASE_URL/api/health"
+    # svc-game est le seul caller autorisé et porte l'audience mission-api +
+    # le rôle mission:read : l'endpoint interne répond 200.
+    expect_code "svc-game GET $MISSION_PROBE_PATH" 200 GET "$MISSION_BASE_URL$MISSION_PROBE_PATH" "$GAME_TOKEN"
+    # Sans token : jamais 200 (non-contournement).
+    expect_code "mission sans token" 401 GET "$MISSION_BASE_URL$MISSION_PROBE_PATH"
+    # svc-market n'a ni l'audience mission-api ni de rôle mission:* : rejeté.
+    expect_code_any "svc-market sur endpoint mission" "401 403" GET "$MISSION_BASE_URL$MISSION_PROBE_PATH" "$MARKET_TOKEN"
+    # svc-mission n'appelle pas l'API mission (il n'est ni caller ni audiencé).
+    expect_code_any "svc-mission sur endpoint mission" "401 403" GET "$MISSION_BASE_URL$MISSION_PROBE_PATH" "$MISSION_TOKEN"
+  fi
 else
-  info "ECONOMIE_BASE_URL / SOCIAL_BASE_URL absents : volet HTTP sauté (volet JWT seul)."
+  info "ECONOMIE_BASE_URL / SOCIAL_BASE_URL / MISSION_BASE_URL absents : volet HTTP sauté (volet JWT seul)."
 fi
 
 # --------------------------------------------------------------------------

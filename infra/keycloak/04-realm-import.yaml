@@ -73,10 +73,13 @@ spec:
         - name: social:corporation:write
         - name: social:sanctions:read
         - name: social:reputation:write
-        # Mission
-        - name: mission:mission:read
-        - name: mission:mission:write
-        - name: mission:mission:manage
+        # Mission — noms EXACTS exigés par l'API mission (l'API répond
+        # « Requires service role mission:read » etc.) : pas de segment ressource
+        # ici, contrairement à economie:wallet:*.
+        - name: mission:read
+        - name: mission:write
+        - name: mission:complete
+        - name: mission:manage
     groups:
       - name: players
       - name: staff
