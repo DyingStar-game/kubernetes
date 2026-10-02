@@ -43,8 +43,10 @@ cd "$(dirname "$0")/.."
 ISSUER="${ISSUER:-http://auth.dyingstar.local}"
 REALM="${REALM:-dyingstar}"
 K8S_NAMESPACE="${K8S_NAMESPACE:-keycloak}"
-PLAYER_UUID="${PLAYER_UUID:-00000000-0000-0000-0000-0000000000ff}"
-CORPORATION_UUID="${CORPORATION_UUID:-00000000-0000-0000-0000-0000000000aa}"
+# UUID v4 valides : les APIs rejettent en 400 un UUID dont le nibble de version
+# n'est pas 1-5 (l'ancien `...-0000-...` provoquait « playerId: Invalid UUID »).
+PLAYER_UUID="${PLAYER_UUID:-00000000-0000-4000-8000-0000000000ff}"
+CORPORATION_UUID="${CORPORATION_UUID:-00000000-0000-4000-8000-0000000000aa}"
 SOCIAL_PROBE_PATH="${SOCIAL_PROBE_PATH:-/api/internal/health}"
 TOKEN_ENDPOINT="${ISSUER}/realms/${REALM}/protocol/openid-connect/token"
 ECONOMIE_BASE_URL="${ECONOMIE_BASE_URL:-http://economie.dyingstar.local}"
@@ -184,6 +186,20 @@ expect_code() {
   rm -f "$file"
 }
 
+# Comme expect_code, mais accepte plusieurs codes (ex. un service qui répond 401
+# plutôt que 403 sur une audience absente). `expected_codes` est une liste
+# séparée par des espaces : "401 403".
+expect_code_any() {
+  local label="$1" expected_codes="$2" method="$3" url="$4" token="${5:-}"
+  local out code file
+  out="$(http_code "$method" "$url" "$token")"; code="${out%% *}"; file="${out#* }"
+  case " $expected_codes " in
+    *" $code "*) ok "$label : HTTP $code" ;;
+    *) ko "$label : attendu l'un de [$expected_codes], obtenu $code — $(head -c 300 "$file" 2>/dev/null)" ;;
+  esac
+  rm -f "$file"
+}
+
 # --------------------------------------------------------------------------
 
 echo ""
@@ -229,8 +245,9 @@ if [ -n "${ECONOMIE_BASE_URL:-}" ] || [ -n "${SOCIAL_BASE_URL:-}" ]; then
 
   if [ -n "$SOCIAL_BASE_URL" ]; then
     sect "API social ($SOCIAL_BASE_URL)"
-    # svc-market n'a pas l'audience social-api -> 403.
-    expect_code "svc-market sur endpoint social" 403 GET "$SOCIAL_BASE_URL$SOCIAL_PROBE_PATH" "$MARKET_TOKEN"
+    # svc-market n'a pas l'audience social-api : le social rejette le token,
+    # en 401 (audience invalide) ou 403 selon l'implémentation du service.
+    expect_code_any "svc-market sur endpoint social" "401 403" GET "$SOCIAL_BASE_URL$SOCIAL_PROBE_PATH" "$MARKET_TOKEN"
     # svc-game a l'audience social-api : on ne teste que si le chemin sonde
     # existe réellement, sinon 404 est un résultat acceptable.
     if [ -n "$GAME_TOKEN" ]; then
