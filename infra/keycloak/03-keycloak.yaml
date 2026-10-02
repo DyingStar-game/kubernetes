@@ -42,9 +42,15 @@ spec:
       key: password
 
   bootstrapAdmin:
-    # Secret 02-admin-secret.yaml (admin / devpass) : évite d'avoir à décoder
-    # `keycloak-initial-admin` avec base64 à chaque cluster neuf.
+    # Deux secrets livrés par 02-admin-secret.yaml :
+    #   - user.secret    : clés `username` / `password`, le compte admin console
+    #     (admin / devpass) — évite d'avoir à décoder `keycloak-initial-admin` ;
+    #   - service.secret : clés `client-id` / `client-secret`, le service account
+    #     admin que l'opérateur utilise pour réconcilier les `KeycloakOIDCClient`
+    #     (`getAdminClient` lit en dur `<cr-name>-admin` == `keycloak-admin`).
     user:
+      secret: keycloak-bootstrap-user
+    service:
       secret: keycloak-admin
 
   http:
