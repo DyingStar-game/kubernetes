@@ -48,8 +48,12 @@ spec:
     editUsernameAllowed: false
     bruteForceProtected: false
     accessTokenLifespan: 300
-    ssoSessionIdleTimeout: 1800
-    ssoSessionMaxLifespan: 36000
+    # Session SSO longue (10 ans) pour que le client de test `dyingstar-dev`
+    # (attribut access.token.lifespan = 1 an) ne soit pas plafonné par la
+    # session : sans ça Keycloak cape l'access token à ssoSessionMaxLifespan.
+    # DEV-LOCAL seulement ; les tokens client_credentials ne sont pas concernés.
+    ssoSessionIdleTimeout: 315360000
+    ssoSessionMaxLifespan: 315360000
     roles:
       realm:
         - name: player
@@ -287,6 +291,8 @@ spec:
         directAccessGrantsEnabled: true
         serviceAccountsEnabled: false
         attributes:
+          # 1 an. Le realm a ssoSessionMaxLifespan = 315360000 (10 ans) pour ne
+          # pas plafonner cette valeur.
           access.token.lifespan: "31536000"
         defaultClientScopes:
           - openid
