@@ -271,6 +271,31 @@ spec:
         secret: dyingstar-service
         attributes:
           client_credentials.use_refresh_token: "true"
+      # ⚠ DEV-LOCAL UNIQUEMENT (ce fichier n'est pas déployé en prod).
+      # Client de test CLI : direct grant activé + access token à très longue
+      # durée (1 an), pour obtenir un JWT joueur en une commande sans navigateur
+      # ni renouvellement toutes les 5 min. Le vrai client joueur reste
+      # `dyingstar-game` (PKCE, tokens 300 s). `access.token.lifespan` est un
+      # attribut de client qui surcharge `accessTokenLifespan` du realm.
+      - clientId: dyingstar-dev
+        name: DyingStar dev CLI tokens (DEV ONLY)
+        enabled: true
+        protocol: openid-connect
+        publicClient: true
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: true
+        serviceAccountsEnabled: false
+        attributes:
+          access.token.lifespan: "31536000"
+        defaultClientScopes:
+          - openid
+          - profile
+          - email
+          - roles
+          - web-origins
+        optionalClientScopes:
+          - offline_access
       # ── Clients de service machine-to-machine (grant_type=client_credentials) ──
       #
       # Ils sont déclarés ICI pour tout ce que KeycloakRealmImport sait décrire
