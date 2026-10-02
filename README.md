@@ -288,18 +288,18 @@ in the APIs; never rename any of it.**
 
 | clientId | `aud` in the access token | realm roles on the service account |
 | --- | --- | --- |
-| `svc-game` | `economie-api`, `social-api`, `mission-api` | the 15 capacity roles |
+| `svc-game` | `economie-api`, `social-api`, `mission-api` | the 16 capacity roles |
 | `svc-market` | `economie-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit` |
 | `svc-mission` | `economie-api`, `social-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit`, `social:corporation:read` |
 
-The 15 realm roles (no realm prefix):
+The 16 realm roles (no realm prefix):
 
 ```text
 economie:wallet:read  economie:wallet:ensure  economie:wallet:credit  economie:wallet:debit
 economie:corporation:read  economie:corporation:manage
 social:profile:write  social:player:write  social:corporation:read
 social:corporation:write  social:sanctions:read  social:reputation:write
-mission:mission:read  mission:mission:write  mission:mission:manage
+mission:read  mission:write  mission:complete  mission:manage
 ```
 
 #### Which CRD does what (verified against the deployed operator)
