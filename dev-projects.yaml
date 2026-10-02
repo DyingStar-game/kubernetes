@@ -65,6 +65,11 @@ projects:
     dockerfile: docker/Dockerfile
     deployment: service-social
 
+  - name: mission
+    path: ../services/mission
+    dockerfile: docker/Dockerfile
+    deployment: service-mission
+
   - name: persistence
     path: ../services/persistence
     dockerfile: docker/Dockerfile

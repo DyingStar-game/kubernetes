@@ -41,6 +41,16 @@ type: Opaque
 stringData:
   secret: svc-market-dev-secret
 ---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: svc-mission-client-secret
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+type: Opaque
+stringData:
+  secret: svc-mission-dev-secret
+---
 apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakOIDCClient
 metadata:
@@ -60,7 +70,7 @@ spec:
       secretRef:
         name: svc-game-client-secret
         key: secret
-    # Les 12 rôles de capacité (rôles realm), assignés au service account
+    # Les 15 rôles de capacité (rôles realm), assignés au service account
     # `service-account-svc-game`.
     serviceAccountRoles:
       - economie:wallet:read
@@ -75,6 +85,9 @@ spec:
       - social:corporation:write
       - social:sanctions:read
       - social:reputation:write
+      - mission:mission:read
+      - mission:mission:write
+      - mission:mission:manage
 ---
 apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakOIDCClient
@@ -102,3 +115,29 @@ spec:
       - economie:wallet:read
       - economie:wallet:credit
       - economie:wallet:debit
+---
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: KeycloakOIDCClient
+metadata:
+  name: svc-mission
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  keycloakCRName: keycloak
+  realm: dyingstar
+  client:
+    enabled: true
+    loginFlows:
+      - SERVICE_ACCOUNT
+    auth:
+      method: client-secret
+      secretRef:
+        name: svc-mission-client-secret
+        key: secret
+    # Le service mission règle les récompenses économiques (credit/debit) et
+    # vérifie l'appartenance à une corporation (social:corporation:read).
+    serviceAccountRoles:
+      - economie:wallet:read
+      - economie:wallet:credit
+      - economie:wallet:debit
+      - social:corporation:read
