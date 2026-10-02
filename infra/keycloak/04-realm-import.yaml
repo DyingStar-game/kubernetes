@@ -170,7 +170,10 @@ spec:
             protocol: openid-connect
             protocolMapper: oidc-usermodel-realm-role-mapper
             config:
-              claim.name: roles
+              # Claim standard Keycloak : les services (economie/social) et
+              # verify-service-auth.sh lisent `realm_access.roles`. Un
+              # `claim.name: roles` (plat) les fait échouer en 403.
+              claim.name: realm_access.roles
               jsonType.label: String
               multivalued: "true"
               id.token.claim: "true"
