@@ -8,3 +8,4 @@ otlp.dyingstar.local
 auth.dyingstar.local
 economie.dyingstar.local
 social.dyingstar.local
+mission.dyingstar.local

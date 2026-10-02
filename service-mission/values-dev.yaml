@@ -1,10 +1,10 @@
-# Dev overrides for service-social (minikube, deployed by ArgoCD in namespace dyingstar)
-# Usage: helm upgrade --install -n dyingstar service-social ./service-social -f service-social/values-dev.yaml
+# Dev overrides for service-mission (minikube, deployed by ArgoCD in namespace dyingstar)
+# Usage: helm upgrade --install -n dyingstar service-mission ./service-mission -f service-mission/values-dev.yaml
 
 replicaCount: 1
 
 image:
-  repository: harbor.dyingstar-game.space/dyingstar/social
+  repository: harbor.dyingstar-game.space/dyingstar/mission
   pullPolicy: Always
   tag: "develop"
 
@@ -17,13 +17,13 @@ resources:
     memory: 128Mi
 
 # The database is NOT declared by this chart in dev-local: it is a CloudNativePG
-# Cluster (service-social/database/) applied as a second source by the
+# Cluster (service-mission/database/) applied as a second source by the
 # same ArgoCD app. `database.host` is the `<cluster>-rw` Service CloudNativePG
 # creates; the Secret is the one its initdb was bootstrapped with.
 # port / name / user are inherited from values.yaml.
 database:
-  host: social-db-rw
-  existingSecret: social-db-auth
+  host: mission-db-rw
+  existingSecret: mission-db-auth
 
 # Must stay false here: values.yaml defaults to true, which is what preprod and
 # prod will rely on once the chart is promoted to those environments. The rest of
@@ -38,24 +38,38 @@ postgresql:
 oidc:
   issuer: "http://auth.dyingstar.local/realms/dyingstar"
   # Audience attendue des tokens de service (client_credentials) : le client
-  # `svc-*` doit porter `social-api` dans `aud` (mapper d'audience déclaré
+  # `svc-game` doit porter `mission-api` dans `aud` (mapper d'audience déclaré
   # dans infra/keycloak/04-realm-import.yaml).
-  serviceAudience: "social-api"
+  serviceAudience: "mission-api"
 
 # Clients Keycloak autorisés sur /api/internal/* (claim `azp`). Les clientIds
 # hors de cette liste sont rejetés en 403 SERVICE_FORBIDDEN.
-# svc-mission vérifie l'appartenance à une corporation (social:corporation:read).
-internalServiceClients: "svc-game,svc-market,svc-mission"
+# Seul le serveur de jeu appelle la mission.
+internalServiceClients: "svc-game"
 
-# DEV ONLY: the chart creates service-social-internal-key from this value, the
+# DEV ONLY: the chart creates service-mission-internal-key from this value, the
 # way livekit creates its keys Secret when no existingKeysSecret is set. The game
 # server (and any other caller) must present the same value in X-Internal-Key.
 internalApiKey:
   create: true
   key: "dev-internal-key"
 
+# DEV ONLY: the chart creates service-mission-mission-client holding the client
+# secret of the `svc-mission` Keycloak client, used to call the economy and
+# social internal APIs. The value MUST match `svc-mission-client-secret` (key
+# `secret`) in infra/keycloak/06-service-clients.yaml — same Keycloak client.
+serviceClient:
+  clientId: "svc-mission"
+  create: true
+  clientSecret: "svc-mission-dev-secret"
+
+economy:
+  apiUrl: "http://service-economie:3000"
+social:
+  apiUrl: "http://service-social:3000"
+
 # Exposed through the dev Traefik gateway (traefik/values-dev.yaml) on
-# `social.dyingstar.local`, which the minikube tunnel resolves; the hostname is
+# `mission.dyingstar.local`, which the minikube tunnel resolves; the hostname is
 # registered in hosts_config.txt and written to /etc/hosts by start-dev.sh.
 httpRoute:
   enabled: true
@@ -64,7 +78,7 @@ httpRoute:
       namespace: traefik
       sectionName: web
   hostnames:
-    - "social.dyingstar.local"
+    - "mission.dyingstar.local"
   rules:
     - matches:
         - path:

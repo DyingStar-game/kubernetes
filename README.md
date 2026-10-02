@@ -288,16 +288,18 @@ in the APIs; never rename any of it.**
 
 | clientId | `aud` in the access token | realm roles on the service account |
 | --- | --- | --- |
-| `svc-game` | `economie-api`, `social-api` | the 12 capacity roles |
+| `svc-game` | `economie-api`, `social-api`, `mission-api` | the 15 capacity roles |
 | `svc-market` | `economie-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit` |
+| `svc-mission` | `economie-api`, `social-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit`, `social:corporation:read` |
 
-The 12 realm roles (no realm prefix):
+The 15 realm roles (no realm prefix):
 
 ```text
 economie:wallet:read  economie:wallet:ensure  economie:wallet:credit  economie:wallet:debit
 economie:corporation:read  economie:corporation:manage
 social:profile:write  social:player:write  social:corporation:read
 social:corporation:write  social:sanctions:read  social:reputation:write
+mission:mission:read  mission:mission:write  mission:mission:manage
 ```
 
 #### Which CRD does what (verified against the deployed operator)
@@ -389,12 +391,12 @@ other shared secret.
 
 | Env | Issuer (`OIDC_ISSUER`) | `OIDC_SERVICE_AUDIENCE` | `INTERNAL_SERVICE_CLIENTS` |
 | --- | --- | --- | --- |
-| dev-local | `http://auth.dyingstar.local/realms/dyingstar` | `economie-api` / `social-api` | `svc-game,svc-market` |
-| preprod | `https://auth-preprod.dyingstar-game.com/realms/dyingstar` | `economie-api` / `social-api` | `svc-game,svc-market` |
-| prod | `https://auth.dyingstar-game.com/realms/dyingstar` | `economie-api` / `social-api` | `svc-game,svc-market` |
+| dev-local | `http://auth.dyingstar.local/realms/dyingstar` | `economie-api` / `social-api` / `mission-api` | `svc-game,svc-market,svc-mission` |
+| preprod | `https://auth-preprod.dyingstar-game.com/realms/dyingstar` | `economie-api` / `social-api` / `mission-api` | `svc-game,svc-market,svc-mission` |
+| prod | `https://auth.dyingstar-game.com/realms/dyingstar` | `economie-api` / `social-api` / `mission-api` | `svc-game,svc-market,svc-mission` |
 
-`OIDC_SERVICE_AUDIENCE` is per API (economie vs social); `INTERNAL_SERVICE_CLIENTS`
-is the same allowlist for both. **A clientId absent from `INTERNAL_SERVICE_CLIENTS`
+`OIDC_SERVICE_AUDIENCE` is per API (economie / social / mission); `INTERNAL_SERVICE_CLIENTS`
+is the allowlist of callers for all of them. **A clientId absent from `INTERNAL_SERVICE_CLIENTS`
 is rejected with `403 SERVICE_FORBIDDEN`**, and a token whose `aud` does not match
 the API is rejected as well. The player client (`dyingstar-game`) carries
 `azp = dyingstar-game`, which is never in the allowlist: player tokens are never
@@ -421,6 +423,7 @@ Each database belongs to the Application that needs it, so it travels with it:
 | `resourcesdynamic-db` | `dyingstar` | `resources_dynamic` | [`service-resourcesdynamic/database/`](service-resourcesdynamic/database) | `service-resourcesdynamic` (game) | `service-resourcesdynamic` (`database.host`) |
 | `economie-db` | `dyingstar` | `economie` | [`service-economie/database/`](service-economie/database) | `service-economie` (game) | `service-economie` (`database.host`) |
 | `social-db` | `dyingstar` | `social` | [`service-social/database/`](service-social/database) | `service-social` (game) | `service-social` (`database.host`) |
+| `mission-db` | `dyingstar` | `mission` | [`service-mission/database/`](service-mission/database) | `service-mission` (game) | `service-mission` (`database.host`) |
 
 `service-resourcesdynamic/database/` is a **second source** of the game
 Application, not a Helm template: the chart and its database are reconciled in
@@ -749,6 +752,27 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
   `service-social-internal-key`, created by the chart in dev from
   `internalApiKey.key`; the rest (`NODE_ENV`, `CORS_ORIGIN`, `AUTH_DEV_BYPASS`,
   `REPUTATION_*`) lives in `env` in `values.yaml`
+
+### Service Mission
+- **Ports**: 3000 (HTTP API), 9200 (WebSocket). Unlike economie/social, the
+  service reads `PORT` itself, so the chart injects `PORT={{ .Values.service.port }}`
+- **Database**: CloudNativePG `mission-db` in dev-local, bundled PostgreSQL in
+  preprod/prod (the chart only sets `postgresql.enabled: false` for dev — see
+  [Databases (dev-local)](#databases-dev-local-via-cloudnativepg))
+- **Dev hostname**: `mission.dyingstar.local` (Traefik HTTPRoute)
+- **Caller**: only the game server (`svc-game`) is allow-listed on
+  `/api/internal/*` (`internalServiceClients`), with `OIDC_SERVICE_AUDIENCE=mission-api`
+- **Calls out** as the `svc-mission` Keycloak service account (client_credentials,
+  audience `economie-api` + `social-api`): `ECONOMY_API_URL` to pay rewards and
+  `SOCIAL_API_URL` to verify corporation membership. The client secret is read
+  from the Secret `service-mission-mission-client` (key `secret`), created by the
+  chart in dev from `serviceClient.clientSecret`; it must equal
+  `svc-mission-client-secret` in `infra/keycloak/06-service-clients.yaml`
+- **Env**: `POSTGRES_*` / `DATABASE_URL`, `OIDC_*`, `INTERNAL_SERVICE_CLIENTS`,
+  `ECONOMY_*`, `SOCIAL_*` and `PORT` are rendered by the Deployment template;
+  `INTERNAL_API_KEY` comes from the Secret `service-mission-internal-key`; the
+  rest (`NODE_ENV`, `CORS_ORIGIN`, `AUTH_DEV_BYPASS`, `INTERNAL_DEV_BYPASS`,
+  `MISSION_*`) lives in `env` in `values.yaml`
 
 ### Service Persistence
 - **Port**: 9100 (WebSocket, Rust)

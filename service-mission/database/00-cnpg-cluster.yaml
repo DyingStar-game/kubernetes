@@ -1,0 +1,26 @@
+# Database of service-mission (dev-local).
+#
+# Applied by the game Application `service-mission` as a second source
+# (argocd/dev/game/service-mission-app.yaml), so the application and its
+# database are reconciled together. The operator comes from the infra app
+# argocd/dev/infra/cnpg-op-app.yaml (namespace cnpg-system).
+#
+# CloudNativePG creates the Service `<cluster>-rw`, which is what
+# service-mission/values-dev.yaml points at via `database.host`.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: mission-db
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  instances: 1
+  # minikube's default StorageClass (hostpath) is enough for a dev database.
+  storage:
+    size: 1Gi
+  bootstrap:
+    initdb:
+      database: mission
+      owner: mission
+      secret:
+        name: mission-db-auth

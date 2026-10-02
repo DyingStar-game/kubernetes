@@ -73,6 +73,10 @@ spec:
         - name: social:corporation:write
         - name: social:sanctions:read
         - name: social:reputation:write
+        # Mission
+        - name: mission:mission:read
+        - name: mission:mission:write
+        - name: mission:mission:manage
     groups:
       - name: players
       - name: staff
@@ -263,7 +267,7 @@ spec:
       # ⚠ Le `clientId` est codé en dur dans les APIs : ne jamais le renommer.
       - clientId: svc-game
         name: DyingStar game server (client_credentials)
-        description: Serveur de jeu -> economie-api + social-api.
+        description: Serveur de jeu -> economie-api + social-api + mission-api.
         enabled: true
         protocol: openid-connect
         publicClient: false
@@ -286,6 +290,13 @@ spec:
               included.custom.audience: social-api
               access.token.claim: "true"
               id.token.claim: "false"
+          - name: mission-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: mission-api
+              access.token.claim: "true"
+              id.token.claim: "false"
       - clientId: svc-market
         name: DyingStar market (client_credentials)
         description: Marché -> economie-api uniquement (pas d'audience social-api).
@@ -302,6 +313,34 @@ spec:
             protocolMapper: oidc-audience-mapper
             config:
               included.custom.audience: economie-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+      # Service mission -> economie-api + social-api : règle les récompenses
+      # économiques à la complétion d'une mission et vérifie l'appartenance à une
+      # corporation (missions corporation-scoped).
+      - clientId: svc-mission
+        name: DyingStar mission (client_credentials)
+        description: Service mission -> economie-api + social-api.
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: true
+        protocolMappers:
+          - name: economie-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: economie-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: social-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: social-api
               access.token.claim: "true"
               id.token.claim: "false"
       # ⚠ Ne PAS redéclarer `account-console` / `security-admin-console` ici :
