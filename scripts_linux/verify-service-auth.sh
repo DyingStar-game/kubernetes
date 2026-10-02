@@ -151,7 +151,9 @@ verify_token() {
   for a in ${AUD_EXPECT:-}; do check_contains "aud" "$a" "$(printf '%s' "$payload" | aud_list)"; done
   for a in ${AUD_ABSENT:-}; do check_absent "aud" "$a" "$(printf '%s' "$payload" | aud_list)"; done
 
-  local roles; roles="$(printf '%s' "$payload" | jq -r '.realm_access.roles[]?' 2>/dev/null)"
+  # Le mapper de rôles du realm importé émet le claim plat `roles`
+  # (04-realm-import.yaml, scope `roles`), pas `realm_access.roles`.
+  local roles; roles="$(printf '%s' "$payload" | jq -r '(.realm_access.roles // .roles // [])[]' 2>/dev/null)"
   for r in "${expected_roles[@]}"; do
     if printf '%s\n' "$roles" | grep -qxF -- "$r"; then ok "rôle présent : $r"; else ko "rôle manquant : $r"; fi
   done
