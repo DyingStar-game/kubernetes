@@ -359,6 +359,43 @@ spec:
               included.custom.audience: social-api
               access.token.claim: "true"
               id.token.claim: "false"
+      # Client d'administration : porte TOUTES les capacités du realm (les 16
+      # rôles, cf. 06-service-clients.yaml) et les audiences des 3 APIs. Réservé
+      # à une console/interface d'admin — jamais au jeu. Sa compromission donne
+      # toutes les capacités machine du realm : c'est volontaire, mais à isoler
+      # (secret dédié, rotation, réseau).
+      - clientId: svc-admin
+        name: DyingStar admin console (client_credentials)
+        description: Console d'admin -> economie-api + social-api + mission-api, toutes capacités.
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: true
+        protocolMappers:
+          - name: economie-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: economie-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: social-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: social-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: mission-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: mission-api
+              access.token.claim: "true"
+              id.token.claim: "false"
       # ⚠ Ne PAS redéclarer `account-console` / `security-admin-console` ici :
       # Keycloak les provisionne lui-même à la création du realm. Les re-déclarer
       # fait échouer l'import (`ModelDuplicateException` / duplicate key sur

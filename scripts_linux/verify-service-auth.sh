@@ -31,6 +31,7 @@
 #   SVC_GAME_SECRET        sinon lu depuis le Secret svc-game-client-secret
 #   SVC_MARKET_SECRET      sinon lu depuis le Secret svc-market-client-secret
 #   SVC_MISSION_SECRET     sinon lu depuis le Secret svc-mission-client-secret
+#   SVC_ADMIN_SECRET       sinon lu depuis le Secret svc-admin-client-secret
 #   ECONOMIE_BASE_URL      ex http://economie.dyingstar.local (sinon volet 2 sauté)
 #   SOCIAL_BASE_URL        ex http://social.dyingstar.local
 #   MISSION_BASE_URL       ex http://mission.dyingstar.local
@@ -232,6 +233,7 @@ MISSION_SVC_ROLES=(economie:wallet:read economie:wallet:credit economie:wallet:d
 SVC_GAME_SECRET="$(fetch_secret svc-game-client-secret "${SVC_GAME_SECRET:-}")" || exit 1
 SVC_MARKET_SECRET="$(fetch_secret svc-market-client-secret "${SVC_MARKET_SECRET:-}")" || exit 1
 SVC_MISSION_SECRET="$(fetch_secret svc-mission-client-secret "${SVC_MISSION_SECRET:-}")" || exit 1
+SVC_ADMIN_SECRET="$(fetch_secret svc-admin-client-secret "${SVC_ADMIN_SECRET:-}")" || exit 1
 
 AUD_EXPECT="economie-api social-api mission-api" AUD_ABSENT="" verify_token svc-game "$SVC_GAME_SECRET" "${ALL_ROLES[@]}"
 GAME_TOKEN="$(get_token svc-game "$SVC_GAME_SECRET" 2>/dev/null || true)"
@@ -241,6 +243,10 @@ MARKET_TOKEN="$(get_token svc-market "$SVC_MARKET_SECRET" 2>/dev/null || true)"
 
 AUD_EXPECT="economie-api social-api" AUD_ABSENT="mission-api" verify_token svc-mission "$SVC_MISSION_SECRET" "${MISSION_SVC_ROLES[@]}"
 MISSION_TOKEN="$(get_token svc-mission "$SVC_MISSION_SECRET" 2>/dev/null || true)"
+
+# Console d'admin : toutes les audiences et les 16 rôles.
+AUD_EXPECT="economie-api social-api mission-api" AUD_ABSENT="" verify_token svc-admin "$SVC_ADMIN_SECRET" "${ALL_ROLES[@]}"
+ADMIN_TOKEN="$(get_token svc-admin "$SVC_ADMIN_SECRET" 2>/dev/null || true)"
 
 # --------------------------------------------------------------------------
 # Volet 2 : APIs (si URLs fournies)
@@ -261,6 +267,8 @@ if [ -n "${ECONOMIE_BASE_URL:-}" ] || [ -n "${SOCIAL_BASE_URL:-}" ] || [ -n "${M
       info "MUTATING=1 non positionné : POST wallet/credit sauté (aucune écriture)"
     fi
     expect_code "svc-market PUT corp settings"      403 PUT  "$ECONOMIE_BASE_URL/api/internal/corporations/$CORPORATION_UUID/settings" "$MARKET_TOKEN"
+    # Console d'admin : toutes capacités -> lecture OK.
+    expect_code "svc-admin GET wallet"              200 GET  "$ECONOMIE_BASE_URL/api/internal/players/$PLAYER_UUID/wallet" "$ADMIN_TOKEN"
   fi
 
   if [ -n "$SOCIAL_BASE_URL" ]; then
@@ -282,6 +290,8 @@ if [ -n "${ECONOMIE_BASE_URL:-}" ] || [ -n "${SOCIAL_BASE_URL:-}" ] || [ -n "${M
     # svc-game est le seul caller autorisé et porte l'audience mission-api +
     # le rôle mission:read : l'endpoint interne répond 200.
     expect_code "svc-game GET $MISSION_PROBE_PATH" 200 GET "$MISSION_BASE_URL$MISSION_PROBE_PATH" "$GAME_TOKEN"
+    # Console d'admin : authorisée sur mission -> lecture OK.
+    expect_code "svc-admin GET $MISSION_PROBE_PATH" 200 GET "$MISSION_BASE_URL$MISSION_PROBE_PATH" "$ADMIN_TOKEN"
     # Sans token : jamais 200 (non-contournement).
     expect_code "mission sans token" 401 GET "$MISSION_BASE_URL$MISSION_PROBE_PATH"
     # svc-market n'a ni l'audience mission-api ni de rôle mission:* : rejeté.

@@ -44,8 +44,8 @@ oidc:
 
 # Clients Keycloak autorisés sur /api/internal/* (claim `azp`). Les clientIds
 # hors de cette liste sont rejetés en 403 SERVICE_FORBIDDEN.
-# Seul le serveur de jeu appelle la mission.
-internalServiceClients: "svc-game"
+# Le serveur de jeu appelle la mission ; svc-admin est la console d'admin.
+internalServiceClients: "svc-game,svc-admin"
 
 # DEV ONLY: the chart creates service-mission-internal-key from this value, the
 # way livekit creates its keys Secret when no existingKeysSecret is set. The game

@@ -51,6 +51,16 @@ type: Opaque
 stringData:
   secret: svc-mission-dev-secret
 ---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: svc-admin-client-secret
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+type: Opaque
+stringData:
+  secret: svc-admin-dev-secret
+---
 apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakOIDCClient
 metadata:
@@ -142,3 +152,42 @@ spec:
       - economie:wallet:credit
       - economie:wallet:debit
       - social:corporation:read
+---
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: KeycloakOIDCClient
+metadata:
+  name: svc-admin
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  keycloakCRName: keycloak
+  realm: dyingstar
+  client:
+    enabled: true
+    loginFlows:
+      - SERVICE_ACCOUNT
+    auth:
+      method: client-secret
+      secretRef:
+        name: svc-admin-client-secret
+        key: secret
+    # Console d'admin : TOUTES les capacités du realm (les 16 rôles). C'est
+    # volontairement le client le plus privilégié — à réserver à un backend
+    # d'administration et à isoler (secret dédié, rotation régulière).
+    serviceAccountRoles:
+      - economie:wallet:read
+      - economie:wallet:ensure
+      - economie:wallet:credit
+      - economie:wallet:debit
+      - economie:corporation:read
+      - economie:corporation:manage
+      - social:profile:write
+      - social:player:write
+      - social:corporation:read
+      - social:corporation:write
+      - social:sanctions:read
+      - social:reputation:write
+      - mission:read
+      - mission:write
+      - mission:complete
+      - mission:manage
