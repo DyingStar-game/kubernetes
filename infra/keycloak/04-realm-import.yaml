@@ -107,6 +107,19 @@ spec:
       - name: openid
         protocol: openid-connect
         protocolMappers:
+          # Le mapper `sub` est standard dans le scope `openid` de Keycloak : sans
+          # lui les tokens utilisateur (flow navigateur / password) sortent SANS
+          # `sub`, or les APIs identifient le joueur par `sub` (l'API mission
+          # répond 401 « Token has no usable subject »). Les tokens
+          # client_credentials en ont un via le service account, d'où le piège.
+          - name: sub
+            protocol: openid-connect
+            protocolMapper: oidc-sub-mapper
+            config:
+              access.token.claim: "true"
+              id.token.claim: "true"
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
           - name: preferred_username
             protocol: openid-connect
             protocolMapper: oidc-usermodel-property-mapper
