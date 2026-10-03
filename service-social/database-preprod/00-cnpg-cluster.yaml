@@ -1,0 +1,30 @@
+# Database of service-social (preprod).
+#
+# Applied by the game Application `service-social` as a second source
+# (argocd/preprod/game/service-social-app.yaml). The CloudNativePG operator
+# comes from argocd/preprod/infra/cnpg-op-app.yaml (namespace cnpg-system).
+#
+# CloudNativePG creates the Service `social-db-rw`, which is what
+# service-social/values-preprod.yaml points at via `database.host`.
+#
+# ⚠ The `social-db-auth` Secret is NOT committed: it is created out of band in
+# `dyingstar-preprod` (key `password`, matching `database.existingSecret`). It
+# MUST exist before the Cluster is reconciled, otherwise its `initdb` fails.
+# The dev-local credentials (service-social/database/01-db-secret.yaml) must
+# never be reused here.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: social-db
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  instances: 1
+  storage:
+    size: 5Gi
+  bootstrap:
+    initdb:
+      database: social
+      owner: social
+      secret:
+        name: social-db-auth

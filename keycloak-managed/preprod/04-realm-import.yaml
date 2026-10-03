@@ -1,20 +1,21 @@
-# Importe le realm `dyingstar` dans la CR Keycloak (03-keycloak.yaml) via le job
-# kcadm que l'opérateur génère. Le realm est inliné ici : depuis la v2beta1 du
-# CRD, `spec.realmConfig.configMapRef` n'existe plus, le schéma est validé
-# champ par champ.
+# Importe le realm `dyingstar` de preprod dans la CR Keycloak (03-keycloak.yaml)
+# via le job kcadm que l'opérateur génère. Le realm est inliné ici : depuis la
+# v2beta1 du CRD, `spec.realmConfig.configMapRef` n'existe plus, le schéma est
+# validé champ par champ.
 #
-# Le job est rejoué à chaque changement de ce fichier, mais l'opérateur l'exécute
-# avec `--override=false` : un realm DÉJÀ présent n'est jamais réparé/mis à jour.
-# Après un import raté, il faut donc repartir d'une base neuve (supprimer le
-# cluster `keycloak-db` et son PVC) pour que ce fichier soit (re)appliqué.
+# ⚠ Le job est rejoué à chaque changement de ce fichier, mais l'opérateur
+# l'exécute avec `--override=false` : un realm DÉJÀ présent n'est jamais
+# réparé/mis à jour. Pour (re)appliquer ce fichier il faut repartir d'une base
+# neuve (supprimer le PVC de `keycloak-db` — wipe toléré).
+#
+# Réglages realm alignés sur l'image custom prod/preprod
+# (`keycloak-managed/dev/import/realm/dyingstar-realm.json`) : registration ouverte,
+# brute-force protection, tokens 24 h, password policy, i18n en/fr.
 #
 # Les scopes standard (openid, profile, email, roles, web-origins) sont décrits
 # explicitement plus bas : l'import ne les provisionne pas tout seul, et sans eux
 # les `defaultClientScopes` des clients sont ignorés (`Referenced client scope
 # ... doesn't exist`) et les tokens sortent sans claims.
-#
-# DEV ONLY : le compte de test ci-dessous est en clair et ne doit jamais quitter
-# le cluster minikube local.
 #
 # L'issuer n'est PAS écrit dans le realm : Keycloak le dérive du hostname de la
 # CR (03-keycloak.yaml) et l'écrire ici le désynchroniserait.
@@ -26,34 +27,44 @@ metadata:
     argocd.argoproj.io/sync-wave: "1"
 spec:
   keycloakCRName: keycloak
-  # Sans ces ressources, le job d'import hériterait des défauts de l'opérateur
-  # (1700Mi requests), bien trop gros pour du dev.
   resources:
     requests:
-      cpu: 100m
-      memory: 256Mi
+      cpu: 250m
+      memory: 512Mi
     limits:
       cpu: 1
       memory: 1Gi
   realm:
     realm: dyingstar
-    displayName: DyingStar (dev-local)
+    displayName: DyingStar (preprod)
     enabled: true
-    # Indispensable : l'issuer est en HTTP (cf. 03-keycloak.yaml).
-    sslRequired: none
-    registrationAllowed: false
+    # HTTPS en frontal (listener Traefik `keycloak`) : sslRequired par défaut
+    # (`external`) convient, on ne force donc pas `none` comme en dev-local.
+    registrationAllowed: true
+    registrationEmailAsUsername: false
+    rememberMe: true
+    verifyEmail: false
     loginWithEmailAllowed: true
     duplicateEmailsAllowed: false
     resetPasswordAllowed: true
     editUsernameAllowed: false
-    bruteForceProtected: false
-    accessTokenLifespan: 300
-    # Session SSO longue (10 ans) pour que le client de test `dyingstar-dev`
-    # (attribut access.token.lifespan = 1 an) ne soit pas plafonné par la
-    # session : sans ça Keycloak cape l'access token à ssoSessionMaxLifespan.
-    # DEV-LOCAL seulement ; les tokens client_credentials ne sont pas concernés.
-    ssoSessionIdleTimeout: 315360000
-    ssoSessionMaxLifespan: 315360000
+    bruteForceProtected: true
+    permanentLockout: false
+    maxFailureWaitSeconds: 900
+    minimumQuickLoginWaitSeconds: 60
+    waitIncrementSeconds: 60
+    quickLoginCheckMilliSeconds: 1000
+    maxDeltaTimeSeconds: 43200
+    failureFactor: 30
+    passwordPolicy: "length(10) and notUsername and notEmail and passwordHistory(3) and forceExpiredPasswordChange(365)"
+    internationalizationEnabled: true
+    supportedLocales:
+      - en
+      - fr
+    defaultLocale: en
+    accessTokenLifespan: 86400
+    ssoSessionIdleTimeout: 2592000
+    ssoSessionMaxLifespan: 2592000
     roles:
       realm:
         - name: player
@@ -61,57 +72,57 @@ spec:
         - name: moderator
           description: Modération du chat
         # Rôles de capacité des services machine-to-machine (client_credentials).
-        # Noms exacts, consommés tels quels par les APIs economie / social :
-        # ne jamais les renommer ni les préfixer (ex: /dyingstar).
-        # Économie
+        # ⚠ Autorité de nommage : keycloak-managed/dev/import/README.md (section
+        # « Service capability roles »), qui décrit le modèle prod/preprod. En
+        # prod ce sont des client roles sur les clients `*-api` ; en dev-local
+        # l'opérateur Keycloak n'expose que des realm roles
+        # (KeycloakOIDCClient.serviceAccountRoles), donc on les déclare ici avec
+        # les MÊMES noms. Ne jamais les renommer ni les préfixer (ex: /dyingstar).
+        #
+        # Social (9)
+        - name: social:profile:read
+        - name: social:profile:write
+        - name: social:player:write
+        - name: social:corporation:read
+        - name: social:corporation:write
+        - name: social:politics:read
+        - name: social:politics:write
+        - name: social:sanctions:read
+        - name: social:reputation:write
+        # Économie (9)
         - name: economie:wallet:read
         - name: economie:wallet:ensure
         - name: economie:wallet:credit
         - name: economie:wallet:debit
         - name: economie:corporation:read
         - name: economie:corporation:manage
-        # Social
-        - name: social:profile:write
-        - name: social:player:write
-        - name: social:corporation:read
-        - name: social:corporation:write
-        - name: social:sanctions:read
-        - name: social:reputation:write
-        # Mission — noms EXACTS exigés par l'API mission (l'API répond
+        - name: economie:politics:read
+        - name: economie:politics:manage
+        - name: economie:money:issue
+        # Inventory (5)
+        - name: inventory:read
+        - name: inventory:credit
+        - name: inventory:transfer
+        - name: inventory:hold
+        - name: inventory:corporation:manage
+        # Mission (4) — noms EXACTS exigés par l'API mission (l'API répond
         # « Requires service role mission:read » etc.) : pas de segment ressource
-        # ici, contrairement à economie:wallet:*.
+        # ici, contrairement à economie:wallet:*. `mission:progress` remplace
+        # l'ancien `mission:manage`, jamais référencé par l'API.
         - name: mission:read
         - name: mission:write
+        - name: mission:progress
         - name: mission:complete
-        - name: mission:manage
-        # Market — noms EXACTS exigés par l'API market.
-        - name: market:listing:read
-        - name: market:listing:write
-        - name: market:order:read
-        - name: market:order:write
-        # Inventory — noms EXACTS exigés par l'API inventory.
-        - name: inventory:item:read
-        - name: inventory:item:write
-        - name: inventory:stock:read
-        - name: inventory:stock:write
+        # Market (3)
+        - name: market:read
+        - name: market:manage
+        - name: market:settle
     groups:
       - name: players
       - name: staff
-    users:
-      - username: devplayer
-        email: devplayer@dyingstar.local
-        emailVerified: true
-        enabled: true
-        firstName: Dev
-        lastName: Player
-        credentials:
-          - type: password
-            value: devplayer
-            temporary: false
-        realmRoles:
-          - player
-        groups:
-          - /players
+    # Aucun utilisateur en dur en preprod : les comptes joueurs arrivent par le
+    # Discord IdP / l'inscription (registrationAllowed: true). Le compte de test
+    # `devplayer` reste dev-local (keycloak-managed/dev/04-realm-import.yaml).
     # Scopes standard du realm. L'import opérateur ne les provisionne pas : il
     # faut les décrire ici (comme dans un export de realm complet) sinon les
     # clients qui les référencent en `defaultClientScopes` les perdent
@@ -233,10 +244,12 @@ spec:
     defaultOptionalClientScopes:
       - offline_access
     clients:
-      # Client public du client de jeu : le flow OIDC s'ouvre dans le navigateur.
-      - clientId: dyingstar-game
-        name: DyingStar client de jeu (Godot / navigateur)
-        description: Client public, flow standard + PKCE.
+      # Client public du launcher de jeu (aligné sur l'image custom prod :
+      # `keycloak-managed/dev/import/realm/dyingstar-realm.json`). Le flow OIDC
+      # s'ouvre dans le navigateur/launcher.
+      - clientId: dyingstar-launcher
+        name: DyingStar Launcher
+        description: Client public du launcher (flow standard + PKCE).
         enabled: true
         protocol: openid-connect
         publicClient: true
@@ -244,25 +257,17 @@ spec:
         implicitFlowEnabled: false
         directAccessGrantsEnabled: false
         serviceAccountsEnabled: false
-        rootUrl: http://localhost
+        rootUrl: https://preprod.dyingstar-game.com
         baseUrl: /
         redirectUris:
-          - http://localhost:*
-          - http://127.0.0.1:*
-          - http://horizon.dyingstar.local/*
-          - http://argocd.dyingstar.local/*
-          # Redirect natif du launcher (scheme custom). Le clientId reste
-          # `dyingstar-game` : le renommer casserait les launchers déjà installés,
-          # et l'API ne l'accepte de toute façon jamais sur /api/internal/*
-          # (azp joueur != svc-*).
+          # Redirect natif du launcher (scheme custom).
           - dyingstar://auth/callback
         webOrigins:
           - "*"
         attributes:
           pkce.code.challenge.method: S256
           # Plusieurs URIs séparées par `##` (format Keycloak 26).
-          post.logout.redirect.uris: http://localhost:*##dyingstar://auth/callback
-
+          post.logout.redirect.uris: dyingstar://auth/callback
         defaultClientScopes:
           - openid
           - profile
@@ -282,36 +287,9 @@ spec:
         implicitFlowEnabled: false
         directAccessGrantsEnabled: true
         serviceAccountsEnabled: true
-        secret: dyingstar-service
         attributes:
           client_credentials.use_refresh_token: "true"
-      # ⚠ DEV-LOCAL UNIQUEMENT (ce fichier n'est pas déployé en prod).
-      # Client de test CLI : direct grant activé + access token à très longue
-      # durée (1 an), pour obtenir un JWT joueur en une commande sans navigateur
-      # ni renouvellement toutes les 5 min. Le vrai client joueur reste
-      # `dyingstar-game` (PKCE, tokens 300 s). `access.token.lifespan` est un
-      # attribut de client qui surcharge `accessTokenLifespan` du realm.
-      - clientId: dyingstar-dev
-        name: DyingStar dev CLI tokens (DEV ONLY)
-        enabled: true
-        protocol: openid-connect
-        publicClient: true
-        standardFlowEnabled: false
-        implicitFlowEnabled: false
-        directAccessGrantsEnabled: true
-        serviceAccountsEnabled: false
-        attributes:
-          # 1 an. Le realm a ssoSessionMaxLifespan = 315360000 (10 ans) pour ne
-          # pas plafonner cette valeur.
-          access.token.lifespan: "31536000"
-        defaultClientScopes:
-          - openid
-          - profile
-          - email
-          - roles
-          - web-origins
-        optionalClientScopes:
-          - offline_access
+      # Pas de client `dyingstar-dev` en preprod (client de test CLI dev-local).
       # ── Clients de service machine-to-machine (grant_type=client_credentials) ──
       #
       # Ils sont déclarés ICI pour tout ce que KeycloakRealmImport sait décrire

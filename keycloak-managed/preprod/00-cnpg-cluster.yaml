@@ -1,0 +1,24 @@
+# Base de données du Keycloak de preprod.
+#
+# Why CloudNativePG: l'opérateur est installé par
+# argocd/preprod/infra/cnpg-op-app.yaml (namespace cnpg-system), comme en dev-local.
+#
+# ⚠ Le Secret `keycloak-db-secret` (clés `username` / `password`) n'est PAS
+# commité : il est créé hors-bande dans le namespace `keycloak` AVANT que ce
+# Cluster soit réconcilié (sinon `initdb` échoue). Cf. README.md de ce dossier.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: keycloak-db
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  instances: 1
+  storage:
+    size: 5Gi
+  bootstrap:
+    initdb:
+      database: keycloak
+      owner: keycloak
+      secret:
+        name: keycloak-db-secret

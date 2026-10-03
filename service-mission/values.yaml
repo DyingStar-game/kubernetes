@@ -198,7 +198,7 @@ env:
     value: "false"
   # OIDC_ISSUER is intentionally absent: it has no environment-neutral value.
   # Each overlay sets it — dev: http://auth.dyingstar.local/realms/dyingstar
-  # (infra/keycloak/03-keycloak.yaml), preprod:
+  # (keycloak-managed/dev/03-keycloak.yaml), preprod:
   # https://auth-preprod.dyingstar-game.com/realms/dyingstar, prod:
   # https://auth.dyingstar-game.com/realms/dyingstar.
   # OIDC_JWKS_URL (defaults to ${OIDC_ISSUER}/protocol/openid-connect/certs) and
@@ -253,7 +253,7 @@ social:
 # The issuer has no environment-neutral value, hence empty by default — an
 # empty issuer is skipped, the API then rejects every request.
 oidc:
-  # dev: http://auth.dyingstar.local/realms/dyingstar (infra/keycloak/03-keycloak.yaml)
+  # dev: http://auth.dyingstar.local/realms/dyingstar (keycloak-managed/dev/03-keycloak.yaml)
   # preprod: https://auth-preprod.dyingstar-game.com/realms/dyingstar
   # prod: https://auth.dyingstar-game.com/realms/dyingstar
   issuer: ""

@@ -20,7 +20,10 @@ Helm charts for the **DyingStar** gaming platform microservices.
 | `service-resourcesdynamic` | Dynamic resource manager API + WebSocket, with PostgreSQL | `../services/resourcesDynamic` |
 | `service-economie` | Economie service API + WebSocket (currencies, wallets, transactions), with PostgreSQL | `../services/economie` |
 | `service-social` | Social service API + WebSocket (friends, chat, presence), with PostgreSQL | `../services/social` |
-| `keycloak` | Keycloak identity provider (player auth + Discord IdP; a second, upstream-image instance runs in dev-shared for GitHub login) | `../services/keycloak` |
+| `service-mission` | Mission service API + WebSocket (missions, objectives), with PostgreSQL | `../services/mission` |
+| `service-market` | Market service API + WebSocket (listings, orders, trades), with PostgreSQL | `../services/market` |
+| `service-inventory` | Inventory service API + WebSocket (items, stacks, stock), with PostgreSQL | `../services/inventory` |
+| `keycloak` | Keycloak identity provider (prod only; preprod + dev-local now use the Keycloak Operator) | `../services/keycloak` |
 | `livekit` | LiveKit Server (WebRTC SFU + TURN) for voice/video rooms | `../services/livekit` |
 | `service-persistence` | Persistence service — ScyllaDB-backed data layer (Rust) | `../services/persistence` |
 | `dev-services` | Shared developer infrastructure (PostGIS) | — |
@@ -38,13 +41,19 @@ Helm charts for the **DyingStar** gaming platform microservices.
 ├── horizon/                       # Helm chart
 ├── service-resourcesdynamic/      # Helm chart
 │   └── database/                  #   raw manifests: CNPG Cluster (dev-local, ArgoCD 2nd source)
-├── keycloak/                      # Helm chart
+├── service-economie/              # Helm chart (+ database/ dev, database-preprod/)
+├── service-social/                # Helm chart (+ database/ dev, database-preprod/)
+├── service-mission/               # Helm chart (+ database/ dev, database-preprod/)
+├── service-market/                # Helm chart (+ database/ dev, database-preprod/)
+├── service-inventory/             # Helm chart (+ database/ dev, database-preprod/)
+├── keycloak/                      # Helm chart (prod only)
 ├── livekit/                       # Helm chart
 ├── service-persistence/           # Helm chart
 ├── dev-services/                  # Helm chart (shared dev infra)
 ├── nextcloud/                     # Helm chart (shared dev infra, 3D asset library)
-├── infra/                         # Raw manifests for platform resources (ArgoCD infra apps)
-│   └── keycloak/                  # Keycloak dev-local (CR + CNPG Cluster + realm)
+├── keycloak-managed/              # Keycloak opérateur (Raw manifests)
+│   ├── dev/                       #   dev-local (operator CR + CNPG + realm)
+│   └── preprod/                   #   preprod (operator CR + CNPG + realm + Discord job)
 ├── argocd/                        # ArgoCD Applications (dev + preprod)
 ├── dev-projects.yaml              # Local build targets (read by build-and-deploy)
 ├── scripts_linux/                 # Linux/macOS scripts (bash)
@@ -102,9 +111,12 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-prod service-persis
 helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod godotserver ./godotserver -f godotserver/values-preprod.yaml --set image.tag=<tag>
 helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod horizon ./horizon -f horizon/values-preprod.yaml --set image.tag=<tag>
 helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod service-resourcesdynamic ./service-resourcesdynamic -f service-resourcesdynamic/values-preprod.yaml --set image.tag=<tag>
-helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod keycloak ./keycloak -f keycloak/values-preprod.yaml --set image.tag=<tag>
 helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod livekit ./livekit -f livekit/values-preprod.yaml --set image.tag=<tag>
 helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod service-persistence ./service-persistence -f service-persistence/values-preprod.yaml --set image.tag=<tag>
+
+# Preprod game APIs (ArgoCD-managed, multi-source chart + CNPG cluster)
+#   argocd/preprod/game/service-{economie,social,mission,market,inventory}-app.yaml
+#   keycloak is operator-managed (argocd/preprod/infra/keycloak-app.yaml) — no Helm.
 ```
 
 
@@ -204,7 +216,7 @@ Both the operator and our CRs are declared by a single infra Application,
 
 - `github.com/keycloak/keycloak-k8s-resources` @ `26.7.0`, path `kubernetes` —
   the operator and its CRDs
-- this repo, path [`infra/keycloak/`](infra/keycloak) — our own resources:
+- this repo, path [`keycloak-managed/dev/`](keycloak-managed/dev) — our own resources:
 
 | File | Role |
 | --- | --- |
@@ -214,7 +226,7 @@ Both the operator and our CRs are declared by a single infra Application,
 | `03-keycloak.yaml` | La CR Keycloak (base, hostname, proxy, ressources) + feature `client-admin-api:v2` requise par les CRs clients |
 | `04-realm-import.yaml` | Realm `dyingstar`, rôles de capacité, clients OIDC (dont `svc-*` + mappers d'audience), importé par le job `kcadm` de l'opérateur |
 | `05-httproute.yaml` | Exposition via la Gateway Traefik |
-| `06-service-clients.yaml` | Clients de service `KeycloakOIDCClient` (`svc-game`, `svc-market`) : `secretRef` + rôles du service account, et leurs Secrets dev (`svc-*-client-secret`) |
+| `06-service-clients.yaml` | Clients de service `KeycloakOIDCClient` (`svc-game`, `svc-market`, `svc-inventory`, `svc-mission`, `svc-admin`) : `secretRef` + rôles du service account, et leurs Secrets dev (`svc-*-client-secret`) |
 
 Key points:
 
@@ -288,22 +300,30 @@ in the APIs; never rename any of it.**
 
 | clientId | `aud` in the access token | realm roles on the service account |
 | --- | --- | --- |
-| `svc-game` | `economie-api`, `social-api`, `mission-api`, `market-api`, `inventory-api` | the 24 capacity roles |
+| `svc-game` | `economie-api`, `social-api`, `mission-api`, `market-api`, `inventory-api` | the 30 capacity roles |
 | `svc-market` | `economie-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit` |
 | `svc-inventory` | `economie-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit` |
 | `svc-mission` | `economie-api`, `social-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit`, `social:corporation:read` |
-| `svc-admin` | `economie-api`, `social-api`, `mission-api`, `market-api`, `inventory-api` | the 24 capacity roles (console d'admin — client le plus privilégié) |
+| `svc-admin` | `economie-api`, `social-api`, `mission-api`, `market-api`, `inventory-api` | the 30 capacity roles (console d'admin — client le plus privilégié) |
 
-The 24 realm roles (no realm prefix):
+The 30 realm roles (no realm prefix). **Naming authority:
+[`keycloak-managed/dev/import/README.md`](keycloak-managed/dev/import/README.md)** (the
+prod/preprod realm model). In prod these are **client roles** on each `*-api`
+client; dev-local declares them as **realm roles** because the Keycloak operator
+(`KeycloakOIDCClient.serviceAccountRoles`) only exposes realm roles. The names
+are identical, so dev ↔ prod stay interchangeable:
 
 ```text
+social:profile:read  social:profile:write  social:player:write
+social:corporation:read  social:corporation:write
+social:politics:read  social:politics:write
+social:sanctions:read  social:reputation:write
 economie:wallet:read  economie:wallet:ensure  economie:wallet:credit  economie:wallet:debit
 economie:corporation:read  economie:corporation:manage
-social:profile:write  social:player:write  social:corporation:read
-social:corporation:write  social:sanctions:read  social:reputation:write
-mission:read  mission:write  mission:complete  mission:manage
-market:listing:read  market:listing:write  market:order:read  market:order:write
-inventory:item:read  inventory:item:write  inventory:stock:read  inventory:stock:write
+economie:politics:read  economie:politics:manage  economie:money:issue
+inventory:read  inventory:credit  inventory:transfer  inventory:hold  inventory:corporation:manage
+mission:read  mission:write  mission:progress  mission:complete
+market:read  market:manage  market:settle
 ```
 
 Note the distinction: `svc-market` / `svc-inventory` are the identities those two
@@ -419,7 +439,7 @@ In the charts, both values are rendered from `service-<name>/values-dev.yaml`
 same two keys. Run the assertions with
 [`scripts_linux/verify-service-auth.sh`](scripts_linux/verify-service-auth.sh).
 
-### Databases (dev-local, via CloudNativePG)
+### Databases (via CloudNativePG)
 
 The dev-local stack does not let application charts declare their own PostgreSQL
 anymore: databases are reconciled by the
@@ -427,15 +447,23 @@ anymore: databases are reconciled by the
 `argocd/dev/infra/cnpg-op-app.yaml` (namespace `cnpg-system`), and the consumers
 point at them with `database.host` / `database.existingSecret`.
 
+**Preprod** follows the same model: `argocd/preprod/infra/cnpg-op-app.yaml`
+installs the operator on the `dyingstar` cluster, and the 5 game services +
+Keycloak use CloudNativePG clusters (`service-*/database-preprod/`,
+`keycloak-managed/preprod/00-cnpg-cluster.yaml`). Preprod DB credentials are
+created out-of-band (never committed), unlike the dev-local 1Gi stacks.
+
 Each database belongs to the Application that needs it, so it travels with it:
 
 | Cluster | Namespace | Database / owner | Manifests | ArgoCD app (project) | Consumer |
 | --- | --- | --- | --- | --- | --- |
-| `keycloak-db` | `keycloak` | `keycloak` | [`infra/keycloak/`](infra/keycloak) | `keycloak` (infra) | `Keycloak` CR (`spec.db`) |
+| `keycloak-db` | `keycloak` | `keycloak` | [`keycloak-managed/dev/`](keycloak-managed/dev) | `keycloak` (infra) | `Keycloak` CR (`spec.db`) |
 | `resourcesdynamic-db` | `dyingstar` | `resources_dynamic` | [`service-resourcesdynamic/database/`](service-resourcesdynamic/database) | `service-resourcesdynamic` (game) | `service-resourcesdynamic` (`database.host`) |
 | `economie-db` | `dyingstar` | `economie` | [`service-economie/database/`](service-economie/database) | `service-economie` (game) | `service-economie` (`database.host`) |
 | `social-db` | `dyingstar` | `social` | [`service-social/database/`](service-social/database) | `service-social` (game) | `service-social` (`database.host`) |
 | `mission-db` | `dyingstar` | `mission` | [`service-mission/database/`](service-mission/database) | `service-mission` (game) | `service-mission` (`database.host`) |
+| `market-db` | `dyingstar` | `market` | [`service-market/database/`](service-market/database) | `service-market` (game) | `service-market` (`database.host`) |
+| `inventory-db` | `dyingstar` | `inventory` | [`service-inventory/database/`](service-inventory/database) | `service-inventory` (game) | `service-inventory` (`database.host`) |
 
 `service-resourcesdynamic/database/` is a **second source** of the game
 Application, not a Helm template: the chart and its database are reconciled in
@@ -461,11 +489,9 @@ kubectl get clusters.postgresql.cnpg.io -A              # both 1/1 Ready
 kubectl get pods -n dyingstar -l cnpg.io/cluster=resourcesdynamic-db
 ```
 
-**Still not on CloudNativePG** (deliberately, out of scope for dev-local):
-`service-persistence` (ScyllaDB), `nextcloud` + `livekit` (Redis), the
-`dev-shared` namespace (PostGIS 50Gi, Nextcloud PostgreSQL 10Gi — no ArgoCD, and
-no CNPG operator on the `dyingstar` cluster yet), and Harbor's internal database
-in preprod.
+**Still not on CloudNativePG** (deliberately, out of scope): `service-persistence`
+(ScyllaDB), `nextcloud` + `livekit` (Redis), the `dev-shared` namespace (PostGIS
+50Gi, Nextcloud PostgreSQL 10Gi — no ArgoCD), and Harbor's internal database.
 
 ### Build a Service Locally
 
@@ -740,11 +766,14 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
 ### Service Economie
 - **Ports**: 3000 (HTTP API), 9200 (WebSocket). No `PORT` env var is injected:
   `service.port` must stay equal to the app's own default
-- **Database**: CloudNativePG `economie-db` in dev-local, bundled PostgreSQL in
-  preprod/prod (the chart only sets `postgresql.enabled: false` for dev — see
+- **Database**: CloudNativePG `economie-db` in dev-local and preprod
+  (`service-economie/database/` / `database-preprod/`), bundled PostgreSQL in
+  prod (the chart only sets `postgresql.enabled: false` for dev/preprod — see
   [Databases (dev-local)](#databases-dev-local-via-cloudnativepg))
 - **Dev hostname**: `service.dyingstar.local/economie` (shared Traefik
   HTTPRoute, `/economie` prefix stripped by a `URLRewrite` filter)
+- **Preprod hostname**: `service-preprod.dyingstar-game.com/economie` (same
+  path-prefix + URLRewrite model)
 - **Env**: `POSTGRES_*` and `DATABASE_URL` are generated by the Deployment
   template from `database`; `OIDC_ISSUER` comes from the per-environment `oidc`
   block (empty by default); `INTERNAL_API_KEY` is read from the Secret
@@ -755,11 +784,14 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
 ### Service Social
 - **Ports**: 3000 (HTTP API), 9200 (WebSocket). No `PORT` env var is injected:
   `service.port` must stay equal to the app's own default
-- **Database**: CloudNativePG `social-db` in dev-local, bundled PostgreSQL in
-  preprod/prod (the chart only sets `postgresql.enabled: false` for dev — see
+- **Database**: CloudNativePG `social-db` in dev-local and preprod
+  (`service-social/database/` / `database-preprod/`), bundled PostgreSQL in
+  prod (the chart only sets `postgresql.enabled: false` for dev/preprod — see
   [Databases (dev-local)](#databases-dev-local-via-cloudnativepg))
 - **Dev hostname**: `service.dyingstar.local/social` (shared Traefik
   HTTPRoute, `/social` prefix stripped by a `URLRewrite` filter)
+- **Preprod hostname**: `service-preprod.dyingstar-game.com/social` (same
+  path-prefix + URLRewrite model)
 - **Env**: `POSTGRES_*` and `DATABASE_URL` are generated by the Deployment
   template from `database`; `OIDC_ISSUER` comes from the per-environment `oidc`
   block (empty by default); `INTERNAL_API_KEY` is read from the Secret
@@ -770,11 +802,14 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
 ### Service Mission
 - **Ports**: 3000 (HTTP API), 9200 (WebSocket). Unlike economie/social, the
   service reads `PORT` itself, so the chart injects `PORT={{ .Values.service.port }}`
-- **Database**: CloudNativePG `mission-db` in dev-local, bundled PostgreSQL in
-  preprod/prod (the chart only sets `postgresql.enabled: false` for dev — see
+- **Database**: CloudNativePG `mission-db` in dev-local and preprod
+  (`service-mission/database/` / `database-preprod/`), bundled PostgreSQL in
+  prod (the chart only sets `postgresql.enabled: false` for dev/preprod — see
   [Databases (dev-local)](#databases-dev-local-via-cloudnativepg))
 - **Dev hostname**: `service.dyingstar.local/mission` (shared Traefik
   HTTPRoute, `/mission` prefix stripped by a `URLRewrite` filter)
+- **Preprod hostname**: `service-preprod.dyingstar-game.com/mission` (same
+  path-prefix + URLRewrite model)
 - **Caller**: only the game server (`svc-game`) is allow-listed on
   `/api/internal/*` (`internalServiceClients`), with `OIDC_SERVICE_AUDIENCE=mission-api`
 - **Calls out** as the `svc-mission` Keycloak service account (client_credentials,
@@ -782,7 +817,7 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
   `SOCIAL_API_URL` to verify corporation membership. The client secret is read
   from the Secret `service-mission-mission-client` (key `secret`), created by the
   chart in dev from `serviceClient.clientSecret`; it must equal
-  `svc-mission-client-secret` in `infra/keycloak/06-service-clients.yaml`
+  `svc-mission-client-secret` in `keycloak-managed/dev/06-service-clients.yaml`
 - **Env**: `POSTGRES_*` / `DATABASE_URL`, `OIDC_*`, `INTERNAL_SERVICE_CLIENTS`,
   `ECONOMY_*`, `SOCIAL_*` and `PORT` are rendered by the Deployment template;
   `INTERNAL_API_KEY` comes from the Secret `service-mission-internal-key`; the
@@ -792,11 +827,14 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
 ### Service Market
 - **Ports**: 3000 (HTTP API), 9200 (WebSocket). No `PORT` env var is injected:
   `service.port` must stay equal to the app's own default
-- **Database**: CloudNativePG `market-db` in dev-local, bundled PostgreSQL in
-  preprod/prod (the chart only sets `postgresql.enabled: false` for dev — see
+- **Database**: CloudNativePG `market-db` in dev-local and preprod
+  (`service-market/database/` / `database-preprod/`), bundled PostgreSQL in
+  prod (the chart only sets `postgresql.enabled: false` for dev/preprod — see
   [Databases (dev-local)](#databases-dev-local-via-cloudnativepg))
 - **Dev hostname**: `service.dyingstar.local/market` (shared Traefik
   HTTPRoute, `/market` prefix stripped by a `URLRewrite` filter)
+- **Preprod hostname**: `service-preprod.dyingstar-game.com/market` (same
+  path-prefix + URLRewrite model)
 - **Caller**: the game server (`svc-game`) and the admin console (`svc-admin`)
   are allow-listed on `/api/internal/*` (`internalServiceClients`), with
   `OIDC_SERVICE_AUDIENCE=market-api`
@@ -804,7 +842,7 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
   audience `economie-api`): `ECONOMY_API_URL` to debit/credit wallets. The client
   secret is read from the Secret `service-market-market-client` (key `secret`),
   created by the chart in dev from `serviceClient.clientSecret`; it must equal
-  `svc-market-client-secret` in `infra/keycloak/06-service-clients.yaml`
+  `svc-market-client-secret` in `keycloak-managed/dev/06-service-clients.yaml`
 - **Env**: `POSTGRES_*` / `DATABASE_URL`, `OIDC_*`, `INTERNAL_SERVICE_CLIENTS`
   and `ECONOMY_*` are rendered by the Deployment template; `INTERNAL_API_KEY`
   comes from the Secret `service-market-internal-key`; the rest (`NODE_ENV`,
@@ -813,11 +851,14 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
 ### Service Inventory
 - **Ports**: 3000 (HTTP API), 9200 (WebSocket). No `PORT` env var is injected:
   `service.port` must stay equal to the app's own default
-- **Database**: CloudNativePG `inventory-db` in dev-local, bundled PostgreSQL in
-  preprod/prod (the chart only sets `postgresql.enabled: false` for dev — see
+- **Database**: CloudNativePG `inventory-db` in dev-local and preprod
+  (`service-inventory/database/` / `database-preprod/`), bundled PostgreSQL in
+  prod (the chart only sets `postgresql.enabled: false` for dev/preprod — see
   [Databases (dev-local)](#databases-dev-local-via-cloudnativepg))
 - **Dev hostname**: `service.dyingstar.local/inventory` (shared Traefik
   HTTPRoute, `/inventory` prefix stripped by a `URLRewrite` filter)
+- **Preprod hostname**: `service-preprod.dyingstar-game.com/inventory` (same
+  path-prefix + URLRewrite model)
 - **Caller**: the game server (`svc-game`) and the admin console (`svc-admin`)
   are allow-listed on `/api/internal/*` (`internalServiceClients`), with
   `OIDC_SERVICE_AUDIENCE=inventory-api`
@@ -826,7 +867,7 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
   wallets. The client secret is read from the Secret
   `service-inventory-inventory-client` (key `secret`), created by the chart in dev
   from `serviceClient.clientSecret`; it must equal `svc-inventory-client-secret`
-  in `infra/keycloak/06-service-clients.yaml`
+  in `keycloak-managed/dev/06-service-clients.yaml`
 - **Env**: `POSTGRES_*` / `DATABASE_URL`, `OIDC_*`, `INTERNAL_SERVICE_CLIENTS`
   and `ECONOMY_*` are rendered by the Deployment template; `INTERNAL_API_KEY`
   comes from the Secret `service-inventory-internal-key`; the rest (`NODE_ENV`,
@@ -843,20 +884,28 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
   ```
 
 ### Keycloak
+- **Prod** uses the Helm chart `keycloak/` (custom image `harbor.dyingstar-game.space/dyingstar/keycloak`, `start --import-realm`).
+- **Preprod** now uses the **Keycloak Operator** (same model as dev-local), see
+  [`keycloak-managed/preprod/`](keycloak-managed/preprod) and
+  [`argocd/preprod/infra/keycloak-app.yaml`](argocd/preprod/infra/keycloak-app.yaml).
 - **Ports**: 8080 (HTTP), 9000 (management/health/metrics)
-- **Database**: Bundled PostgreSQL (single-pod, mirrors `service-resourcesdynamic`)
+- **Database**: Bundled PostgreSQL (single-pod) for prod; CloudNativePG `keycloak-db` for preprod (operator)
 - **Hostnames**: `auth.dyingstar-game.com` (prod), `auth-preprod.dyingstar-game.com` (preprod), NodePort `30180` (dev-local)
-- **Realm**: `dyingstar` — imported on every start from the JSON baked into the image
-- **Discord IdP** is registered/updated by a Helm post-install Job (`kcadm.sh` script shipped in `../services/keycloak`)
-- **Required Secrets** (operator-managed in prod/preprod, inlined in `values-dev.yaml` for local dev):
+- **Realm**: `dyingstar`
+- **Discord IdP** is registered/updated by a `kcadm.sh` job (`bootstrap-discord-idp.sh`, shipped in `../services/keycloak`), executed by a Helm post-install Job in prod and by an ArgoCD PostSync Job in preprod/dev-shared.
+- **Required Secrets** in **prod** (chart-managed via `values-prod.yaml` → `existingSecret`):
   - `keycloak-admin` — keys `KEYCLOAK_ADMIN`, `KEYCLOAK_ADMIN_PASSWORD`
   - `keycloak-discord` — keys `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`
+- **Required Secrets** in **preprod** (operator, out-of-band in namespace `keycloak`):
+  `keycloak-bootstrap-user`, `keycloak-admin`, `keycloak-db-secret`,
+  `keycloak-discord`, `svc-*-client-secret` ×5. See
+  [`keycloak-managed/preprod/README.md`](keycloak-managed/preprod/README.md).
 - **Discord OAuth callback URLs** to register on the Discord developer portal:
   - prod:    `https://auth.dyingstar-game.com/realms/dyingstar/broker/discord/endpoint`
   - preprod: `https://auth-preprod.dyingstar-game.com/realms/dyingstar/broker/discord/endpoint`
   - local:   `http://<minikube-ip>:30180/realms/dyingstar/broker/discord/endpoint`
 
-Create the prod/preprod secrets with:
+Create the **prod** secrets with:
 
 ```bash
 kubectl --context=dyingstar -n dyingstar-prod create secret generic keycloak-admin \

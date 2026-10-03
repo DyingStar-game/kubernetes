@@ -1,0 +1,68 @@
+# Preprod overrides for service-inventory (dyingstar-preprod, deployed by ArgoCD).
+# Usage: helm upgrade --install -n dyingstar-preprod service-inventory ./service-inventory \
+#          -f service-inventory/values-preprod.yaml
+
+replicaCount: 1
+
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/inventory
+  pullPolicy: Always
+  tag: "develop"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# The database is a CloudNativePG Cluster (service-inventory/database-preprod/)
+# applied as a second source by the same ArgoCD app. The `inventory-db-auth`
+# Secret is created out of band — never committed.
+database:
+  host: inventory-db-rw
+  existingSecret: inventory-db-auth
+
+postgresql:
+  enabled: false
+
+oidc:
+  issuer: "https://auth-preprod.dyingstar-game.com/realms/dyingstar"
+  serviceAudience: "inventory-api"
+
+internalServiceClients: "svc-game,svc-admin"
+
+# The `svc-inventory` client secret is created out of band as
+# `service-inventory-inventory-client` (key `secret`); it MUST equal
+# `svc-inventory-client-secret` in keycloak-managed/preprod/06-service-clients.yaml.
+serviceClient:
+  clientId: "svc-inventory"
+  existingSecret: "service-inventory-inventory-client"
+  create: false
+
+economy:
+  apiUrl: "http://service-economie:3000"
+
+# Exposed through the preprod Traefik gateway on the shared
+# `service-preprod.dyingstar-game.com` host; the `/inventory` prefix is stripped
+# by a URLRewrite filter so the app keeps serving at root (`/api/*`).
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: traefik-gateway
+      namespace: traefik
+      sectionName: service
+  hostnames:
+    - "service-preprod.dyingstar-game.com"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /inventory
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /

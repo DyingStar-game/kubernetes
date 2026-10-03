@@ -1,0 +1,57 @@
+# Preprod overrides for service-social (dyingstar-preprod, deployed by ArgoCD).
+# Usage: helm upgrade --install -n dyingstar-preprod service-social ./service-social \
+#          -f service-social/values-preprod.yaml
+
+replicaCount: 1
+
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/social
+  pullPolicy: Always
+  tag: "develop"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# The database is a CloudNativePG Cluster (service-social/database-preprod/)
+# applied as a second source by the same ArgoCD app. The `social-db-auth`
+# Secret is created out of band — never committed.
+database:
+  host: social-db-rw
+  existingSecret: social-db-auth
+
+postgresql:
+  enabled: false
+
+oidc:
+  issuer: "https://auth-preprod.dyingstar-game.com/realms/dyingstar"
+  serviceAudience: "social-api"
+
+internalServiceClients: "svc-game,svc-market,svc-mission,svc-admin"
+
+# Exposed through the preprod Traefik gateway on the shared
+# `service-preprod.dyingstar-game.com` host; the `/social` prefix is stripped
+# by a URLRewrite filter so the app keeps serving at root (`/api/*`).
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: traefik-gateway
+      namespace: traefik
+      sectionName: service
+  hostnames:
+    - "service-preprod.dyingstar-game.com"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /social
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /

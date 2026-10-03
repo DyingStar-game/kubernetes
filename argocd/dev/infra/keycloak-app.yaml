@@ -19,7 +19,7 @@ spec:
     #    secrets, import du realm `dyingstar`, HTTPRoute via Traefik.
     - repoURL: 'file:///mnt/local-repo.git'
       targetRevision: HEAD
-      path: infra/keycloak
+      path: keycloak-managed/dev
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: keycloak

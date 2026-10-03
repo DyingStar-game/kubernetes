@@ -1,0 +1,88 @@
+# Keycloak de preprod, réconcilié par l'opérateur upstream installé par
+# argocd/preprod/infra/keycloak-app.yaml (namespace `keycloak`).
+#
+# Pourquoi la CR vit dans le namespace `keycloak` et pas `dyingstar-preprod` :
+# le Deployment de l'opérateur est configuré avec
+#   QUARKUS_OPERATOR_SDK_CONTROLLERS_KEYCLOAKCONTROLLER_NAMESPACES=JOSDK_WATCH_CURRENT
+# donc il n'observe que son propre namespace.
+apiVersion: k8s.keycloak.org/v2beta1
+kind: Keycloak
+metadata:
+  name: keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  instances: 1
+
+  # Image custom (`../services/keycloak`, FROM quay.io/keycloak/keycloak:26.7.0
+  # + SPI Discord + script de bootstrap). Indispensable en preprod : le provider
+  # Discord (providerId `discord`) vient du SPI `iForged/keycloak-discord`, absent
+  # de l'image upstream. La version doit rester alignée sur l'opérateur (26.7.0).
+  image: harbor.dyingstar-game.space/dyingstar/keycloak:develop
+
+  # L'API admin clients v2 est requise par le contrôleur des `KeycloakOIDCClient`
+  # (06-service-clients.yaml) : sans ce flag les clients `svc-*` gardent le secret
+  # auto-généré et le grant client_credentials échoue (`unauthorized_client`).
+  features:
+    enabled:
+      - client-admin-api:v2
+
+  db:
+    vendor: postgres
+    # Service -rw créé par CloudNativePG (00-cnpg-cluster.yaml).
+    host: keycloak-db-rw
+    database: keycloak
+    usernameSecret:
+      name: keycloak-db-secret
+      key: username
+    passwordSecret:
+      name: keycloak-db-secret
+      key: password
+
+  bootstrapAdmin:
+    # Deux secrets créés hors-bande (jamais commités) :
+    #   - user.secret    : clés `username` / `password`, le compte admin console ;
+    #   - service.secret : clés `client-id` / `client-secret`, le service account
+    #     admin que l'opérateur utilise pour réconcilier les `KeycloakOIDCClient`
+    #     (`getAdminClient` lit en dur `<cr-name>-admin`).
+    user:
+      secret: keycloak-bootstrap-user
+    service:
+      secret: keycloak-admin
+
+  http:
+    # HTTP en clair côté pod : Traefik termine le TLS (listener `keycloak` HTTPS).
+    httpEnabled: true
+    serviceName: keycloak
+
+  # UN SEUL issuer, aligné sur le listener Traefik `keycloak` de preprod :
+  #   https://auth-preprod.dyingstar-game.com/realms/<realm>
+  # `backchannelDynamic` résout JWKS/token/userinfo depuis les headers de la
+  # requête, donc un pod qui appelle le Service en interne n'a jamais besoin de
+  # résoudre le hostname public. `strict: false` garde les sondes opérateur (par
+  # IP) sûres.
+  # ⚠ Ne jamais changer `hostname` sans mettre à jour au même endroit
+  # 05-httproute.yaml et le listener traefik (traefik/values-preprod.yaml).
+  hostname:
+    hostname: https://auth-preprod.dyingstar-game.com
+    backchannelDynamic: true
+    strict: false
+
+  # Traefik réécrit X-Forwarded-* ; sans ça Keycloak casse redirections et liens.
+  proxy:
+    headers: xforwarded
+
+  # Pas d'Ingress : le trafic passe par la Gateway Traefik et la HTTPRoute.
+  ingress:
+    enabled: false
+
+  networkPolicy:
+    enabled: false
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2
+      memory: 3Gi

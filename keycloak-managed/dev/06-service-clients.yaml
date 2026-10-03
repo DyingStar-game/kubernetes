@@ -91,33 +91,39 @@ spec:
       secretRef:
         name: svc-game-client-secret
         key: secret
-    # Les 24 rôles de capacité (rôles realm), assignés au service account
+    # Les 30 rôles de capacité (rôles realm), assignés au service account
     # `service-account-svc-game`.
     serviceAccountRoles:
+      - social:profile:read
+      - social:profile:write
+      - social:player:write
+      - social:corporation:read
+      - social:corporation:write
+      - social:politics:read
+      - social:politics:write
+      - social:sanctions:read
+      - social:reputation:write
       - economie:wallet:read
       - economie:wallet:ensure
       - economie:wallet:credit
       - economie:wallet:debit
       - economie:corporation:read
       - economie:corporation:manage
-      - social:profile:write
-      - social:player:write
-      - social:corporation:read
-      - social:corporation:write
-      - social:sanctions:read
-      - social:reputation:write
+      - economie:politics:read
+      - economie:politics:manage
+      - economie:money:issue
+      - inventory:read
+      - inventory:credit
+      - inventory:transfer
+      - inventory:hold
+      - inventory:corporation:manage
       - mission:read
       - mission:write
+      - mission:progress
       - mission:complete
-      - mission:manage
-      - market:listing:read
-      - market:listing:write
-      - market:order:read
-      - market:order:write
-      - inventory:item:read
-      - inventory:item:write
-      - inventory:stock:read
-      - inventory:stock:write
+      - market:read
+      - market:manage
+      - market:settle
 ---
 apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakOIDCClient
@@ -216,31 +222,37 @@ spec:
       secretRef:
         name: svc-admin-client-secret
         key: secret
-    # Console d'admin : TOUTES les capacités du realm (les 24 rôles). C'est
+    # Console d'admin : TOUTES les capacités du realm (les 30 rôles). C'est
     # volontairement le client le plus privilégié — à réserver à un backend
     # d'administration et à isoler (secret dédié, rotation régulière).
     serviceAccountRoles:
+      - social:profile:read
+      - social:profile:write
+      - social:player:write
+      - social:corporation:read
+      - social:corporation:write
+      - social:politics:read
+      - social:politics:write
+      - social:sanctions:read
+      - social:reputation:write
       - economie:wallet:read
       - economie:wallet:ensure
       - economie:wallet:credit
       - economie:wallet:debit
       - economie:corporation:read
       - economie:corporation:manage
-      - social:profile:write
-      - social:player:write
-      - social:corporation:read
-      - social:corporation:write
-      - social:sanctions:read
-      - social:reputation:write
+      - economie:politics:read
+      - economie:politics:manage
+      - economie:money:issue
+      - inventory:read
+      - inventory:credit
+      - inventory:transfer
+      - inventory:hold
+      - inventory:corporation:manage
       - mission:read
       - mission:write
+      - mission:progress
       - mission:complete
-      - mission:manage
-      - market:listing:read
-      - market:listing:write
-      - market:order:read
-      - market:order:write
-      - inventory:item:read
-      - inventory:item:write
-      - inventory:stock:read
-      - inventory:stock:write
+      - market:read
+      - market:manage
+      - market:settle
