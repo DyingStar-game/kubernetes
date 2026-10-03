@@ -1,10 +1,10 @@
-# Dev overrides for service-economie (minikube, deployed by ArgoCD in namespace dyingstar)
-# Usage: helm upgrade --install -n dyingstar service-economie ./service-economie -f service-economie/values-dev.yaml
+# Dev overrides for service-inventory (minikube, deployed by ArgoCD in namespace dyingstar)
+# Usage: helm upgrade --install -n dyingstar service-inventory ./service-inventory -f service-inventory/values-dev.yaml
 
 replicaCount: 1
 
 image:
-  repository: harbor.dyingstar-game.space/dyingstar/economie
+  repository: harbor.dyingstar-game.space/dyingstar/inventory
   pullPolicy: Always
   tag: "develop"
 
@@ -17,13 +17,13 @@ resources:
     memory: 128Mi
 
 # The database is NOT declared by this chart in dev-local: it is a CloudNativePG
-# Cluster (service-economie/database/) applied as a second source by the
+# Cluster (service-inventory/database/) applied as a second source by the
 # same ArgoCD app. `database.host` is the `<cluster>-rw` Service CloudNativePG
 # creates; the Secret is the one its initdb was bootstrapped with.
 # port / name / user are inherited from values.yaml.
 database:
-  host: economie-db-rw
-  existingSecret: economie-db-auth
+  host: inventory-db-rw
+  existingSecret: inventory-db-auth
 
 # Must stay false here: values.yaml defaults to true, which is what preprod and
 # prod will rely on once the chart is promoted to those environments. The rest of
@@ -38,27 +38,38 @@ postgresql:
 oidc:
   issuer: "http://auth.dyingstar.local/realms/dyingstar"
   # Audience attendue des tokens de service (client_credentials) : le client
-  # `svc-*` doit porter `economie-api` dans `aud` (mapper d'audience déclaré
+  # `svc-*` doit porter `inventory-api` dans `aud` (mapper d'audience déclaré
   # dans infra/keycloak/04-realm-import.yaml).
-  serviceAudience: "economie-api"
+  serviceAudience: "inventory-api"
 
 # Clients Keycloak autorisés sur /api/internal/* (claim `azp`). Les clientIds
 # hors de cette liste sont rejetés en 403 SERVICE_FORBIDDEN.
-# svc-mission règle les récompenses (economie:wallet:credit/debit) ;
-# svc-admin est la console d'admin (toutes capacités).
-internalServiceClients: "svc-game,svc-market,svc-mission,svc-admin"
+# Le serveur de jeu appelle le marché ; svc-admin est la console d'admin.
+internalServiceClients: "svc-game,svc-admin"
 
-# DEV ONLY: the chart creates service-economie-internal-key from this value, the
+# DEV ONLY: the chart creates service-inventory-internal-key from this value, the
 # way livekit creates its keys Secret when no existingKeysSecret is set. The game
 # server (and any other caller) must present the same value in X-Internal-Key.
 internalApiKey:
   create: true
   key: "dev-internal-key"
 
+# DEV ONLY: the chart creates service-inventory-inventory-client holding the client
+# secret of the `svc-inventory` Keycloak client, used to call the economy internal
+# API (wallet). The value MUST match `svc-inventory-client-secret` (key `secret`) in
+# infra/keycloak/06-service-clients.yaml — same Keycloak client.
+serviceClient:
+  clientId: "svc-inventory"
+  create: true
+  clientSecret: "svc-inventory-dev-secret"
+
+economy:
+  apiUrl: "http://service-economie:3000"
+
 # Exposed through the dev Traefik gateway (traefik/values-dev.yaml) on the shared
 # `service.dyingstar.local` host, which the minikube tunnel resolves; the hostname
 # is registered in hosts_config.txt and written to /etc/hosts by start-dev.sh.
-# The service is served under the `/economie` path prefix; the URLRewrite filter
+# The service is served under the `/inventory` path prefix; the URLRewrite filter
 # strips it before forwarding, so the app keeps serving at root (`/api/*`).
 httpRoute:
   enabled: true
@@ -72,7 +83,7 @@ httpRoute:
     - matches:
         - path:
             type: PathPrefix
-            value: /economie
+            value: /inventory
       filters:
         - type: URLRewrite
           urlRewrite:

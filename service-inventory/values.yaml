@@ -1,0 +1,327 @@
+# Default values for service-inventory.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
+replicaCount: 1
+
+# This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/inventory
+  # This sets the pull policy for images.
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+# This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+imagePullSecrets: []
+# This is to override the chart name.
+nameOverride: ""
+fullnameOverride: ""
+
+# This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+# This is for setting Kubernetes Annotations to a Pod.
+# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+podAnnotations: {}
+# This is for setting Kubernetes Labels to a Pod.
+# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+podLabels: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+# This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
+service:
+  # This sets the service type more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
+  type: ClusterIP
+  # API port. Must stay equal to the app's own default PORT: no PORT env var is
+  # injected, so this single value drives the container port, the Service port
+  # and the HTTPRoute backend.
+  port: 3000
+  # WebSocket port
+  wsPort: 9200
+
+# This block is for setting up the ingress for more information can be found here: https://kubernetes.io/docs/concepts/services-networking/ingress/
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+# -- Expose the service via gateway-api HTTPRoute
+# Requires Gateway API resources and suitable controller installed within the cluster
+# (see: https://gateway-api.sigs.k8s.io/guides/)
+httpRoute:
+  # HTTPRoute enabled.
+  enabled: false
+  # HTTPRoute annotations.
+  annotations: {}
+  # Which Gateways this Route is attached to.
+  parentRefs:
+  - name: gateway
+    sectionName: http
+    # namespace: default
+  # Hostnames matching HTTP header.
+  hostnames:
+  - chart-example.local
+  # List of rules and filters applied.
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /headers
+  #   filters:
+  #   - type: RequestHeaderModifier
+  #     requestHeaderModifier:
+  #       set:
+  #       - name: My-Overwrite-Header
+  #         value: this-is-the-only-value
+  #       remove:
+  #       - User-Agent
+  # - matches:
+  #   - path:
+  #       type: PathPrefix
+  #       value: /echo
+  #     headers:
+  #     - name: version
+  #       value: v2
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+# This is to setup the liveness and readiness probes more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+# livenessProbe:
+#   httpGet:
+#     path: /health
+#     port: http
+#   initialDelaySeconds: 10
+#   periodSeconds: 30
+#   timeoutSeconds: 10
+# readinessProbe:
+#   httpGet:
+#     path: /health
+#     port: http
+#   initialDelaySeconds: 5
+#   periodSeconds: 10
+#   timeoutSeconds: 5
+
+# This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+# Additional volumes on the output Deployment definition.
+volumes: []
+# - name: foo
+#   secret:
+#     secretName: mysecret
+#     optional: false
+
+# Additional volumeMounts on the output Deployment definition.
+volumeMounts: []
+# - name: foo
+#   mountPath: "/etc/foo"
+#   readOnly: true
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Environment variables for the container
+# POSTGRES_HOST / POSTGRES_PORT / POSTGRES_USER / POSTGRES_DB / POSTGRES_PASSWORD
+# and DATABASE_URL are already generated from the `database` block below by
+# templates/deployment.yaml — do NOT redeclare them here.
+# Note: env vars using templates are handled in deployment.yaml
+# Note: Helm REPLACES lists, it does not merge them. An overlay that redefines
+# `env` must therefore repeat the whole list; the OIDC settings live in their own
+# `oidc` block for exactly that reason.
+env:
+  # The API listens on its own default (see `service.port`), so no PORT here.
+  - name: NODE_ENV
+    value: "production"
+  # The player client authenticates with a bearer token, not cookies, so a
+  # wildcard origin works. Revisit if the API ever sets cookies.
+  - name: CORS_ORIGIN
+    value: "*"
+  # Dev escape hatch (X-Player-Id / X-Player-Name instead of a JWT). It is
+  # ignored when NODE_ENV=production, hence the "false" there.
+  - name: AUTH_DEV_BYPASS
+    value: "false"
+  # OIDC_ISSUER is intentionally absent: it has no environment-neutral value.
+  # Each overlay sets it — dev: http://auth.dyingstar.local/realms/dyingstar
+  # (infra/keycloak/03-keycloak.yaml), preprod:
+  # https://auth-preprod.dyingstar-game.com/realms/dyingstar, prod:
+  # https://auth.dyingstar-game.com/realms/dyingstar.
+  # OIDC_JWKS_URL (defaults to ${OIDC_ISSUER}/protocol/openid-connect/certs) and
+  # OIDC_AUDIENCE (skips the audience check) are left unset on purpose: an empty
+  # env var is not the same as an absent one for every dotenv reader.
+  # Shared secret for the game server / other services (header X-Internal-Key).
+  # The name is literal because Helm does not evaluate templates in values: if
+  # you switch to `internalApiKey.existingSecret`, change `name:` here too.
+  - name: INTERNAL_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: service-inventory-internal-key
+        key: INTERNAL_API_KEY
+  # Economy: automatic tax applied to player-to-player transfers (basis points,
+  # 500 = 5%). Amounts are integer minor units (crédits).
+  - name: ECONOMY_TRANSFER_TAX_BPS
+    value: "500"
+  # Ceiling of the absolute tax amount per transfer (0 = no ceiling)
+  - name: ECONOMY_TRANSFER_TAX_CEILING
+    value: "0"
+  # Smallest allowed transfer (in minor units)
+  - name: ECONOMY_MIN_TRANSFER
+    value: "1"
+  # Largest allowed transfer (0 = no cap)
+  - name: ECONOMY_MAX_TRANSFER
+    value: "0"
+  # Reserved account collecting automatic taxes (system holder)
+  - name: ECONOMY_TAX_VAULT_UUID
+    value: "00000000-0000-0000-0000-000000000001"
+
+# Keycloak / OIDC. Rendered by templates/deployment.yaml rather than listed in
+# `env` because the issuer changes with the environment and Helm replaces lists
+# instead of merging them: each overlay would have to repeat the whole `env`.
+# The issuer has no environment-neutral value, hence empty by default — an
+# empty issuer is skipped, the API then rejects every request.
+oidc:
+  # dev: http://auth.dyingstar.local/realms/dyingstar (infra/keycloak/03-keycloak.yaml)
+  # preprod: https://auth-preprod.dyingstar-game.com/realms/dyingstar
+  # prod: https://auth.dyingstar-game.com/realms/dyingstar
+  issuer: ""
+  # Defaults to <issuer>/protocol/openid-connect/certs when left empty.
+  jwksUrl: ""
+  # Expected `aud` claim for player tokens; empty skips the audience check.
+  audience: ""
+  # Expected `aud` claim for service-to-service tokens (client_credentials,
+  # `azp` = svc-*). Distinct de `audience` (token joueur). Ex: inventory-api.
+  serviceAudience: ""
+
+# Comma-separated allowlist of Keycloak clientIds allowed to call /api/internal/*
+# (checked against the token's `azp`). Rendered as INTERNAL_SERVICE_CLIENTS.
+# Any clientId not listed here — including the player client `dyingstar-game` —
+# is rejected with 403 SERVICE_FORBIDDEN.
+internalServiceClients: ""
+
+# Downstream API this service calls with its own Keycloak service account
+# (client_credentials). Rendered by templates/deployment.yaml because the client
+# secret's Secret name depends on the release fullname.
+#
+# `serviceClient` is the `svc-inventory` Keycloak client (inventory acting as a
+# caller), used to call the economy internal API (wallet):
+#   - clientId        : the client_credentials client (svc-inventory).
+#   - existingSecret  : Secret (app namespace) holding the client secret under
+#                       key `secret`. Empty => chart-created
+#                       <fullname>-inventory-client.
+#   - create          : create that Secret from `clientSecret` (dev only).
+#   - clientSecret    : only used when `create` is true.
+serviceClient:
+  clientId: "svc-inventory"
+  existingSecret: ""
+  create: false
+  clientSecret: ""
+
+economy:
+  # Economy internal API used to debit/credit wallets. Empty disables the
+  # integration.
+  apiUrl: "http://service-economie:3000"
+
+# Shared secret presented by the game server in the X-Internal-Key header.
+# Same pattern as livekit's keys Secret: the chart only creates one when
+# `create` is true and no `existingSecret` is given, so preprod/prod point at a
+# Secret managed outside the chart.
+internalApiKey:
+  create: false
+  # Name of a pre-existing Secret holding the INTERNAL_API_KEY key. Empty means
+  # "use the chart-created <fullname>-internal-key".
+  existingSecret: ""
+  # Only used when `create` is true. Never put a real secret in values-prod.yaml.
+  key: ""
+
+# PostgreSQL connection settings (used by deployment template)
+database:
+  # Will connect to {{ .Release.Name }}-postgresql by default
+  host: ""  # Leave empty to use subchart service name
+  # Secret holding the `password` key. Leave empty to use the chart-managed
+  # <fullname>-postgresql Secret. In dev-local the database is a CloudNativePG
+  # Cluster declared in service-inventory/database/, so we point at its
+  # Secret.
+  existingSecret: ""
+  port: 5432
+  name: inventory
+  user: inventory
+
+# Environment variables from secrets or configmaps
+envFrom: []
+  # - secretRef:
+  #     name: inventory-secrets
+  # - configMapRef:
+  #     name: inventory-config
+
+# PostgreSQL configuration (standalone deployment, not subchart)
+postgresql:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: postgres
+    tag: "16-alpine"
+    pullPolicy: IfNotPresent
+  auth:
+    username: inventory
+    password: "changeme-in-production"
+    database: inventory
+  primary:
+    persistence:
+      enabled: true
+      size: 1Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi

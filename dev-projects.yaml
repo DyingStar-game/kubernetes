@@ -70,6 +70,16 @@ projects:
     dockerfile: docker/Dockerfile
     deployment: service-mission
 
+  - name: market
+    path: ../services/market
+    dockerfile: docker/Dockerfile
+    deployment: service-market
+
+  - name: inventory
+    path: ../services/inventory
+    dockerfile: docker/Dockerfile
+    deployment: service-inventory
+
   - name: persistence
     path: ../services/persistence
     dockerfile: docker/Dockerfile

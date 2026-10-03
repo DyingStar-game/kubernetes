@@ -17,9 +17,11 @@
 # Usage :
 #   ./scripts_linux/verify-service-auth.sh
 #   ISSUER=https://auth-preprod.dyingstar-game.com \
-#     ECONOMIE_BASE_URL=http://economie.dyingstar.local \
-#     SOCIAL_BASE_URL=http://social.dyingstar.local \
-#     MISSION_BASE_URL=http://mission.dyingstar.local \
+#     ECONOMIE_BASE_URL=http://service.dyingstar.local/economie \
+#     SOCIAL_BASE_URL=http://service.dyingstar.local/social \
+#     MISSION_BASE_URL=http://service.dyingstar.local/mission \
+#     MARKET_BASE_URL=http://service.dyingstar.local/market \
+#     INVENTORY_BASE_URL=http://service.dyingstar.local/inventory \
 #     PLAYER_TOKEN="$PLAYER_JWT" \
 #     ./scripts_linux/verify-service-auth.sh
 #
@@ -30,11 +32,14 @@
 #   K8S_CONTEXT            contexte kubectl optionnel
 #   SVC_GAME_SECRET        sinon lu depuis le Secret svc-game-client-secret
 #   SVC_MARKET_SECRET      sinon lu depuis le Secret svc-market-client-secret
+#   SVC_INVENTORY_SECRET   sinon lu depuis le Secret svc-inventory-client-secret
 #   SVC_MISSION_SECRET     sinon lu depuis le Secret svc-mission-client-secret
 #   SVC_ADMIN_SECRET       sinon lu depuis le Secret svc-admin-client-secret
-#   ECONOMIE_BASE_URL      ex http://economie.dyingstar.local (sinon volet 2 sauté)
-#   SOCIAL_BASE_URL        ex http://social.dyingstar.local
-#   MISSION_BASE_URL       ex http://mission.dyingstar.local
+#   ECONOMIE_BASE_URL      ex http://service.dyingstar.local/economie (sinon volet 2 sauté)
+#   SOCIAL_BASE_URL        ex http://service.dyingstar.local/social
+#   MISSION_BASE_URL       ex http://service.dyingstar.local/mission
+#   MARKET_BASE_URL        ex http://service.dyingstar.local/market
+#   INVENTORY_BASE_URL     ex http://service.dyingstar.local/inventory
 #   PLAYER_UUID            défaut uuid v4 ; à remplacer par un vrai joueur
 #   CORPORATION_UUID       défaut uuid v4
 #   SOCIAL_PROBE_PATH      défaut /api/internal/health
@@ -55,10 +60,14 @@ PLAYER_UUID="${PLAYER_UUID:-00000000-0000-4000-8000-0000000000ff}"
 CORPORATION_UUID="${CORPORATION_UUID:-00000000-0000-4000-8000-0000000000aa}"
 SOCIAL_PROBE_PATH="${SOCIAL_PROBE_PATH:-/api/internal/health}"
 MISSION_PROBE_PATH="${MISSION_PROBE_PATH:-/api/internal/missions}"
+MARKET_PROBE_PATH="${MARKET_PROBE_PATH:-/api/internal/listings}"
+INVENTORY_PROBE_PATH="${INVENTORY_PROBE_PATH:-/api/internal/items}"
 TOKEN_ENDPOINT="${ISSUER}/realms/${REALM}/protocol/openid-connect/token"
-ECONOMIE_BASE_URL="${ECONOMIE_BASE_URL:-http://economie.dyingstar.local}"
-SOCIAL_BASE_URL="${SOCIAL_BASE_URL:-http://social.dyingstar.local}"
-MISSION_BASE_URL="${MISSION_BASE_URL:-http://mission.dyingstar.local}"
+ECONOMIE_BASE_URL="${ECONOMIE_BASE_URL:-http://service.dyingstar.local/economie}"
+SOCIAL_BASE_URL="${SOCIAL_BASE_URL:-http://service.dyingstar.local/social}"
+MISSION_BASE_URL="${MISSION_BASE_URL:-http://service.dyingstar.local/mission}"
+MARKET_BASE_URL="${MARKET_BASE_URL:-http://service.dyingstar.local/market}"
+INVENTORY_BASE_URL="${INVENTORY_BASE_URL:-http://service.dyingstar.local/inventory}"
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 PASS=0; FAIL=0
 ok()   { echo -e "  ${GREEN}[OK]${NC}    $1"; PASS=$((PASS+1)); }
@@ -224,37 +233,50 @@ SOCIAL_ROLES=(social:profile:write social:player:write social:corporation:read s
 # L'API mission exige `mission:read` / `mission:write` / `mission:complete`
 # (noms exacts renvoyés dans ses erreurs 403), plus `mission:manage`.
 MISSION_ROLES=(mission:read mission:write mission:complete mission:manage)
-ALL_ROLES=("${ECON_ROLES[@]}" "${SOCIAL_ROLES[@]}" "${MISSION_ROLES[@]}")
+# Rôles de capacité des APIs market / inventory (rôles realm, pas des rôle du
+# client appelant) : ce sont ce que svc-game/svc-admin doivent porter.
+MARKET_API_ROLES=(market:listing:read market:listing:write market:order:read market:order:write)
+INVENTORY_API_ROLES=(inventory:item:read inventory:item:write inventory:stock:read inventory:stock:write)
+ALL_ROLES=("${ECON_ROLES[@]}" "${SOCIAL_ROLES[@]}" "${MISSION_ROLES[@]}" "${MARKET_API_ROLES[@]}" "${INVENTORY_API_ROLES[@]}")
+# svc-market / svc-inventory sont des callers (economie uniquement) : ils ne
+# portent ni audience market-api/inventory-api ni rôle market:*/inventory:*.
 MARKET_ROLES=(economie:wallet:read economie:wallet:credit economie:wallet:debit)
+INVENTORY_SVC_ROLES=(economie:wallet:read economie:wallet:credit economie:wallet:debit)
 # svc-mission est un caller (economie + social), pas un appelé : il ne porte
 # jamais d'audience mission-api ni de rôle mission:*.
 MISSION_SVC_ROLES=(economie:wallet:read economie:wallet:credit economie:wallet:debit social:corporation:read)
 
 SVC_GAME_SECRET="$(fetch_secret svc-game-client-secret "${SVC_GAME_SECRET:-}")" || exit 1
 SVC_MARKET_SECRET="$(fetch_secret svc-market-client-secret "${SVC_MARKET_SECRET:-}")" || exit 1
+SVC_INVENTORY_SECRET="$(fetch_secret svc-inventory-client-secret "${SVC_INVENTORY_SECRET:-}")" || exit 1
 SVC_MISSION_SECRET="$(fetch_secret svc-mission-client-secret "${SVC_MISSION_SECRET:-}")" || exit 1
 SVC_ADMIN_SECRET="$(fetch_secret svc-admin-client-secret "${SVC_ADMIN_SECRET:-}")" || exit 1
 
-AUD_EXPECT="economie-api social-api mission-api" AUD_ABSENT="" verify_token svc-game "$SVC_GAME_SECRET" "${ALL_ROLES[@]}"
+AUD_EXPECT="economie-api social-api mission-api market-api inventory-api" AUD_ABSENT="" verify_token svc-game "$SVC_GAME_SECRET" "${ALL_ROLES[@]}"
 GAME_TOKEN="$(get_token svc-game "$SVC_GAME_SECRET" 2>/dev/null || true)"
 
-AUD_EXPECT="economie-api" AUD_ABSENT="social-api" verify_token svc-market "$SVC_MARKET_SECRET" "${MARKET_ROLES[@]}"
+AUD_EXPECT="economie-api" AUD_ABSENT="social-api market-api inventory-api" verify_token svc-market "$SVC_MARKET_SECRET" "${MARKET_ROLES[@]}"
 MARKET_TOKEN="$(get_token svc-market "$SVC_MARKET_SECRET" 2>/dev/null || true)"
 
-AUD_EXPECT="economie-api social-api" AUD_ABSENT="mission-api" verify_token svc-mission "$SVC_MISSION_SECRET" "${MISSION_SVC_ROLES[@]}"
+AUD_EXPECT="economie-api" AUD_ABSENT="market-api inventory-api social-api" verify_token svc-inventory "$SVC_INVENTORY_SECRET" "${INVENTORY_SVC_ROLES[@]}"
+INVENTORY_TOKEN="$(get_token svc-inventory "$SVC_INVENTORY_SECRET" 2>/dev/null || true)"
+
+AUD_EXPECT="economie-api social-api" AUD_ABSENT="mission-api market-api inventory-api" verify_token svc-mission "$SVC_MISSION_SECRET" "${MISSION_SVC_ROLES[@]}"
 MISSION_TOKEN="$(get_token svc-mission "$SVC_MISSION_SECRET" 2>/dev/null || true)"
 
-# Console d'admin : toutes les audiences et les 16 rôles.
-AUD_EXPECT="economie-api social-api mission-api" AUD_ABSENT="" verify_token svc-admin "$SVC_ADMIN_SECRET" "${ALL_ROLES[@]}"
+# Console d'admin : toutes les audiences et les 24 rôles.
+AUD_EXPECT="economie-api social-api mission-api market-api inventory-api" AUD_ABSENT="" verify_token svc-admin "$SVC_ADMIN_SECRET" "${ALL_ROLES[@]}"
 ADMIN_TOKEN="$(get_token svc-admin "$SVC_ADMIN_SECRET" 2>/dev/null || true)"
 
 # --------------------------------------------------------------------------
 # Volet 2 : APIs (si URLs fournies)
 # --------------------------------------------------------------------------
-if [ -n "${ECONOMIE_BASE_URL:-}" ] || [ -n "${SOCIAL_BASE_URL:-}" ] || [ -n "${MISSION_BASE_URL:-}" ]; then
+if [ -n "${ECONOMIE_BASE_URL:-}" ] || [ -n "${SOCIAL_BASE_URL:-}" ] || [ -n "${MISSION_BASE_URL:-}" ] || [ -n "${MARKET_BASE_URL:-}" ] || [ -n "${INVENTORY_BASE_URL:-}" ]; then
   : "${ECONOMIE_BASE_URL:=}"
   : "${SOCIAL_BASE_URL:=}"
   : "${MISSION_BASE_URL:=}"
+  : "${MARKET_BASE_URL:=}"
+  : "${INVENTORY_BASE_URL:=}"
 
   if [ -n "$ECONOMIE_BASE_URL" ]; then
     sect "API economie ($ECONOMIE_BASE_URL)"
@@ -299,8 +321,39 @@ if [ -n "${ECONOMIE_BASE_URL:-}" ] || [ -n "${SOCIAL_BASE_URL:-}" ] || [ -n "${M
     # svc-mission n'appelle pas l'API mission (il n'est ni caller ni audiencé).
     expect_code_any "svc-mission sur endpoint mission" "401 403" GET "$MISSION_BASE_URL$MISSION_PROBE_PATH" "$MISSION_TOKEN"
   fi
+
+  if [ -n "$MARKET_BASE_URL" ]; then
+    sect "API market ($MARKET_BASE_URL)"
+    # Health public (aucun token) : prouve que le service répond.
+    expect_code "market /api/health (public)" 200 GET "$MARKET_BASE_URL/api/health"
+    # svc-game porte l'audience market-api + les rôles market:* : autorisé
+    # (200 si la sonde existe, 404 acceptable sinon).
+    expect_code_any "svc-game GET market probe" "200 404" GET "$MARKET_BASE_URL$MARKET_PROBE_PATH" "$GAME_TOKEN"
+    # Console d'admin : autorisée sur market.
+    expect_code_any "svc-admin GET market probe" "200 404" GET "$MARKET_BASE_URL$MARKET_PROBE_PATH" "$ADMIN_TOKEN"
+    # Sans token : jamais 200 (non-contournement).
+    expect_code "market sans token" 401 GET "$MARKET_BASE_URL$MARKET_PROBE_PATH"
+    # svc-market n'a pas l'audience market-api : rejeté (401 audience invalide
+    # ou 403 selon l'implémentation).
+    expect_code_any "svc-market sur endpoint market" "401 403" GET "$MARKET_BASE_URL$MARKET_PROBE_PATH" "$MARKET_TOKEN"
+    # svc-inventory n'a pas l'audience market-api : rejeté.
+    expect_code_any "svc-inventory sur endpoint market" "401 403" GET "$MARKET_BASE_URL$MARKET_PROBE_PATH" "$INVENTORY_TOKEN"
+  fi
+
+  if [ -n "$INVENTORY_BASE_URL" ]; then
+    sect "API inventory ($INVENTORY_BASE_URL)"
+    # Health public (aucun token) : prouve que le service répond.
+    expect_code "inventory /api/health (public)" 200 GET "$INVENTORY_BASE_URL/api/health"
+    expect_code_any "svc-game GET inventory probe" "200 404" GET "$INVENTORY_BASE_URL$INVENTORY_PROBE_PATH" "$GAME_TOKEN"
+    expect_code_any "svc-admin GET inventory probe" "200 404" GET "$INVENTORY_BASE_URL$INVENTORY_PROBE_PATH" "$ADMIN_TOKEN"
+    # Sans token : jamais 200 (non-contournement).
+    expect_code "inventory sans token" 401 GET "$INVENTORY_BASE_URL$INVENTORY_PROBE_PATH"
+    # svc-market / svc-inventory n'ont pas l'audience inventory-api : rejetés.
+    expect_code_any "svc-market sur endpoint inventory" "401 403" GET "$INVENTORY_BASE_URL$INVENTORY_PROBE_PATH" "$MARKET_TOKEN"
+    expect_code_any "svc-inventory sur endpoint inventory" "401 403" GET "$INVENTORY_BASE_URL$INVENTORY_PROBE_PATH" "$INVENTORY_TOKEN"
+  fi
 else
-  info "ECONOMIE_BASE_URL / SOCIAL_BASE_URL / MISSION_BASE_URL absents : volet HTTP sauté (volet JWT seul)."
+  info "Aucune BASE_URL d'API fournie : volet HTTP sauté (volet JWT seul)."
 fi
 
 # --------------------------------------------------------------------------
