@@ -79,6 +79,19 @@ gateway:
       certificateRefs:
         - kind: Secret
           name: keycloak-tls
+    # Shared host for the game APIs (economie/social/mission/market/inventory),
+    # each served under its own path prefix (see the service values-preprod.yaml
+    # URLRewrite filters).
+    service:
+      port: 443
+      protocol: HTTPS
+      hostname: "service-preprod.dyingstar-game.com"
+      namespacePolicy:
+        from: All
+      mode: Terminate
+      certificateRefs:
+        - kind: Secret
+          name: service-preprod-tls
     grafana:
       port: 443
       protocol: HTTPS

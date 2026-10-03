@@ -1,0 +1,30 @@
+# Database of service-market (preprod).
+#
+# Applied by the game Application `service-market` as a second source
+# (argocd/preprod/game/service-market-app.yaml). The CloudNativePG operator
+# comes from argocd/preprod/infra/cnpg-op-app.yaml (namespace cnpg-system).
+#
+# CloudNativePG creates the Service `market-db-rw`, which is what
+# service-market/values-preprod.yaml points at via `database.host`.
+#
+# ⚠ The `market-db-auth` Secret is NOT committed: it is created out of band in
+# `dyingstar-preprod` (key `password`, matching `database.existingSecret`). It
+# MUST exist before the Cluster is reconciled, otherwise its `initdb` fails.
+# The dev-local credentials (service-market/database/01-db-secret.yaml) must
+# never be reused here.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: market-db
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  instances: 1
+  storage:
+    size: 5Gi
+  bootstrap:
+    initdb:
+      database: market
+      owner: market
+      secret:
+        name: market-db-auth

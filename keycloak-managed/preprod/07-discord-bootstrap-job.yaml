@@ -1,0 +1,85 @@
+# Job de bootstrap du provider Discord (IdP) du realm preprod.
+#
+# Le provider `discord` vient du SPI `iForged/keycloak-discord` embarqué dans
+# l'image custom (`../services/keycloak`), qui contient aussi le script
+# `/opt/keycloak/scripts/bootstrap-discord-idp.sh` (source :
+# keycloak-managed/dev/import/scripts/bootstrap-discord-idp.sh).
+#
+# Le script est idempotent (create/update). Il tourne après le sync complet
+# (hook PostSync) : la CR Keycloak et le KeycloakRealmImport sont alors Ready.
+#
+# ⚠ `keycloak-bootstrap-user` (username/password de l'admin master) et
+# `keycloak-discord` (DISCORD_CLIENT_ID / DISCORD_CLIENT_SECRET) sont créés
+# hors-bande dans le namespace `keycloak`. Cf. README.md de ce dossier.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-bootstrap-discord
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  backoffLimit: 6
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: bootstrap
+          image: harbor.dyingstar-game.space/dyingstar/keycloak:develop
+          imagePullPolicy: Always
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              KC_HOST="keycloak"
+              KC_PORT="8080"
+              echo "Waiting for Keycloak at ${KC_HOST}:${KC_PORT}..."
+              until (echo > "/dev/tcp/${KC_HOST}/${KC_PORT}") 2>/dev/null; do
+                echo "waiting for keycloak to accept connections..."
+                sleep 5
+              done
+              # Port open != fully ready. Retry kcadm login until the admin API
+              # actually answers.
+              until /opt/keycloak/bin/kcadm.sh config credentials \
+                    --server "http://${KC_HOST}:${KC_PORT}/" \
+                    --realm master \
+                    --user "${KEYCLOAK_ADMIN}" \
+                    --password "${KEYCLOAK_ADMIN_PASSWORD}" 2>/dev/null; do
+                echo "waiting for keycloak admin API..."
+                sleep 5
+              done
+              exec /opt/keycloak/scripts/bootstrap-discord-idp.sh
+          env:
+            - name: KC_SERVER_URL
+              value: "http://keycloak:8080/"
+            - name: KC_REALM
+              value: "dyingstar"
+            - name: KEYCLOAK_ADMIN
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-bootstrap-user
+                  key: username
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-bootstrap-user
+                  key: password
+            - name: DISCORD_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-discord
+                  key: DISCORD_CLIENT_ID
+            - name: DISCORD_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-discord
+                  key: DISCORD_CLIENT_SECRET
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 2
+              memory: 512Mi

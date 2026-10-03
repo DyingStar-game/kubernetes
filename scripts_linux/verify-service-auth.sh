@@ -227,16 +227,17 @@ echo "======================================================"
 info "issuer  : $ISSUER"
 info "endpoint: $TOKEN_ENDPOINT"
 
-# Rôles (source unique : contrat API)
-ECON_ROLES=(economie:wallet:read economie:wallet:ensure economie:wallet:credit economie:wallet:debit economie:corporation:read economie:corporation:manage)
-SOCIAL_ROLES=(social:profile:write social:player:write social:corporation:read social:corporation:write social:sanctions:read social:reputation:write)
-# L'API mission exige `mission:read` / `mission:write` / `mission:complete`
-# (noms exacts renvoyés dans ses erreurs 403), plus `mission:manage`.
-MISSION_ROLES=(mission:read mission:write mission:complete mission:manage)
-# Rôles de capacité des APIs market / inventory (rôles realm, pas des rôle du
+# Rôles (source unique : contrat API). Noms alignés sur l'autorité de nommage
+# keycloak-managed/dev/import/README.md (30 rôles de capacité).
+ECON_ROLES=(economie:wallet:read economie:wallet:ensure economie:wallet:credit economie:wallet:debit economie:corporation:read economie:corporation:manage economie:politics:read economie:politics:manage economie:money:issue)
+SOCIAL_ROLES=(social:profile:read social:profile:write social:player:write social:corporation:read social:corporation:write social:politics:read social:politics:write social:sanctions:read social:reputation:write)
+# L'API mission exige `mission:read` / `mission:write` / `mission:progress` /
+# `mission:complete` (noms exacts renvoyés dans ses erreurs 403).
+MISSION_ROLES=(mission:read mission:write mission:progress mission:complete)
+# Rôles de capacité des APIs market / inventory (rôles realm, pas des rôles du
 # client appelant) : ce sont ce que svc-game/svc-admin doivent porter.
-MARKET_API_ROLES=(market:listing:read market:listing:write market:order:read market:order:write)
-INVENTORY_API_ROLES=(inventory:item:read inventory:item:write inventory:stock:read inventory:stock:write)
+MARKET_API_ROLES=(market:read market:manage market:settle)
+INVENTORY_API_ROLES=(inventory:read inventory:credit inventory:transfer inventory:hold inventory:corporation:manage)
 ALL_ROLES=("${ECON_ROLES[@]}" "${SOCIAL_ROLES[@]}" "${MISSION_ROLES[@]}" "${MARKET_API_ROLES[@]}" "${INVENTORY_API_ROLES[@]}")
 # svc-market / svc-inventory sont des callers (economie uniquement) : ils ne
 # portent ni audience market-api/inventory-api ni rôle market:*/inventory:*.
@@ -264,7 +265,7 @@ INVENTORY_TOKEN="$(get_token svc-inventory "$SVC_INVENTORY_SECRET" 2>/dev/null |
 AUD_EXPECT="economie-api social-api" AUD_ABSENT="mission-api market-api inventory-api" verify_token svc-mission "$SVC_MISSION_SECRET" "${MISSION_SVC_ROLES[@]}"
 MISSION_TOKEN="$(get_token svc-mission "$SVC_MISSION_SECRET" 2>/dev/null || true)"
 
-# Console d'admin : toutes les audiences et les 24 rôles.
+# Console d'admin : toutes les audiences et les 30 rôles.
 AUD_EXPECT="economie-api social-api mission-api market-api inventory-api" AUD_ABSENT="" verify_token svc-admin "$SVC_ADMIN_SECRET" "${ALL_ROLES[@]}"
 ADMIN_TOKEN="$(get_token svc-admin "$SVC_ADMIN_SECRET" 2>/dev/null || true)"
 

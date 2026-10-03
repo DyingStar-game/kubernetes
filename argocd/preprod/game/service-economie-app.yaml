@@ -1,0 +1,44 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: service-economie
+  namespace: argocd
+spec:
+  project: game
+  sources:
+    - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
+      path: service-economie
+      targetRevision: main
+      helm:
+        valueFiles:
+          - $values/service-economie/values-preprod.yaml
+    - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
+      path: service-economie/database-preprod
+      targetRevision: main
+    - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
+      targetRevision: main
+      ref: values
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: dyingstar-preprod
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+    - RespectIgnoreDifferences=true
+    - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/template/spec/containers/0/image
+        - /spec/template/spec/containers/0/imagePullPolicy

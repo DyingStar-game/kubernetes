@@ -1,0 +1,505 @@
+# Importe le realm `dyingstar` dans la CR Keycloak (03-keycloak.yaml) via le job
+# kcadm que l'opérateur génère. Le realm est inliné ici : depuis la v2beta1 du
+# CRD, `spec.realmConfig.configMapRef` n'existe plus, le schéma est validé
+# champ par champ.
+#
+# Le job est rejoué à chaque changement de ce fichier, mais l'opérateur l'exécute
+# avec `--override=false` : un realm DÉJÀ présent n'est jamais réparé/mis à jour.
+# Après un import raté, il faut donc repartir d'une base neuve (supprimer le
+# cluster `keycloak-db` et son PVC) pour que ce fichier soit (re)appliqué.
+#
+# Les scopes standard (openid, profile, email, roles, web-origins) sont décrits
+# explicitement plus bas : l'import ne les provisionne pas tout seul, et sans eux
+# les `defaultClientScopes` des clients sont ignorés (`Referenced client scope
+# ... doesn't exist`) et les tokens sortent sans claims.
+#
+# DEV ONLY : le compte de test ci-dessous est en clair et ne doit jamais quitter
+# le cluster minikube local.
+#
+# L'issuer n'est PAS écrit dans le realm : Keycloak le dérive du hostname de la
+# CR (03-keycloak.yaml) et l'écrire ici le désynchroniserait.
+apiVersion: k8s.keycloak.org/v2beta1
+kind: KeycloakRealmImport
+metadata:
+  name: dyingstar-realm
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  keycloakCRName: keycloak
+  # Sans ces ressources, le job d'import hériterait des défauts de l'opérateur
+  # (1700Mi requests), bien trop gros pour du dev.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1
+      memory: 1Gi
+  realm:
+    realm: dyingstar
+    displayName: DyingStar (dev-local)
+    enabled: true
+    # Indispensable : l'issuer est en HTTP (cf. 03-keycloak.yaml).
+    sslRequired: none
+    registrationAllowed: false
+    loginWithEmailAllowed: true
+    duplicateEmailsAllowed: false
+    resetPasswordAllowed: true
+    editUsernameAllowed: false
+    bruteForceProtected: false
+    accessTokenLifespan: 300
+    # Session SSO longue (10 ans) pour que le client de test `dyingstar-dev`
+    # (attribut access.token.lifespan = 1 an) ne soit pas plafonné par la
+    # session : sans ça Keycloak cape l'access token à ssoSessionMaxLifespan.
+    # DEV-LOCAL seulement ; les tokens client_credentials ne sont pas concernés.
+    ssoSessionIdleTimeout: 315360000
+    ssoSessionMaxLifespan: 315360000
+    roles:
+      realm:
+        - name: player
+          description: Joueur de DyingStar
+        - name: moderator
+          description: Modération du chat
+        # Rôles de capacité des services machine-to-machine (client_credentials).
+        # ⚠ Autorité de nommage : keycloak-managed/dev/import/README.md (section
+        # « Service capability roles »), qui décrit le modèle prod/preprod. En
+        # prod ce sont des client roles sur les clients `*-api` ; en dev-local
+        # l'opérateur Keycloak n'expose que des realm roles
+        # (KeycloakOIDCClient.serviceAccountRoles), donc on les déclare ici avec
+        # les MÊMES noms. Ne jamais les renommer ni les préfixer (ex: /dyingstar).
+        #
+        # Social (9)
+        - name: social:profile:read
+        - name: social:profile:write
+        - name: social:player:write
+        - name: social:corporation:read
+        - name: social:corporation:write
+        - name: social:politics:read
+        - name: social:politics:write
+        - name: social:sanctions:read
+        - name: social:reputation:write
+        # Économie (9)
+        - name: economie:wallet:read
+        - name: economie:wallet:ensure
+        - name: economie:wallet:credit
+        - name: economie:wallet:debit
+        - name: economie:corporation:read
+        - name: economie:corporation:manage
+        - name: economie:politics:read
+        - name: economie:politics:manage
+        - name: economie:money:issue
+        # Inventory (5)
+        - name: inventory:read
+        - name: inventory:credit
+        - name: inventory:transfer
+        - name: inventory:hold
+        - name: inventory:corporation:manage
+        # Mission (4) — noms EXACTS exigés par l'API mission (l'API répond
+        # « Requires service role mission:read » etc.) : pas de segment ressource
+        # ici, contrairement à economie:wallet:*. `mission:progress` remplace
+        # l'ancien `mission:manage`, jamais référencé par l'API.
+        - name: mission:read
+        - name: mission:write
+        - name: mission:progress
+        - name: mission:complete
+        # Market (3)
+        - name: market:read
+        - name: market:manage
+        - name: market:settle
+    groups:
+      - name: players
+      - name: staff
+    users:
+      - username: devplayer
+        email: devplayer@dyingstar.local
+        emailVerified: true
+        enabled: true
+        firstName: Dev
+        lastName: Player
+        credentials:
+          - type: password
+            value: devplayer
+            temporary: false
+        realmRoles:
+          - player
+        groups:
+          - /players
+    # Scopes standard du realm. L'import opérateur ne les provisionne pas : il
+    # faut les décrire ici (comme dans un export de realm complet) sinon les
+    # clients qui les référencent en `defaultClientScopes` les perdent
+    # silencieusement et les tokens ne portent ni preferred_username, ni email,
+    # ni roles.
+    clientScopes:
+      - name: openid
+        protocol: openid-connect
+        protocolMappers:
+          # Le mapper `sub` est standard dans le scope `openid` de Keycloak : sans
+          # lui les tokens utilisateur (flow navigateur / password) sortent SANS
+          # `sub`, or les APIs identifient le joueur par `sub` (l'API mission
+          # répond 401 « Token has no usable subject »). Les tokens
+          # client_credentials en ont un via le service account, d'où le piège.
+          - name: sub
+            protocol: openid-connect
+            protocolMapper: oidc-sub-mapper
+            config:
+              access.token.claim: "true"
+              id.token.claim: "true"
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+          - name: preferred_username
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-property-mapper
+            config:
+              user.attribute: username
+              claim.name: preferred_username
+              jsonType.label: String
+              id.token.claim: "true"
+              access.token.claim: "true"
+              userinfo.token.claim: "true"
+      - name: profile
+        protocol: openid-connect
+        protocolMappers:
+          - name: full name
+            protocol: openid-connect
+            protocolMapper: oidc-full-name-mapper
+            config:
+              id.token.claim: "true"
+              access.token.claim: "true"
+              userinfo.token.claim: "true"
+          - name: given name
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-attribute-mapper
+            config:
+              user.attribute: firstName
+              claim.name: given_name
+              jsonType.label: String
+              id.token.claim: "true"
+              access.token.claim: "true"
+              userinfo.token.claim: "true"
+          - name: family name
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-attribute-mapper
+            config:
+              user.attribute: lastName
+              claim.name: family_name
+              jsonType.label: String
+              id.token.claim: "true"
+              access.token.claim: "true"
+              userinfo.token.claim: "true"
+      - name: email
+        protocol: openid-connect
+        protocolMappers:
+          - name: email
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-attribute-mapper
+            config:
+              user.attribute: email
+              claim.name: email
+              jsonType.label: String
+              id.token.claim: "true"
+              access.token.claim: "true"
+              userinfo.token.claim: "true"
+          - name: email verified
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-attribute-mapper
+            config:
+              user.attribute: emailVerified
+              claim.name: email_verified
+              jsonType.label: boolean
+              id.token.claim: "true"
+              access.token.claim: "true"
+              userinfo.token.claim: "true"
+      - name: roles
+        protocol: openid-connect
+        protocolMappers:
+          - name: realm roles
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-realm-role-mapper
+            config:
+              # Claim standard Keycloak : les services (economie/social) et
+              # verify-service-auth.sh lisent `realm_access.roles`. Un
+              # `claim.name: roles` (plat) les fait échouer en 403.
+              claim.name: realm_access.roles
+              jsonType.label: String
+              multivalued: "true"
+              id.token.claim: "true"
+              access.token.claim: "true"
+              userinfo.token.claim: "true"
+      - name: web-origins
+        protocol: openid-connect
+        protocolMappers:
+          - name: allowed web origins
+            protocol: openid-connect
+            protocolMapper: oidc-allowed-origins-mapper
+            config:
+              access.token.claim: "true"
+              userinfo.token.claim: "true"
+      - name: offline_access
+        protocol: openid-connect
+    defaultDefaultClientScopes:
+      - openid
+      - profile
+      - email
+      - roles
+      - web-origins
+    defaultOptionalClientScopes:
+      - offline_access
+    clients:
+      # Client public du client de jeu : le flow OIDC s'ouvre dans le navigateur.
+      - clientId: dyingstar-game
+        name: DyingStar client de jeu (Godot / navigateur)
+        description: Client public, flow standard + PKCE.
+        enabled: true
+        protocol: openid-connect
+        publicClient: true
+        standardFlowEnabled: true
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: false
+        rootUrl: http://localhost
+        baseUrl: /
+        redirectUris:
+          - http://localhost:*
+          - http://127.0.0.1:*
+          - http://horizon.dyingstar.local/*
+          - http://argocd.dyingstar.local/*
+          # Redirect natif du launcher (scheme custom). Le clientId reste
+          # `dyingstar-game` : le renommer casserait les launchers déjà installés,
+          # et l'API ne l'accepte de toute façon jamais sur /api/internal/*
+          # (azp joueur != svc-*).
+          - dyingstar://auth/callback
+        webOrigins:
+          - "*"
+        attributes:
+          pkce.code.challenge.method: S256
+          # Plusieurs URIs séparées par `##` (format Keycloak 26).
+          post.logout.redirect.uris: http://localhost:*##dyingstar://auth/callback
+
+        defaultClientScopes:
+          - openid
+          - profile
+          - email
+          - roles
+          - web-origins
+        optionalClientScopes:
+          - offline_access
+      # Client confidentiel pour les backchannels service-to-service
+      # (godotserver, horizon, chatauth).
+      - clientId: dyingstar-service
+        name: DyingStar services (godotserver, horizon, chatauth)
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: true
+        serviceAccountsEnabled: true
+        secret: dyingstar-service
+        attributes:
+          client_credentials.use_refresh_token: "true"
+      # ⚠ DEV-LOCAL UNIQUEMENT (ce fichier n'est pas déployé en prod).
+      # Client de test CLI : direct grant activé + access token à très longue
+      # durée (1 an), pour obtenir un JWT joueur en une commande sans navigateur
+      # ni renouvellement toutes les 5 min. Le vrai client joueur reste
+      # `dyingstar-game` (PKCE, tokens 300 s). `access.token.lifespan` est un
+      # attribut de client qui surcharge `accessTokenLifespan` du realm.
+      - clientId: dyingstar-dev
+        name: DyingStar dev CLI tokens (DEV ONLY)
+        enabled: true
+        protocol: openid-connect
+        publicClient: true
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: true
+        serviceAccountsEnabled: false
+        attributes:
+          # 1 an. Le realm a ssoSessionMaxLifespan = 315360000 (10 ans) pour ne
+          # pas plafonner cette valeur.
+          access.token.lifespan: "31536000"
+        defaultClientScopes:
+          - openid
+          - profile
+          - email
+          - roles
+          - web-origins
+        optionalClientScopes:
+          - offline_access
+      # ── Clients de service machine-to-machine (grant_type=client_credentials) ──
+      #
+      # Ils sont déclarés ICI pour tout ce que KeycloakRealmImport sait décrire
+      # et que KeycloakOIDCClient n'expose pas : le mapper d'audience. Le secret
+      # et l'assignation des rôles au service account sont posés par les CRs
+      # KeycloakOIDCClient de 06-service-clients.yaml (auth.secretRef +
+      # serviceAccountRoles) : aucun secret n'est donc écrit ici, Keycloak en
+      # génère un à la création, que l'opérateur remplace par celui du Secret.
+      #
+      # ⚠ Le `clientId` est codé en dur dans les APIs : ne jamais le renommer.
+      - clientId: svc-game
+        name: DyingStar game server (client_credentials)
+        description: Serveur de jeu -> economie-api + social-api + mission-api.
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: true
+        protocolMappers:
+          - name: economie-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: economie-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: social-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: social-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: mission-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: mission-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: market-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: market-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: inventory-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: inventory-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+      - clientId: svc-market
+        name: DyingStar market (client_credentials)
+        description: Marché -> economie-api uniquement (pas d'audience social-api).
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: true
+        protocolMappers:
+          - name: economie-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: economie-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+      # Service inventory -> economie-api uniquement (comme svc-market : il
+      # débite/crédite les wallets pour les mouvements de stock).
+      - clientId: svc-inventory
+        name: DyingStar inventory (client_credentials)
+        description: Inventaire -> economie-api uniquement.
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: true
+        protocolMappers:
+          - name: economie-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: economie-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+      # Service mission -> economie-api + social-api : règle les récompenses
+      # économiques à la complétion d'une mission et vérifie l'appartenance à une
+      # corporation (missions corporation-scoped).
+      - clientId: svc-mission
+        name: DyingStar mission (client_credentials)
+        description: Service mission -> economie-api + social-api.
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: true
+        protocolMappers:
+          - name: economie-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: economie-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: social-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: social-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+      # Client d'administration : porte TOUTES les capacités du realm (les 16
+      # rôles, cf. 06-service-clients.yaml) et les audiences des 3 APIs. Réservé
+      # à une console/interface d'admin — jamais au jeu. Sa compromission donne
+      # toutes les capacités machine du realm : c'est volontaire, mais à isoler
+      # (secret dédié, rotation, réseau).
+      - clientId: svc-admin
+        name: DyingStar admin console (client_credentials)
+        description: Console d'admin -> economie-api + social-api + mission-api, toutes capacités.
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: true
+        protocolMappers:
+          - name: economie-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: economie-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: social-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: social-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: mission-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: mission-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: market-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: market-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: inventory-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: inventory-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+      # ⚠ Ne PAS redéclarer `account-console` / `security-admin-console` ici :
+      # Keycloak les provisionne lui-même à la création du realm. Les re-déclarer
+      # fait échouer l'import (`ModelDuplicateException` / duplicate key sur
+      # CLIENT) car le chemin « realm neuf » réinsère sans vérifier l'existence.
+      # Leurs redirections suivent automatiquement `spec.hostname`
+      # (03-keycloak.yaml).

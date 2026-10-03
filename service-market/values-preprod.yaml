@@ -1,0 +1,68 @@
+# Preprod overrides for service-market (dyingstar-preprod, deployed by ArgoCD).
+# Usage: helm upgrade --install -n dyingstar-preprod service-market ./service-market \
+#          -f service-market/values-preprod.yaml
+
+replicaCount: 1
+
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/market
+  pullPolicy: Always
+  tag: "develop"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# The database is a CloudNativePG Cluster (service-market/database-preprod/)
+# applied as a second source by the same ArgoCD app. The `market-db-auth`
+# Secret is created out of band — never committed.
+database:
+  host: market-db-rw
+  existingSecret: market-db-auth
+
+postgresql:
+  enabled: false
+
+oidc:
+  issuer: "https://auth-preprod.dyingstar-game.com/realms/dyingstar"
+  serviceAudience: "market-api"
+
+internalServiceClients: "svc-game,svc-admin"
+
+# The `svc-market` client secret is created out of band as
+# `service-market-market-client` (key `secret`); it MUST equal
+# `svc-market-client-secret` in keycloak-managed/preprod/06-service-clients.yaml.
+serviceClient:
+  clientId: "svc-market"
+  existingSecret: "service-market-market-client"
+  create: false
+
+economy:
+  apiUrl: "http://service-economie:3000"
+
+# Exposed through the preprod Traefik gateway on the shared
+# `service-preprod.dyingstar-game.com` host; the `/market` prefix is stripped
+# by a URLRewrite filter so the app keeps serving at root (`/api/*`).
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: traefik-gateway
+      namespace: traefik
+      sectionName: service
+  hostnames:
+    - "service-preprod.dyingstar-game.com"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /market
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /

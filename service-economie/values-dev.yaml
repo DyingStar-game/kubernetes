@@ -32,14 +32,14 @@ postgresql:
   enabled: false
 
 # Issuer of the dev-local Keycloak, declared as `hostname` in
-# infra/keycloak/03-keycloak.yaml — the tokens it issues carry this value, so
+# keycloak-managed/dev/03-keycloak.yaml — the tokens it issues carry this value, so
 # pointing anywhere else makes every JWT fail validation. It resolves through
 # the minikube tunnel (hostname registered in hosts_config.txt).
 oidc:
   issuer: "http://auth.dyingstar.local/realms/dyingstar"
   # Audience attendue des tokens de service (client_credentials) : le client
   # `svc-*` doit porter `economie-api` dans `aud` (mapper d'audience déclaré
-  # dans infra/keycloak/04-realm-import.yaml).
+  # dans keycloak-managed/dev/04-realm-import.yaml).
   serviceAudience: "economie-api"
 
 # Clients Keycloak autorisés sur /api/internal/* (claim `azp`). Les clientIds
