@@ -13,7 +13,8 @@
 #     service account), que KeycloakRealmImport ne sait pas faire.
 #
 # ⚠ Le `metadata.name` est le `clientId` : il est codé en dur dans les APIs
-# (`INTERNAL_SERVICE_CLIENTS=svc-game,svc-market`). Ne jamais le renommer.
+# (`INTERNAL_SERVICE_CLIENTS=svc-game,svc-market,svc-inventory`). Ne jamais le
+# renommer.
 #
 # Pré-requis : le Secret référencé par `auth.secretRef` doit exister AVANT que
 # le CR soit réconcilié, sinon le CR reste NotReady. En dev-local (minikube) les
@@ -40,6 +41,16 @@ metadata:
 type: Opaque
 stringData:
   secret: svc-market-dev-secret
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: svc-inventory-client-secret
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+type: Opaque
+stringData:
+  secret: svc-inventory-dev-secret
 ---
 apiVersion: v1
 kind: Secret
@@ -80,7 +91,7 @@ spec:
       secretRef:
         name: svc-game-client-secret
         key: secret
-    # Les 16 rôles de capacité (rôles realm), assignés au service account
+    # Les 24 rôles de capacité (rôles realm), assignés au service account
     # `service-account-svc-game`.
     serviceAccountRoles:
       - economie:wallet:read
@@ -99,6 +110,14 @@ spec:
       - mission:write
       - mission:complete
       - mission:manage
+      - market:listing:read
+      - market:listing:write
+      - market:order:read
+      - market:order:write
+      - inventory:item:read
+      - inventory:item:write
+      - inventory:stock:read
+      - inventory:stock:write
 ---
 apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakOIDCClient
@@ -122,6 +141,32 @@ spec:
     # ni `economie:corporation:manage` (API économie -> 403 FORBIDDEN) ni aucune
     # audience `social-api` (04-realm-import.yaml), d'où le 403 sur les
     # endpoints social.
+    serviceAccountRoles:
+      - economie:wallet:read
+      - economie:wallet:credit
+      - economie:wallet:debit
+---
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: KeycloakOIDCClient
+metadata:
+  name: svc-inventory
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  keycloakCRName: keycloak
+  realm: dyingstar
+  client:
+    enabled: true
+    loginFlows:
+      - SERVICE_ACCOUNT
+    auth:
+      method: client-secret
+      secretRef:
+        name: svc-inventory-client-secret
+        key: secret
+    # Comme svc-market : l'inventaire ne gère que les wallets côté économie,
+    # donc uniquement read/credit/debit (pas de corporation:manage, pas
+    # d'audience social-api).
     serviceAccountRoles:
       - economie:wallet:read
       - economie:wallet:credit
@@ -171,7 +216,7 @@ spec:
       secretRef:
         name: svc-admin-client-secret
         key: secret
-    # Console d'admin : TOUTES les capacités du realm (les 16 rôles). C'est
+    # Console d'admin : TOUTES les capacités du realm (les 24 rôles). C'est
     # volontairement le client le plus privilégié — à réserver à un backend
     # d'administration et à isoler (secret dédié, rotation régulière).
     serviceAccountRoles:
@@ -191,3 +236,11 @@ spec:
       - mission:write
       - mission:complete
       - mission:manage
+      - market:listing:read
+      - market:listing:write
+      - market:order:read
+      - market:order:write
+      - inventory:item:read
+      - inventory:item:write
+      - inventory:stock:read
+      - inventory:stock:write

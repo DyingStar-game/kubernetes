@@ -84,6 +84,16 @@ spec:
         - name: mission:write
         - name: mission:complete
         - name: mission:manage
+        # Market — noms EXACTS exigés par l'API market.
+        - name: market:listing:read
+        - name: market:listing:write
+        - name: market:order:read
+        - name: market:order:write
+        # Inventory — noms EXACTS exigés par l'API inventory.
+        - name: inventory:item:read
+        - name: inventory:item:write
+        - name: inventory:stock:read
+        - name: inventory:stock:write
     groups:
       - name: players
       - name: staff
@@ -344,9 +354,43 @@ spec:
               included.custom.audience: mission-api
               access.token.claim: "true"
               id.token.claim: "false"
+          - name: market-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: market-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: inventory-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: inventory-api
+              access.token.claim: "true"
+              id.token.claim: "false"
       - clientId: svc-market
         name: DyingStar market (client_credentials)
         description: Marché -> economie-api uniquement (pas d'audience social-api).
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: true
+        protocolMappers:
+          - name: economie-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: economie-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+      # Service inventory -> economie-api uniquement (comme svc-market : il
+      # débite/crédite les wallets pour les mouvements de stock).
+      - clientId: svc-inventory
+        name: DyingStar inventory (client_credentials)
+        description: Inventaire -> economie-api uniquement.
         enabled: true
         protocol: openid-connect
         publicClient: false
@@ -425,6 +469,20 @@ spec:
             protocolMapper: oidc-audience-mapper
             config:
               included.custom.audience: mission-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: market-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: market-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: inventory-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: inventory-api
               access.token.claim: "true"
               id.token.claim: "false"
       # ⚠ Ne PAS redéclarer `account-console` / `security-admin-console` ici :

@@ -288,12 +288,13 @@ in the APIs; never rename any of it.**
 
 | clientId | `aud` in the access token | realm roles on the service account |
 | --- | --- | --- |
-| `svc-game` | `economie-api`, `social-api`, `mission-api` | the 16 capacity roles |
+| `svc-game` | `economie-api`, `social-api`, `mission-api`, `market-api`, `inventory-api` | the 24 capacity roles |
 | `svc-market` | `economie-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit` |
+| `svc-inventory` | `economie-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit` |
 | `svc-mission` | `economie-api`, `social-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit`, `social:corporation:read` |
-| `svc-admin` | `economie-api`, `social-api`, `mission-api` | the 16 capacity roles (console d'admin — client le plus privilégié) |
+| `svc-admin` | `economie-api`, `social-api`, `mission-api`, `market-api`, `inventory-api` | the 24 capacity roles (console d'admin — client le plus privilégié) |
 
-The 16 realm roles (no realm prefix):
+The 24 realm roles (no realm prefix):
 
 ```text
 economie:wallet:read  economie:wallet:ensure  economie:wallet:credit  economie:wallet:debit
@@ -301,7 +302,14 @@ economie:corporation:read  economie:corporation:manage
 social:profile:write  social:player:write  social:corporation:read
 social:corporation:write  social:sanctions:read  social:reputation:write
 mission:read  mission:write  mission:complete  mission:manage
+market:listing:read  market:listing:write  market:order:read  market:order:write
+inventory:item:read  inventory:item:write  inventory:stock:read  inventory:stock:write
 ```
+
+Note the distinction: `svc-market` / `svc-inventory` are the identities those two
+**services** use to *call* the economy API. The `market` / `inventory` APIs
+themselves are called by `svc-game` / `svc-admin` (audiences `market-api` /
+`inventory-api`).
 
 #### Which CRD does what (verified against the deployed operator)
 
@@ -352,10 +360,12 @@ kubectl -n keycloak create secret generic svc-game-client-secret \
   --from-literal=secret="$(openssl rand -hex 32)"
 kubectl -n keycloak create secret generic svc-market-client-secret \
   --from-literal=secret="$(openssl rand -hex 32)"
+kubectl -n keycloak create secret generic svc-inventory-client-secret \
+  --from-literal=secret="$(openssl rand -hex 32)"
 ```
 
 **En dev-local**, pour que la stack soit auto-portante (mêmes valeurs en clair que
-`01-db-secret.yaml` / `02-admin-secret.yaml`), les deux Secrets sont livrés par
+`01-db-secret.yaml` / `02-admin-secret.yaml`), les Secrets sont livrés par
 `06-service-clients.yaml` (sync-wave `-1`), donc `verify-service-auth.sh` les
 trouve sans étape manuelle. Les valeurs sont locales au minikube — DEV ONLY.
 
@@ -392,11 +402,12 @@ other shared secret.
 
 | Env | Issuer (`OIDC_ISSUER`) | `OIDC_SERVICE_AUDIENCE` | `INTERNAL_SERVICE_CLIENTS` |
 | --- | --- | --- | --- |
-| dev-local | `http://auth.dyingstar.local/realms/dyingstar` | `economie-api` / `social-api` / `mission-api` | `svc-game,svc-market,svc-mission,svc-admin` |
-| preprod | `https://auth-preprod.dyingstar-game.com/realms/dyingstar` | `economie-api` / `social-api` / `mission-api` | `svc-game,svc-market,svc-mission,svc-admin` |
-| prod | `https://auth.dyingstar-game.com/realms/dyingstar` | `economie-api` / `social-api` / `mission-api` | `svc-game,svc-market,svc-mission,svc-admin` |
+| dev-local | `http://auth.dyingstar.local/realms/dyingstar` | `economie-api` / `social-api` / `mission-api` / `market-api` / `inventory-api` | `svc-game,svc-market,svc-mission,svc-admin` |
+| preprod | `https://auth-preprod.dyingstar-game.com/realms/dyingstar` | `economie-api` / `social-api` / `mission-api` / `market-api` / `inventory-api` | `svc-game,svc-market,svc-mission,svc-admin` |
+| prod | `https://auth.dyingstar-game.com/realms/dyingstar` | `economie-api` / `social-api` / `mission-api` / `market-api` / `inventory-api` | `svc-game,svc-market,svc-mission,svc-admin` |
 
-`OIDC_SERVICE_AUDIENCE` is per API (economie / social / mission); `INTERNAL_SERVICE_CLIENTS`
+`OIDC_SERVICE_AUDIENCE` is per API (economie / social / mission / market /
+inventory); `INTERNAL_SERVICE_CLIENTS`
 is the allowlist of callers for all of them. **A clientId absent from `INTERNAL_SERVICE_CLIENTS`
 is rejected with `403 SERVICE_FORBIDDEN`**, and a token whose `aud` does not match
 the API is rejected as well. The player client (`dyingstar-game`) carries
@@ -732,7 +743,8 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
 - **Database**: CloudNativePG `economie-db` in dev-local, bundled PostgreSQL in
   preprod/prod (the chart only sets `postgresql.enabled: false` for dev — see
   [Databases (dev-local)](#databases-dev-local-via-cloudnativepg))
-- **Dev hostname**: `economie.dyingstar.local` (Traefik HTTPRoute)
+- **Dev hostname**: `service.dyingstar.local/economie` (shared Traefik
+  HTTPRoute, `/economie` prefix stripped by a `URLRewrite` filter)
 - **Env**: `POSTGRES_*` and `DATABASE_URL` are generated by the Deployment
   template from `database`; `OIDC_ISSUER` comes from the per-environment `oidc`
   block (empty by default); `INTERNAL_API_KEY` is read from the Secret
@@ -746,7 +758,8 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
 - **Database**: CloudNativePG `social-db` in dev-local, bundled PostgreSQL in
   preprod/prod (the chart only sets `postgresql.enabled: false` for dev — see
   [Databases (dev-local)](#databases-dev-local-via-cloudnativepg))
-- **Dev hostname**: `social.dyingstar.local` (Traefik HTTPRoute)
+- **Dev hostname**: `service.dyingstar.local/social` (shared Traefik
+  HTTPRoute, `/social` prefix stripped by a `URLRewrite` filter)
 - **Env**: `POSTGRES_*` and `DATABASE_URL` are generated by the Deployment
   template from `database`; `OIDC_ISSUER` comes from the per-environment `oidc`
   block (empty by default); `INTERNAL_API_KEY` is read from the Secret
@@ -760,7 +773,8 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
 - **Database**: CloudNativePG `mission-db` in dev-local, bundled PostgreSQL in
   preprod/prod (the chart only sets `postgresql.enabled: false` for dev — see
   [Databases (dev-local)](#databases-dev-local-via-cloudnativepg))
-- **Dev hostname**: `mission.dyingstar.local` (Traefik HTTPRoute)
+- **Dev hostname**: `service.dyingstar.local/mission` (shared Traefik
+  HTTPRoute, `/mission` prefix stripped by a `URLRewrite` filter)
 - **Caller**: only the game server (`svc-game`) is allow-listed on
   `/api/internal/*` (`internalServiceClients`), with `OIDC_SERVICE_AUDIENCE=mission-api`
 - **Calls out** as the `svc-mission` Keycloak service account (client_credentials,
@@ -772,8 +786,51 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
 - **Env**: `POSTGRES_*` / `DATABASE_URL`, `OIDC_*`, `INTERNAL_SERVICE_CLIENTS`,
   `ECONOMY_*`, `SOCIAL_*` and `PORT` are rendered by the Deployment template;
   `INTERNAL_API_KEY` comes from the Secret `service-mission-internal-key`; the
-  rest (`NODE_ENV`, `CORS_ORIGIN`, `AUTH_DEV_BYPASS`, `INTERNAL_DEV_BYPASS`,
-  `MISSION_*`) lives in `env` in `values.yaml`
+   rest (`NODE_ENV`, `CORS_ORIGIN`, `AUTH_DEV_BYPASS`, `INTERNAL_DEV_BYPASS`,
+   `MISSION_*`) lives in `env` in `values.yaml`
+
+### Service Market
+- **Ports**: 3000 (HTTP API), 9200 (WebSocket). No `PORT` env var is injected:
+  `service.port` must stay equal to the app's own default
+- **Database**: CloudNativePG `market-db` in dev-local, bundled PostgreSQL in
+  preprod/prod (the chart only sets `postgresql.enabled: false` for dev — see
+  [Databases (dev-local)](#databases-dev-local-via-cloudnativepg))
+- **Dev hostname**: `service.dyingstar.local/market` (shared Traefik
+  HTTPRoute, `/market` prefix stripped by a `URLRewrite` filter)
+- **Caller**: the game server (`svc-game`) and the admin console (`svc-admin`)
+  are allow-listed on `/api/internal/*` (`internalServiceClients`), with
+  `OIDC_SERVICE_AUDIENCE=market-api`
+- **Calls out** as the `svc-market` Keycloak service account (client_credentials,
+  audience `economie-api`): `ECONOMY_API_URL` to debit/credit wallets. The client
+  secret is read from the Secret `service-market-market-client` (key `secret`),
+  created by the chart in dev from `serviceClient.clientSecret`; it must equal
+  `svc-market-client-secret` in `infra/keycloak/06-service-clients.yaml`
+- **Env**: `POSTGRES_*` / `DATABASE_URL`, `OIDC_*`, `INTERNAL_SERVICE_CLIENTS`
+  and `ECONOMY_*` are rendered by the Deployment template; `INTERNAL_API_KEY`
+  comes from the Secret `service-market-internal-key`; the rest (`NODE_ENV`,
+  `CORS_ORIGIN`, `AUTH_DEV_BYPASS`) lives in `env` in `values.yaml`
+
+### Service Inventory
+- **Ports**: 3000 (HTTP API), 9200 (WebSocket). No `PORT` env var is injected:
+  `service.port` must stay equal to the app's own default
+- **Database**: CloudNativePG `inventory-db` in dev-local, bundled PostgreSQL in
+  preprod/prod (the chart only sets `postgresql.enabled: false` for dev — see
+  [Databases (dev-local)](#databases-dev-local-via-cloudnativepg))
+- **Dev hostname**: `service.dyingstar.local/inventory` (shared Traefik
+  HTTPRoute, `/inventory` prefix stripped by a `URLRewrite` filter)
+- **Caller**: the game server (`svc-game`) and the admin console (`svc-admin`)
+  are allow-listed on `/api/internal/*` (`internalServiceClients`), with
+  `OIDC_SERVICE_AUDIENCE=inventory-api`
+- **Calls out** as the `svc-inventory` Keycloak service account
+  (client_credentials, audience `economie-api`): `ECONOMY_API_URL` to debit/credit
+  wallets. The client secret is read from the Secret
+  `service-inventory-inventory-client` (key `secret`), created by the chart in dev
+  from `serviceClient.clientSecret`; it must equal `svc-inventory-client-secret`
+  in `infra/keycloak/06-service-clients.yaml`
+- **Env**: `POSTGRES_*` / `DATABASE_URL`, `OIDC_*`, `INTERNAL_SERVICE_CLIENTS`
+  and `ECONOMY_*` are rendered by the Deployment template; `INTERNAL_API_KEY`
+  comes from the Secret `service-inventory-internal-key`; the rest (`NODE_ENV`,
+  `CORS_ORIGIN`, `AUTH_DEV_BYPASS`) lives in `env` in `values.yaml`
 
 ### Service Persistence
 - **Port**: 9100 (WebSocket, Rust)

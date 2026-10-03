@@ -1,0 +1,44 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: service-market
+  namespace: argocd
+spec:
+  project: game
+  sources:
+    - repoURL: 'file:///mnt/local-repo.git'
+      path: service-market
+      targetRevision: HEAD
+      helm:
+        valueFiles:
+          - $values/service-market/values-dev.yaml
+    - repoURL: 'file:///mnt/local-repo.git'
+      path: service-market/database
+      targetRevision: HEAD
+    - repoURL: 'file:///mnt/local-repo.git'
+      targetRevision: HEAD
+      ref: values
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: dyingstar
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+    - RespectIgnoreDifferences=true
+    - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/template/spec/containers/0/image
+        - /spec/template/spec/containers/0/imagePullPolicy

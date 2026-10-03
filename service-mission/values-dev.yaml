@@ -68,9 +68,11 @@ economy:
 social:
   apiUrl: "http://service-social:3000"
 
-# Exposed through the dev Traefik gateway (traefik/values-dev.yaml) on
-# `mission.dyingstar.local`, which the minikube tunnel resolves; the hostname is
-# registered in hosts_config.txt and written to /etc/hosts by start-dev.sh.
+# Exposed through the dev Traefik gateway (traefik/values-dev.yaml) on the shared
+# `service.dyingstar.local` host, which the minikube tunnel resolves; the hostname
+# is registered in hosts_config.txt and written to /etc/hosts by start-dev.sh.
+# The service is served under the `/mission` path prefix; the URLRewrite filter
+# strips it before forwarding, so the app keeps serving at root (`/api/*`).
 httpRoute:
   enabled: true
   parentRefs:
@@ -78,9 +80,15 @@ httpRoute:
       namespace: traefik
       sectionName: web
   hostnames:
-    - "mission.dyingstar.local"
+    - "service.dyingstar.local"
   rules:
     - matches:
         - path:
             type: PathPrefix
-            value: /
+            value: /mission
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /

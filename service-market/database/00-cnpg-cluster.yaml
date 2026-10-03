@@ -1,0 +1,26 @@
+# Database of service-market (dev-local).
+#
+# Applied by the game Application `service-market` as a second source
+# (argocd/dev/game/service-market-app.yaml), so the application and its
+# database are reconciled together. The operator comes from the infra app
+# argocd/dev/infra/cnpg-op-app.yaml (namespace cnpg-system).
+#
+# CloudNativePG creates the Service `<cluster>-rw`, which is what
+# service-market/values-dev.yaml points at via `database.host`.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: market-db
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  instances: 1
+  # minikube's default StorageClass (hostpath) is enough for a dev database.
+  storage:
+    size: 1Gi
+  bootstrap:
+    initdb:
+      database: market
+      owner: market
+      secret:
+        name: market-db-auth
