@@ -1,7 +1,7 @@
 # Preprod overrides for godotserver
 # Usage: helm upgrade --install -n dyingstar-preprod godotserver ./godotserver -f godotserver/values-preprod.yaml
 
-replicaCount: 12
+replicaCount: 24
 
 image:
   repository: harbor.dyingstar-game.space/dyingstar/godotserver

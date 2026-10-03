@@ -52,8 +52,8 @@ resources:
     cpu: 10
     memory: 12Gi
   limits:
-    cpu: 18
-    memory: 12Gi
+    cpu: 26
+    memory: 26Gi
 
 dataImage:
   enabled: true
