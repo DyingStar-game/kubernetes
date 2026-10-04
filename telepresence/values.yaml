@@ -85,3 +85,11 @@ intercept:
 
 routeController:
   enabled: true
+  # Découverte du service CIDR : sur k8s < 1.33 l'API `networking.k8s.io/v1`
+  # ServiceCIDR n'existe pas, le contrôleur log un warning et n'installe
+  # aucune règle FORWARD -> des ClusterIP orphelins (Service supprimé) partent
+  # en boucle via la route par défaut (minikube = cluster local). On force donc
+  # la valeur, qui a priorité sur la découverte automatique. Défaut minikube :
+  # `minikube start --service-cluster-ip-range=10.96.0.0/12`.
+  serviceCIDRs:
+    - "10.96.0.0/12"
