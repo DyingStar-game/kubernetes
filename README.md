@@ -613,6 +613,57 @@ NFS share on TrueNAS with the settings of [nextcloud/README.md §1](nextcloud/RE
 (Maproot = root, node subnet only) at the `sharedCache.nfs.path` of the
 environment (`/mnt/storage1/dyingstar/godotserver-preprod` / `-prod`).
 
+#### Develop godot server with cluster APIs (Telepresence)
+
+When the local game server must call the in-cluster services (`service-mission`,
+`service-economie`, `service-social`, `service-inventory`, `service-market`, on
+port 3000), Telepresence gives your workstation the cluster's DNS and routes, so
+the local process reaches them **by service name, exactly like a pod**. The
+server config stays in cluster names (`http://service-mission:3000`, ...) — no
+Traefik hostname to swap in, no per-mode divergence.
+
+Receive-side (the cluster reaching your local instance) and send-side (your local
+instance reaching the cluster) are the two directions of the *same* session: a
+plain `telepresence connect` already carries both.
+
+```bash
+# Client 2.28.x, aligned with the traffic-manager chart
+# (argocd/dev/infra/telepresence.yaml, targetRevision 2.28.0).
+telepresence connect --namespace dyingstar
+
+# Prove the outbound path before starting the game server.
+curl -s http://service-mission:3000/api/health
+curl -s http://service-economie:3000/api/health
+telepresence status
+```
+
+Then start the local server as usual (editor `F5`, dedicated server). If you also
+want the cluster to hit your local instance, keep the existing intercept and let
+Telepresence hand you the pod env:
+
+```bash
+telepresence intercept godotserver --port 8980:8980 --env-file /tmp/godot.env
+# ...
+telepresence leave godotserver      # stop the intercept
+telepresence quit                   # end the session
+```
+
+Caveats specific to this repo:
+
+- **Never restart minikube while connected.** `start-dev.sh` / `start-dev.ps1`
+  run `telepresence quit -s` before `minikube start`: while connected,
+  Telepresence registers a `tel2-search` DNS search domain that Docker copies
+  into the minikube container, which then breaks in-cluster lookups (the
+  traffic-agent never becomes ready). Start minikube first, then connect.
+- `*.dyingstar.local` (Keycloak, Traefik) keeps resolving through `/etc/hosts`
+  and the `minikube tunnel` — independently of Telepresence. Check it during a
+  session with
+  `curl -s http://auth.dyingstar.local/realms/dyingstar/.well-known/openid-configuration`.
+- The client must match the traffic-manager installed by ArgoCD (**2.28.x** vs
+  chart `2.28.0`); a version skew shows up as connection errors.
+- `telepresence/values.yaml` pins `routeController.serviceCIDRs` because the
+  automatic ServiceCIDR discovery needs Kubernetes ≥ 1.33.
+
 #### Develop Horizon
 
 Clone [horizonserver](https://github.com/DyingStar-game/horizonserver) next to this
