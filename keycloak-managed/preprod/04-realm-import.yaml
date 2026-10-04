@@ -79,12 +79,13 @@ spec:
         # (KeycloakOIDCClient.serviceAccountRoles), donc on les déclare ici avec
         # les MÊMES noms. Ne jamais les renommer ni les préfixer (ex: /dyingstar).
         #
-        # Social (9)
+        # Social (10)
         - name: social:profile:read
         - name: social:profile:write
         - name: social:player:write
         - name: social:corporation:read
         - name: social:corporation:write
+        - name: social:group:read
         - name: social:politics:read
         - name: social:politics:write
         - name: social:sanctions:read
@@ -384,12 +385,13 @@ spec:
               included.custom.audience: economie-api
               access.token.claim: "true"
               id.token.claim: "false"
-      # Service mission -> economie-api + social-api : règle les récompenses
-      # économiques à la complétion d'une mission et vérifie l'appartenance à une
-      # corporation (missions corporation-scoped).
+      # Service mission -> economie-api + social-api + inventory-api : règle les
+      # récompenses économiques, vérifie l'appartenance à une corporation/un
+      # groupe (missions corporation-scoped) et lit l'inventaire (objectifs
+      # owns_items / deliver_items).
       - clientId: svc-mission
         name: DyingStar mission (client_credentials)
-        description: Service mission -> economie-api + social-api.
+        description: Service mission -> economie-api + social-api + inventory-api.
         enabled: true
         protocol: openid-connect
         publicClient: false
@@ -412,8 +414,15 @@ spec:
               included.custom.audience: social-api
               access.token.claim: "true"
               id.token.claim: "false"
-      # Client d'administration : porte TOUTES les capacités du realm (les 16
-      # rôles, cf. 06-service-clients.yaml) et les audiences des 3 APIs. Réservé
+          - name: inventory-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: inventory-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+      # Client d'administration : porte TOUTES les capacités du realm (les 31
+      # rôles, cf. 06-service-clients.yaml) et les audiences des 5 APIs. Réservé
       # à une console/interface d'admin — jamais au jeu. Sa compromission donne
       # toutes les capacités machine du realm : c'est volontaire, mais à isoler
       # (secret dédié, rotation, réseau).

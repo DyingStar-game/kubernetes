@@ -31,7 +31,7 @@ oidc:
   issuer: "https://auth-preprod.dyingstar-game.com/realms/dyingstar"
   serviceAudience: "inventory-api"
 
-internalServiceClients: "svc-game,svc-admin"
+internalServiceClients: "svc-game,svc-admin,svc-mission"
 
 # The `svc-inventory` client secret is created out of band as
 # `service-inventory-inventory-client` (key `secret`); it MUST equal
