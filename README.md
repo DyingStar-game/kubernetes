@@ -300,13 +300,13 @@ in the APIs; never rename any of it.**
 
 | clientId | `aud` in the access token | realm roles on the service account |
 | --- | --- | --- |
-| `svc-game` | `economie-api`, `social-api`, `mission-api`, `market-api`, `inventory-api` | the 30 capacity roles |
+| `svc-game` | `economie-api`, `social-api`, `mission-api`, `market-api`, `inventory-api` | the 31 capacity roles |
 | `svc-market` | `economie-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit` |
 | `svc-inventory` | `economie-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit` |
-| `svc-mission` | `economie-api`, `social-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit`, `social:corporation:read` |
-| `svc-admin` | `economie-api`, `social-api`, `mission-api`, `market-api`, `inventory-api` | the 30 capacity roles (console d'admin — client le plus privilégié) |
+| `svc-mission` | `economie-api`, `social-api`, `inventory-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit`, `social:corporation:read`, `social:group:read`, `social:profile:read`, `inventory:read` |
+| `svc-admin` | `economie-api`, `social-api`, `mission-api`, `market-api`, `inventory-api` | the 31 capacity roles (console d'admin — client le plus privilégié) |
 
-The 30 realm roles (no realm prefix). **Naming authority:
+The 31 realm roles (no realm prefix). **Naming authority:
 [`keycloak-managed/dev/import/README.md`](keycloak-managed/dev/import/README.md)** (the
 prod/preprod realm model). In prod these are **client roles** on each `*-api`
 client; dev-local declares them as **realm roles** because the Keycloak operator
@@ -315,7 +315,7 @@ are identical, so dev ↔ prod stay interchangeable:
 
 ```text
 social:profile:read  social:profile:write  social:player:write
-social:corporation:read  social:corporation:write
+social:corporation:read  social:corporation:write  social:group:read
 social:politics:read  social:politics:write
 social:sanctions:read  social:reputation:write
 economie:wallet:read  economie:wallet:ensure  economie:wallet:credit  economie:wallet:debit
@@ -813,8 +813,10 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
 - **Caller**: only the game server (`svc-game`) is allow-listed on
   `/api/internal/*` (`internalServiceClients`), with `OIDC_SERVICE_AUDIENCE=mission-api`
 - **Calls out** as the `svc-mission` Keycloak service account (client_credentials,
-  audience `economie-api` + `social-api`): `ECONOMY_API_URL` to pay rewards and
-  `SOCIAL_API_URL` to verify corporation membership. The client secret is read
+  audience `economie-api` + `social-api` + `inventory-api`): `ECONOMY_API_URL` to
+  pay rewards, `SOCIAL_API_URL` to verify corporation/group membership and
+  reputation, and the inventory API to check `owns_items` / `deliver_items`
+  objectives. The client secret is read
   from the Secret `service-mission-mission-client` (key `secret`), created by the
   chart in dev from `serviceClient.clientSecret`; it must equal
   `svc-mission-client-secret` in `keycloak-managed/dev/06-service-clients.yaml`
@@ -859,9 +861,10 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
   HTTPRoute, `/inventory` prefix stripped by a `URLRewrite` filter)
 - **Preprod hostname**: `service-preprod.dyingstar-game.com/inventory` (same
   path-prefix + URLRewrite model)
-- **Caller**: the game server (`svc-game`) and the admin console (`svc-admin`)
-  are allow-listed on `/api/internal/*` (`internalServiceClients`), with
-  `OIDC_SERVICE_AUDIENCE=inventory-api`
+- **Caller**: the game server (`svc-game`), the admin console (`svc-admin`) and
+  the mission service (`svc-mission`, for `owns_items` / `deliver_items`
+  objectives) are allow-listed on `/api/internal/*` (`internalServiceClients`),
+  with `OIDC_SERVICE_AUDIENCE=inventory-api`
 - **Calls out** as the `svc-inventory` Keycloak service account
   (client_credentials, audience `economie-api`): `ECONOMY_API_URL` to debit/credit
   wallets. The client secret is read from the Secret

@@ -16,7 +16,7 @@ l'opérateur.
 | --- | --- |
 | `00-cnpg-cluster.yaml` | Cluster CloudNativePG `keycloak-db` |
 | `03-keycloak.yaml` | CR `Keycloak` (image custom, issuer `https://auth-preprod.dyingstar-game.com`, DB CNPG) |
-| `04-realm-import.yaml` | `KeycloakRealmImport` du realm `dyingstar` (30 rôles + launcher + clients `svc-*`) |
+| `04-realm-import.yaml` | `KeycloakRealmImport` du realm `dyingstar` (31 rôles + launcher + clients `svc-*`) |
 | `05-httproute.yaml` | `HTTPRoute` `auth-preprod.dyingstar-game.com` (listener Traefik `keycloak`, HTTPS) |
 | `06-service-clients.yaml` | `KeycloakOIDCClient` `svc-*` (secrets hors-bande) |
 | `07-discord-bootstrap-job.yaml` | Job PostSync : provider Discord via `bootstrap-discord-idp.sh` |
