@@ -47,10 +47,16 @@ kubectl --context "$CTX" -n "$NS" create secret generic keycloak-bootstrap-user 
 
 # Le service account admin : l'opérateur lit `client-id` / `client-secret`.
 # `client-id` DOIT être `operator-admin` (valeur par défaut de l'opérateur) ;
-# `client-secret` = mot de passe ci-dessus.
+# `client-secret` : valeur hexadécimale indépendante. Pas de caractères
+# spéciaux (`+`, `/`, `=`…) : l'opérateur ne les encode pas et Keycloak répond
+# `invalid_client_credentials` (401 sur les `KeycloakOIDCClient`).
+# Keycloak ne crée `operator-admin` (et l'admin console) que sur un realm
+# `master` vide : sur une base migrée, créer le client à la main (confidentiel,
+# service account, rôle `admin` de `master`, même secret), puis redémarrer
+# l'opérateur pour qu'il relise ce Secret.
 kubectl --context "$CTX" -n "$NS" create secret generic keycloak-admin \
   --from-literal=client-id=operator-admin \
-  --from-literal=client-secret='<le même mot de passe que ci-dessus>'
+  --from-literal=client-secret="$(openssl rand -hex 32)"
 
 # 2. Base de données
 kubectl --context "$CTX" -n "$NS" create secret generic keycloak-db-secret \
