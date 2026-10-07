@@ -206,6 +206,25 @@ env:
       secretKeyRef:
         name: service-market-internal-key
         key: INTERNAL_API_KEY
+  # Same shared X-Internal-Key, presented outbound when calling the economy,
+  # inventory and social APIs. They read the same Secret: the value is identical
+  # across services (see internalApiKey below), so one Secret per service is
+  # enough.
+  - name: ECONOMY_INTERNAL_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: service-market-internal-key
+        key: INTERNAL_API_KEY
+  - name: INVENTORY_INTERNAL_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: service-market-internal-key
+        key: INTERNAL_API_KEY
+  - name: SOCIAL_INTERNAL_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: service-market-internal-key
+        key: INTERNAL_API_KEY
   # Economy: automatic tax applied to player-to-player transfers (basis points,
   # 500 = 5%). Amounts are integer minor units (crédits).
   - name: ECONOMY_TRANSFER_TAX_BPS
@@ -252,7 +271,9 @@ internalServiceClients: ""
 # secret's Secret name depends on the release fullname.
 #
 # `serviceClient` is the `svc-market` Keycloak client (the market acting as a
-# caller), used to call the economy internal API (wallet):
+# caller), used to call the economy internal API (wallet), the inventory
+# internal API (escrow/hold) and the social internal API (corporation
+# membership):
 #   - clientId        : the client_credentials client (svc-market).
 #   - existingSecret  : Secret (app namespace) holding the client secret under
 #                       key `secret`. Empty => chart-created
@@ -269,6 +290,16 @@ economy:
   # Economy internal API used to debit/credit wallets. Empty disables the
   # integration.
   apiUrl: "http://service-economie:3000"
+
+inventory:
+  # Inventory internal API used to escrow/hold the items backing open orders.
+  # Empty disables the integration.
+  apiUrl: ""
+
+social:
+  # Social internal API used to resolve corporation/group membership. Empty
+  # disables the integration.
+  apiUrl: ""
 
 # Shared secret presented by the game server in the X-Internal-Key header.
 # Same pattern as livekit's keys Secret: the chart only creates one when

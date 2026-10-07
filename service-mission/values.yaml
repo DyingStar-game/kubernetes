@@ -212,6 +212,25 @@ env:
       secretKeyRef:
         name: service-mission-internal-key
         key: INTERNAL_API_KEY
+  # Same shared X-Internal-Key, presented outbound when calling the economy,
+  # social and inventory APIs. They read the same Secret: the value is identical
+  # across services (see internalApiKey below), so one Secret per service is
+  # enough.
+  - name: ECONOMY_INTERNAL_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: service-mission-internal-key
+        key: INTERNAL_API_KEY
+  - name: SOCIAL_INTERNAL_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: service-mission-internal-key
+        key: INTERNAL_API_KEY
+  - name: INVENTORY_INTERNAL_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: service-mission-internal-key
+        key: INTERNAL_API_KEY
   # Pay an economic reward automatically when a mission is completed (true), or
   # only through the internal settle endpoint (false).
   - name: MISSION_REWARD_AUTO_SETTLE
@@ -245,7 +264,14 @@ social:
   # Social internal API used to verify corporation membership (corporation-scoped
   # missions). Empty disables corporation missions.
   apiUrl: ""
-
+inventory:
+  # Inventory internal API used to check `owns_items` / `deliver_items`
+  # objectives. Empty disables those objective types.
+  apiUrl: ""
+  # Holder inventory credited with the items a mission pays out. Rendered only
+  # when non-empty: it has no environment-neutral default, so each environment
+  # must set it explicitly.
+  systemHolderId: ""
 
 # Keycloak / OIDC. Rendered by templates/deployment.yaml rather than listed in
 # `env` because the issuer changes with the environment and Helm replaces lists

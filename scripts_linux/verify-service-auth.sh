@@ -35,6 +35,7 @@
 #   SVC_INVENTORY_SECRET   sinon lu depuis le Secret svc-inventory-client-secret
 #   SVC_MISSION_SECRET     sinon lu depuis le Secret svc-mission-client-secret
 #   SVC_ADMIN_SECRET       sinon lu depuis le Secret svc-admin-client-secret
+#   SVC_ECONOMIE_SECRET    sinon lu depuis le Secret svc-economie-client-secret
 #   ECONOMIE_BASE_URL      ex http://service.dyingstar.local/economie (sinon volet 2 sauté)
 #   SOCIAL_BASE_URL        ex http://service.dyingstar.local/social
 #   MISSION_BASE_URL       ex http://service.dyingstar.local/mission
@@ -228,46 +229,53 @@ info "issuer  : $ISSUER"
 info "endpoint: $TOKEN_ENDPOINT"
 
 # Rôles (source unique : contrat API). Noms alignés sur l'autorité de nommage
-# keycloak-managed/dev/import/README.md (31 rôles de capacité).
+# keycloak-managed/dev/import/README.md (33 rôles de capacité).
 ECON_ROLES=(economie:wallet:read economie:wallet:ensure economie:wallet:credit economie:wallet:debit economie:corporation:read economie:corporation:manage economie:politics:read economie:politics:manage economie:money:issue)
-SOCIAL_ROLES=(social:profile:read social:profile:write social:player:write social:corporation:read social:corporation:write social:group:read social:politics:read social:politics:write social:sanctions:read social:reputation:write)
+SOCIAL_ROLES=(social:profile:read social:profile:write social:player:write social:corporation:read social:corporation:write social:group:read social:politics:read social:politics:write social:sanctions:read social:reputation:write social:authorize)
 # L'API mission exige `mission:read` / `mission:write` / `mission:progress` /
 # `mission:complete` (noms exacts renvoyés dans ses erreurs 403).
 MISSION_ROLES=(mission:read mission:write mission:progress mission:complete)
 # Rôles de capacité des APIs market / inventory (rôles realm, pas des rôles du
 # client appelant) : ce sont ce que svc-game/svc-admin doivent porter.
 MARKET_API_ROLES=(market:read market:manage market:settle)
-INVENTORY_API_ROLES=(inventory:read inventory:credit inventory:transfer inventory:hold inventory:corporation:manage)
+INVENTORY_API_ROLES=(inventory:read inventory:credit inventory:transfer inventory:hold inventory:corporation:manage inventory:poi:manage)
 ALL_ROLES=("${ECON_ROLES[@]}" "${SOCIAL_ROLES[@]}" "${MISSION_ROLES[@]}" "${MARKET_API_ROLES[@]}" "${INVENTORY_API_ROLES[@]}")
-# svc-market / svc-inventory sont des callers (economie uniquement) : ils ne
-# portent ni audience market-api/inventory-api ni rôle market:*/inventory:*.
-MARKET_ROLES=(economie:wallet:read economie:wallet:credit economie:wallet:debit)
-INVENTORY_SVC_ROLES=(economie:wallet:read economie:wallet:credit economie:wallet:debit)
+# svc-market / svc-inventory / svc-economie sont des callers, pas des appelés :
+# ils ne portent jamais l'audience de leur propre API (market-api /
+# inventory-api / economie-api de leur côté caller), mais bien celles des APIs
+# qu'ils appellent.
+MARKET_ROLES=(economie:wallet:read economie:wallet:credit economie:wallet:debit inventory:read inventory:hold inventory:transfer social:corporation:read social:group:read social:profile:read social:authorize)
+INVENTORY_SVC_ROLES=(economie:wallet:read economie:wallet:credit economie:wallet:debit social:corporation:read social:group:read social:profile:read social:authorize)
+ECONOMIE_SVC_ROLES=(social:corporation:read social:group:read social:profile:read social:authorize)
 # svc-mission est un caller (economie + social + inventory), pas un appelé : il
 # ne porte jamais d'audience mission-api ni de rôle mission:*. Il lit le profil
 # social (prereq min_reputation), l'appartenance corporation/groupe, et
 # l'inventaire (objectifs owns_items / deliver_items).
-MISSION_SVC_ROLES=(economie:wallet:read economie:wallet:credit economie:wallet:debit social:corporation:read social:group:read social:profile:read inventory:read)
+MISSION_SVC_ROLES=(economie:wallet:read economie:wallet:credit economie:wallet:debit social:corporation:read social:group:read social:profile:read inventory:read social:authorize)
 
 SVC_GAME_SECRET="$(fetch_secret svc-game-client-secret "${SVC_GAME_SECRET:-}")" || exit 1
 SVC_MARKET_SECRET="$(fetch_secret svc-market-client-secret "${SVC_MARKET_SECRET:-}")" || exit 1
 SVC_INVENTORY_SECRET="$(fetch_secret svc-inventory-client-secret "${SVC_INVENTORY_SECRET:-}")" || exit 1
 SVC_MISSION_SECRET="$(fetch_secret svc-mission-client-secret "${SVC_MISSION_SECRET:-}")" || exit 1
 SVC_ADMIN_SECRET="$(fetch_secret svc-admin-client-secret "${SVC_ADMIN_SECRET:-}")" || exit 1
+SVC_ECONOMIE_SECRET="$(fetch_secret svc-economie-client-secret "${SVC_ECONOMIE_SECRET:-}")" || exit 1
 
 AUD_EXPECT="economie-api social-api mission-api market-api inventory-api" AUD_ABSENT="" verify_token svc-game "$SVC_GAME_SECRET" "${ALL_ROLES[@]}"
 GAME_TOKEN="$(get_token svc-game "$SVC_GAME_SECRET" 2>/dev/null || true)"
 
-AUD_EXPECT="economie-api" AUD_ABSENT="social-api market-api inventory-api" verify_token svc-market "$SVC_MARKET_SECRET" "${MARKET_ROLES[@]}"
+AUD_EXPECT="economie-api inventory-api social-api" AUD_ABSENT="mission-api market-api" verify_token svc-market "$SVC_MARKET_SECRET" "${MARKET_ROLES[@]}"
 MARKET_TOKEN="$(get_token svc-market "$SVC_MARKET_SECRET" 2>/dev/null || true)"
 
-AUD_EXPECT="economie-api" AUD_ABSENT="market-api inventory-api social-api" verify_token svc-inventory "$SVC_INVENTORY_SECRET" "${INVENTORY_SVC_ROLES[@]}"
+AUD_EXPECT="economie-api social-api" AUD_ABSENT="mission-api market-api inventory-api" verify_token svc-inventory "$SVC_INVENTORY_SECRET" "${INVENTORY_SVC_ROLES[@]}"
 INVENTORY_TOKEN="$(get_token svc-inventory "$SVC_INVENTORY_SECRET" 2>/dev/null || true)"
+
+AUD_EXPECT="social-api" AUD_ABSENT="economie-api mission-api market-api inventory-api" verify_token svc-economie "$SVC_ECONOMIE_SECRET" "${ECONOMIE_SVC_ROLES[@]}"
+ECONOMIE_TOKEN="$(get_token svc-economie "$SVC_ECONOMIE_SECRET" 2>/dev/null || true)"
 
 AUD_EXPECT="economie-api social-api inventory-api" AUD_ABSENT="mission-api market-api" verify_token svc-mission "$SVC_MISSION_SECRET" "${MISSION_SVC_ROLES[@]}"
 MISSION_TOKEN="$(get_token svc-mission "$SVC_MISSION_SECRET" 2>/dev/null || true)"
 
-# Console d'admin : toutes les audiences et les 31 rôles.
+# Console d'admin : toutes les audiences et les 33 rôles.
 AUD_EXPECT="economie-api social-api mission-api market-api inventory-api" AUD_ABSENT="" verify_token svc-admin "$SVC_ADMIN_SECRET" "${ALL_ROLES[@]}"
 ADMIN_TOKEN="$(get_token svc-admin "$SVC_ADMIN_SECRET" 2>/dev/null || true)"
 
@@ -284,6 +292,9 @@ if [ -n "${ECONOMIE_BASE_URL:-}" ] || [ -n "${SOCIAL_BASE_URL:-}" ] || [ -n "${M
   if [ -n "$ECONOMIE_BASE_URL" ]; then
     sect "API economie ($ECONOMIE_BASE_URL)"
     expect_code "svc-game GET wallet"                200 GET  "$ECONOMIE_BASE_URL/api/internal/players/$PLAYER_UUID/wallet" "$GAME_TOKEN"
+    # svc-inventory fait partie de l'allowlist de l'API economie (debit/credit
+    # des wallets pour les mouvements de stock) : authentification acceptée.
+    expect_code_any "svc-inventory GET wallet" "200 404" GET "$ECONOMIE_BASE_URL/api/internal/players/$PLAYER_UUID/wallet" "$INVENTORY_TOKEN"
     if [ "${MUTATING:-0}" = "1" ]; then
       # L'API economie exige un corps {amount: <nombre>} (entier, unités mineures).
       expect_code "svc-game POST wallet/credit"     201 POST "$ECONOMIE_BASE_URL/api/internal/players/$PLAYER_UUID/wallet/credit" "$GAME_TOKEN" '{"amount":1}'
@@ -298,9 +309,10 @@ if [ -n "${ECONOMIE_BASE_URL:-}" ] || [ -n "${SOCIAL_BASE_URL:-}" ] || [ -n "${M
 
   if [ -n "$SOCIAL_BASE_URL" ]; then
     sect "API social ($SOCIAL_BASE_URL)"
-    # svc-market n'a pas l'audience social-api : le social rejette le token,
-    # en 401 (audience invalide) ou 403 selon l'implémentation du service.
-    expect_code_any "svc-market sur endpoint social" "401 403" GET "$SOCIAL_BASE_URL$SOCIAL_PROBE_PATH" "$MARKET_TOKEN"
+    # svc-market et svc-economie portent l'audience social-api : la sonde passe
+    # l'authentification (200 si le chemin existe, 404 acceptable sinon).
+    expect_code_any "svc-market GET social probe" "200 404" GET "$SOCIAL_BASE_URL$SOCIAL_PROBE_PATH" "$MARKET_TOKEN"
+    expect_code_any "svc-economie GET social probe" "200 404" GET "$SOCIAL_BASE_URL$SOCIAL_PROBE_PATH" "$ECONOMIE_TOKEN"
     # svc-game a l'audience social-api : on ne teste que si le chemin sonde
     # existe réellement, sinon 404 est un résultat acceptable.
     if [ -n "$GAME_TOKEN" ]; then
@@ -354,8 +366,10 @@ if [ -n "${ECONOMIE_BASE_URL:-}" ] || [ -n "${SOCIAL_BASE_URL:-}" ] || [ -n "${M
     expect_code_any "svc-mission GET inventory probe" "200 400 404" GET "$INVENTORY_BASE_URL$INVENTORY_PROBE_PATH" "$MISSION_TOKEN"
     # Sans token : jamais 200 (non-contournement).
     expect_code "inventory sans token" 401 GET "$INVENTORY_BASE_URL$INVENTORY_PROBE_PATH"
-    # svc-market / svc-inventory n'ont pas l'audience inventory-api : rejetés.
-    expect_code_any "svc-market sur endpoint inventory" "401 403" GET "$INVENTORY_BASE_URL$INVENTORY_PROBE_PATH" "$MARKET_TOKEN"
+    # svc-market porte désormais l'audience inventory-api + inventory:read :
+    # au-delà de l'authentification, un 400 (paramètre manquant) est acceptable.
+    expect_code_any "svc-market GET inventory probe" "200 400 404" GET "$INVENTORY_BASE_URL$INVENTORY_PROBE_PATH" "$MARKET_TOKEN"
+    # svc-inventory n'a pas l'audience inventory-api : rejeté.
     expect_code_any "svc-inventory sur endpoint inventory" "401 403" GET "$INVENTORY_BASE_URL$INVENTORY_PROBE_PATH" "$INVENTORY_TOKEN"
   fi
 else

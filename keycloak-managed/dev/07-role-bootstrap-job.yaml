@@ -1,0 +1,200 @@
+# Job de bootstrap des rôles de capacité du realm `dyingstar` (dev-local).
+#
+# Pourquoi ce job existe : l'import du realm est **create-only**
+# (`KeycloakRealmImport` exécuté par l'opérateur avec `--override=false`), donc
+# un rôle ajouté *après* le premier import n'est JAMAIS créé dans un realm déjà
+# présent — et `KeycloakOIDCClient.serviceAccountRoles` échoue alors en
+# `Cannot assign role ... does not exist` (les CR `svc-game` / `svc-admin` /
+# `svc-mission` étaient dans cet état). Wiper le PVC n'est pas une option
+# acceptable : ce job rend la création des rôles **idempotente et rejouée à
+# chaque sync** (hook PostSync), pour tout nouvel ajout futur.
+#
+# Il crée les realm roles ET les mappers d'audience des clients `svc-*` :
+# les deux sont décrits par `KeycloakRealmImport` (create-only) et absents du
+# périmètre de `KeycloakOIDCClient`, donc les deux suivent la même dérive.
+# L'assignation des rôles au service account reste portée par
+# `06-service-clients.yaml` (`serviceAccountRoles`), cf. la répartition des
+# responsabilités décrite en tête de ce fichier. Ce job ne supprime RIEN.
+#
+# ⠠ Miroirs de 04-realm-import.yaml : `ROLES` = `spec.realm.roles`,
+# `CLIENT_AUD` = `protocolMappers[].config.included.custom.audience` par
+# client. L'autorité de nommage reste `import/README.md` (sections « Service
+# capability roles » et la note sur les audiences) : toute ajout dans un de ces
+# miroirs doit l'être dans les trois.
+#
+# Le script est en bash (disponible dans l'image Keycloak) et n'utilise ni
+# `jq` ni `openssl`.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-bootstrap-roles
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  backoffLimit: 6
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: bootstrap-roles
+          # Même image que la CR Keycloak de ce dossier (image volontairement
+          # absente de 03-keycloak.yaml : l'opérateur tire RELATED_IMAGE_KEYCLOAK,
+          # ici 26.7.0 — version alignée sur l'opérateur).
+          image: quay.io/keycloak/keycloak:26.7.0
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              KC_HOST="keycloak"
+              KC_PORT="8080"
+              KC="/opt/keycloak/bin/kcadm.sh"
+
+              echo "Waiting for Keycloak at ${KC_HOST}:${KC_PORT}..."
+              until (echo > "/dev/tcp/${KC_HOST}/${KC_PORT}") 2>/dev/null; do
+                echo "waiting for keycloak to accept connections..."
+                sleep 5
+              done
+              # Port open != fully ready : on retente la connexion admin.
+              until "${KC}" config credentials \
+                    --server "${KC_SERVER_URL}" \
+                    --realm master \
+                    --user "${KEYCLOAK_ADMIN}" \
+                    --password "${KEYCLOAK_ADMIN_PASSWORD}" >/dev/null 2>&1; do
+                echo "waiting for keycloak admin API..."
+                sleep 5
+              done
+
+              ROLES=$(cat <<'EOF'
+              social:profile:read
+              social:profile:write
+              social:player:write
+              social:corporation:read
+              social:corporation:write
+              social:group:read
+              social:politics:read
+              social:politics:write
+              social:sanctions:read
+              social:reputation:write
+              social:authorize
+              economie:wallet:read
+              economie:wallet:ensure
+              economie:wallet:credit
+              economie:wallet:debit
+              economie:corporation:read
+              economie:corporation:manage
+              economie:politics:read
+              economie:politics:manage
+              economie:money:issue
+              inventory:read
+              inventory:credit
+              inventory:transfer
+              inventory:hold
+              inventory:corporation:manage
+              inventory:poi:manage
+              mission:read
+              mission:write
+              mission:progress
+              mission:complete
+              market:read
+              market:manage
+              market:settle
+              EOF
+              )
+
+              if ! "${KC}" get "realms/${KC_REALM}/roles" >/tmp/roles.json 2>/tmp/roles.err; then
+                echo "cannot list the realm roles of ${KC_REALM} (realm not imported yet?):"
+                cat /tmp/roles.err
+                exit 1
+              fi
+              COMPACT="$(tr -d '[:space:]' < /tmp/roles.json)"
+
+              present=0
+              created=0
+              while IFS= read -r role; do
+                [ -z "${role}" ] && continue
+                if [[ "${COMPACT}" == *'"name":"'"${role}"'"'* ]]; then
+                  present=$((present + 1))
+                else
+                  "${KC}" create "realms/${KC_REALM}/roles" -s "name=${role}" >/dev/null
+                  created=$((created + 1))
+                  echo "created ${role}"
+                fi
+              done <<< "${ROLES}"
+
+              echo "roles: present=${present} created=${created}"
+
+              # ------------------------------------------------------------------
+              # 2. Mappers d'audience des clients de service
+              # ------------------------------------------------------------------
+              # Même dérive : un mapper ajouté à 04-realm-import.yaml après le
+              # premier import n'existe jamais sur un realm déjà présent, et le
+              # token ne porte alors plus l'audience de l'API appelée (le
+              # resource server répond 401 avant même la vérification de rôle).
+              declare -A CLIENT_AUD=(
+                [svc-game]="economie-api social-api mission-api market-api inventory-api"
+                [svc-market]="economie-api inventory-api social-api"
+                [svc-inventory]="economie-api social-api"
+                [svc-economie]="social-api"
+                [svc-mission]="economie-api social-api inventory-api"
+                [svc-admin]="economie-api social-api mission-api market-api inventory-api"
+              )
+
+              mpresent=0
+              mcreated=0
+              mskipped=0
+              for client in "${!CLIENT_AUD[@]}"; do
+                cid=$("${KC}" get clients -q "clientId=${client}" \
+                      | grep -o '"id" *: *"[^"]*"' | head -1 | sed 's/.*: *"//; s/"$//')
+                if [ -z "${cid}" ]; then
+                  # Le client n'existe pas encore (créé par l'import ou par la CR) :
+                  # la prochaine sync le rattrapera.
+                  echo "audience: ${client} absent, ignoré"
+                  mskipped=$((mskipped + 1))
+                  continue
+                fi
+                CMP=$("${KC}" get "clients/${cid}/protocol-mappers/models" | tr -d '[:space:]')
+                for aud in ${CLIENT_AUD[${client}]}; do
+                  name="${aud}-audience"
+                  if [[ "${CMP}" == *'"name":"'"${name}"'"'* ]]; then
+                    mpresent=$((mpresent + 1))
+                  else
+                    "${KC}" create "clients/${cid}/protocol-mappers/models" -f - <<JSON
+              {"name":"${name}","protocol":"openid-connect","protocolMapper":"oidc-audience-mapper","config":{"included.custom.audience":"${aud}","access.token.claim":"true","id.token.claim":"false"}}
+              JSON
+                    mcreated=$((mcreated + 1))
+                    echo "created ${client} -> ${name}"
+                  fi
+                done
+              done
+
+              echo "audiences: present=${mpresent} created=${mcreated} skipped_clients=${mskipped}"
+          env:
+            # kcadm écrit sa config dans ${HOME}/.keycloak ; HOME de l'image
+            # (/opt/keycloak) n'est pas forcément inscriptible selon l'image.
+            - name: HOME
+              value: /tmp
+            - name: KC_SERVER_URL
+              value: "http://keycloak:8080/"
+            - name: KC_REALM
+              value: "dyingstar"
+            - name: KEYCLOAK_ADMIN
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-bootstrap-user
+                  key: username
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-bootstrap-user
+                  key: password
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 1
+              memory: 512Mi

@@ -45,6 +45,8 @@ economy:
   apiUrl: "http://service-economie:3000"
 social:
   apiUrl: "http://service-social:3000"
+inventory:
+  apiUrl: "http://service-inventory:3000"
 
 # Exposed through the preprod Traefik gateway on the shared
 # `service-preprod.dyingstar-game.com` host; the `/mission` prefix is stripped

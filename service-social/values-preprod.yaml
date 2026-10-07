@@ -31,7 +31,7 @@ oidc:
   issuer: "https://auth-preprod.dyingstar-game.com/realms/dyingstar"
   serviceAudience: "social-api"
 
-internalServiceClients: "svc-game,svc-market,svc-mission,svc-admin"
+internalServiceClients: "svc-game,svc-market,svc-inventory,svc-economie,svc-mission,svc-admin"
 
 # Exposed through the preprod Traefik gateway on the shared
 # `service-preprod.dyingstar-game.com` host; the `/social` prefix is stripped
