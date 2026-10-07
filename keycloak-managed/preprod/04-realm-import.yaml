@@ -6,7 +6,8 @@
 # ⚠ Le job est rejoué à chaque changement de ce fichier, mais l'opérateur
 # l'exécute avec `--override=false` : un realm DÉJÀ présent n'est jamais
 # réparé/mis à jour. Pour (re)appliquer ce fichier il faut repartir d'une base
-# neuve (supprimer le PVC de `keycloak-db` — wipe toléré).
+# neuve (supprimer le PVC de `keycloak-db` dans `dyingstar-preprod` — wipe
+# toléré).
 #
 # Réglages realm alignés sur l'image custom prod/preprod
 # (`keycloak-managed/dev/import/realm/dyingstar-realm.json`) : registration ouverte,
@@ -23,6 +24,7 @@ apiVersion: k8s.keycloak.org/v2beta1
 kind: KeycloakRealmImport
 metadata:
   name: dyingstar-realm
+  namespace: dyingstar-preprod
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:

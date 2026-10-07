@@ -4,12 +4,14 @@
 # argocd/preprod/infra/cnpg-op-app.yaml (namespace cnpg-system), comme en dev-local.
 #
 # ⚠ Le Secret `keycloak-db-secret` (clés `username` / `password`) n'est PAS
-# commité : il est créé hors-bande dans le namespace `keycloak` AVANT que ce
-# Cluster soit réconcilié (sinon `initdb` échoue). Cf. README.md de ce dossier.
+# commité : il est créé hors-bande dans le namespace `dyingstar-preprod` AVANT
+# que ce Cluster soit réconcilié (sinon `initdb` échoue). Cf. README.md de ce
+# dossier.
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
   name: keycloak-db
+  namespace: dyingstar-preprod
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
 spec:

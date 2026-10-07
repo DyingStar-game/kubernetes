@@ -6,10 +6,15 @@
 # L'hôte DOIT rester aligné avec spec.hostname.hostname de 03-keycloak.yaml :
 # c'est lui qui devient l'issuer des tokens. Convention de nommage alignée sur
 # prod (`auth.dyingstar-game.com`).
+#
+# parentRef cross-namespace (route dans `dyingstar-preprod`, Gateway dans
+# `traefik`) : autorisé car le listener `keycloak` déclare
+# `namespacePolicy.from: All` — aucune ReferenceGrant n'est nécessaire.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: keycloak
+  namespace: dyingstar-preprod
   annotations:
     argocd.argoproj.io/sync-wave: "3"
 spec:

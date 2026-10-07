@@ -5,16 +5,36 @@ metadata:
   namespace: argocd
 spec:
   project: infra
+  # Deux sources dans une seule Application : l'opérateur upstream + nos CR.
+  #
+  # L'opérateur tourne en **cluster-wide** (source `kubernetes/cluster-wide`,
+  # env `JOSDK_ALL_NAMESPACES`) : il réconcilie les CR `Keycloak` de TOUS les
+  # namespaces du cluster, pas seulement le sien. C'est ce qui permet de faire
+  # vivre plusieurs instances — preprod dans `dyingstar-preprod`, et plus tard
+  # prod dans `dyingstar-prod` — avec une seule installation d'opérateur.
+  # (La variante `kubernetes` non retenue est en `JOSDK_WATCH_CURRENT` : elle
+  # obligerait chaque CR à vivre dans le namespace de l'opérateur, ou une
+  # installation d'opérateur par namespace.)
   sources:
+    # 1. Opérateur Keycloak upstream + ses CRD. La kustomization
+    #    `cluster-wide` force le namespace `keycloak-operator` sur ses
+    #    ressources namespaced, mais ne crée PAS d'objet Namespace :
+    #    c'est `CreateNamespace=true` + `destination.namespace` ci-dessous qui
+    #    crée `keycloak-operator`. Attention donc à ne pas remettre
+    #    `namespace: keycloak` ici.
     - repoURL: 'https://github.com/keycloak/keycloak-k8s-resources.git'
       targetRevision: 26.7.0
-      path: kubernetes
+      path: kubernetes/cluster-wide
+    # 2. Nos ressources Keycloak de preprod : CR Keycloak, base CloudNativePG,
+    #    realm, HTTPRoute, jobs — vivent en namespace `dyingstar-preprod`
+    #    (namespace explicite dans chaque manifeste, requis : la destination
+    #    ci-dessous s'applique aux ressources sans namespace).
     - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
       targetRevision: main
       path: keycloak-managed/preprod
   destination:
     server: 'https://kubernetes.default.svc'
-    namespace: keycloak
+    namespace: keycloak-operator
   syncPolicy:
     automated:
       prune: true

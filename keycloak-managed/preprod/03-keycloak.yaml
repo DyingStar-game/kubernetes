@@ -1,14 +1,15 @@
 # Keycloak de preprod, réconcilié par l'opérateur upstream installé par
-# argocd/preprod/infra/keycloak-app.yaml (namespace `keycloak`).
+# argocd/preprod/infra/keycloak-app.yaml.
 #
-# Pourquoi la CR vit dans le namespace `keycloak` et pas `dyingstar-preprod` :
-# le Deployment de l'opérateur est configuré avec
-#   QUARKUS_OPERATOR_SDK_CONTROLLERS_KEYCLOAKCONTROLLER_NAMESPACES=JOSDK_WATCH_CURRENT
-# donc il n'observe que son propre namespace.
+# La CR vit dans le namespace du jeu `dyingstar-preprod` : l'opérateur est en
+# cluster-wide (`kubernetes/cluster-wide`, `JOSDK_ALL_NAMESPACES`), il observe
+# donc les CR de tous les namespaces. La CR, sa base (`00-cnpg-cluster.yaml`),
+# ses secrets et son realm import partagent tous ce namespace.
 apiVersion: k8s.keycloak.org/v2beta1
 kind: Keycloak
 metadata:
   name: keycloak
+  namespace: dyingstar-preprod
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 spec:
