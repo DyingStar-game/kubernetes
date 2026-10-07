@@ -82,7 +82,7 @@ httpRoute:
       namespace: traefik
       sectionName: web
   hostnames:
-    - "service.dyingstar.local"
+    - "services.dyingstar.local"
   rules:
     - matches:
         - path:

@@ -6,4 +6,4 @@ chat.dyingstar.local
 vocal.dyingstar.local
 otlp.dyingstar.local
 auth.dyingstar.local
-service.dyingstar.local
+services.dyingstar.local
