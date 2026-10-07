@@ -87,6 +87,19 @@ spec:
             - name: INTERNAL_SERVICE_CLIENTS
               value: {{ . | quote }}
             {{- end }}
+            {{- with .Values.social.apiUrl }}
+            - name: SOCIAL_API_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.serviceClient.clientId }}
+            - name: SOCIAL_SERVICE_CLIENT_ID
+              value: {{ . | quote }}
+            - name: SOCIAL_SERVICE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.serviceClient.existingSecret | default (printf "%s-economie-client" (include "service-economie.fullname" $)) }}
+                  key: secret
+            {{- end }}
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

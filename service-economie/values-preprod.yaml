@@ -31,7 +31,18 @@ oidc:
   issuer: "https://auth-preprod.dyingstar-game.com/realms/dyingstar"
   serviceAudience: "economie-api"
 
-internalServiceClients: "svc-game,svc-market,svc-mission,svc-admin"
+internalServiceClients: "svc-game,svc-market,svc-inventory,svc-mission,svc-admin"
+
+# The `svc-economie` client secret is created out of band as
+# `service-economie-economie-client` (key `secret`); it MUST equal
+# `svc-economie-client-secret` in keycloak-managed/preprod/06-service-clients.yaml.
+serviceClient:
+  clientId: "svc-economie"
+  existingSecret: "service-economie-economie-client"
+  create: false
+
+social:
+  apiUrl: "http://service-social:3000"
 
 # Exposed through the preprod Traefik gateway on the shared
 # `service-preprod.dyingstar-game.com` host; the `/economie` prefix is stripped

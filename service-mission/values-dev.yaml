@@ -67,6 +67,8 @@ economy:
   apiUrl: "http://service-economie:3000"
 social:
   apiUrl: "http://service-social:3000"
+inventory:
+  apiUrl: "http://service-inventory:3000"
 
 # Exposed through the dev Traefik gateway (traefik/values-dev.yaml) on the shared
 # `service.dyingstar.local` host, which the minikube tunnel resolves; the hostname

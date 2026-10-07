@@ -91,6 +91,14 @@ spec:
             - name: ECONOMY_API_URL
               value: {{ . | quote }}
             {{- end }}
+            {{- with .Values.inventory.apiUrl }}
+            - name: INVENTORY_API_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.social.apiUrl }}
+            - name: SOCIAL_API_URL
+              value: {{ . | quote }}
+            {{- end }}
             {{- with .Values.serviceClient.clientId }}
             - name: ECONOMY_SERVICE_CLIENT_ID
               value: {{ . | quote }}
@@ -98,6 +106,24 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ $.Values.serviceClient.existingSecret | default (printf "%s-market-client" (include "service-market.fullname" $)) }}
+                  key: secret
+            {{- end }}
+            {{- if and .Values.serviceClient.clientId .Values.inventory.apiUrl }}
+            - name: INVENTORY_SERVICE_CLIENT_ID
+              value: {{ .Values.serviceClient.clientId | quote }}
+            - name: INVENTORY_SERVICE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.serviceClient.existingSecret | default (printf "%s-market-client" (include "service-market.fullname" .)) }}
+                  key: secret
+            {{- end }}
+            {{- if and .Values.serviceClient.clientId .Values.social.apiUrl }}
+            - name: SOCIAL_SERVICE_CLIENT_ID
+              value: {{ .Values.serviceClient.clientId | quote }}
+            - name: SOCIAL_SERVICE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.serviceClient.existingSecret | default (printf "%s-market-client" (include "service-market.fullname" .)) }}
                   key: secret
             {{- end }}
             {{- with .Values.env }}

@@ -69,6 +69,7 @@ sync with each service's `src/middleware/auth.ts` `SERVICE_ROLES`.
 | `social:politics:write` | NPC political membership + internal political entity management |
 | `social:sanctions:read` | Active sanctions (mute/ban enforcement) |
 | `social:reputation:write` | Reputation adjustments and rehabilitation passes |
+| `social:authorize` | Central ACL: `POST /api/internal/authorize` + permission catalog |
 
 ### economie (`economie-api`)
 | Role | Grants |
@@ -88,6 +89,7 @@ sync with each service's `src/middleware/auth.ts` `SERVICE_ROLES`.
 | `inventory:transfer` | Transfers (stacks, instances, hold consumption) |
 | `inventory:hold` | Reserve (hold) and release items |
 | `inventory:corporation:manage` | *(declared, not yet wired to a route)* |
+| `inventory:poi:manage` | Create/edit/delete POIs on the internal API |
 
 ### mission (`mission-api`)
 | Role | Grants |
@@ -109,11 +111,40 @@ sync with each service's `src/middleware/auth.ts` `SERVICE_ROLES`.
 > roles: `social:corporation:write`, `social:politics:write`, `economie:wallet:*`,
 > `economie:politics:*`, `inventory:*`, `mission:*` and `market:*`.
 >
+> A new role must be declared in **three** places: this table (naming authority),
+> `spec.realm.roles` of `04-realm-import.yaml` (dev **and** preprod), and the inline
+> list of `07-role-bootstrap-job.yaml` (dev) / `08-role-bootstrap-job.yaml` (preprod).
+> The realm import is create-only (`--override=false`): on an already-imported realm
+> it is the PostSync job that actually creates the role — without it the
+> `KeycloakOIDCClient` reconciliation fails with
+> `Cannot assign role ... does not exist`.
+>
+> The same create-only gap applies to the **audience mappers** declared in the
+> `protocolMappers` of each `svc-*` client in `04-realm-import.yaml`: they must
+> also be mirrored in the `CLIENT_AUD` table of that same job, otherwise the
+> token ships without `aud` for the called API and the resource server answers
+> 401 before any role check.
+>
 > The mission service (`svc-mission`) needs, on top of the write roles it already uses:
 > `social:corporation:read`, `social:group:read`, `social:profile:read` (prereq `min_reputation`)
 > on `social-api`, `economie:wallet:read` on `economie-api` (prereq/objective `has_credits`),
 > and `inventory:read` on `inventory-api` (objectives `owns_items` / `deliver_items`). The
 > `inventory-api` audience must therefore be mapped on its client too.
+>
+> The market service (`svc-market`) needs `economie:wallet:read/credit/debit` on
+> `economie-api` (settlement), `inventory:read` + `inventory:hold` + `inventory:transfer` on
+> `inventory-api` (order escrow) and `social:corporation:read` + `social:group:read` +
+> `social:profile:read` on `social-api` (corporation-scoped orders). Its client carries the
+> `economie-api`, `inventory-api` and `social-api` audiences — and never `market-api`.
+>
+> The inventory service (`svc-inventory`) needs `economie:wallet:read/credit/debit` on
+> `economie-api` (stock movements) and `social:corporation:read` + `social:group:read` +
+> `social:profile:read` on `social-api` (corporation deposits/withdrawals). Its client
+> carries `economie-api` + `social-api` — and never `inventory-api`.
+>
+> The economy service (`svc-economie`) only calls `social-api`, for
+> `social:corporation:read` + `social:group:read` + `social:profile:read` (corporation and
+> political treasuries). Its client carries `social-api` only.
 
 ## Required GitHub Secrets
 

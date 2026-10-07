@@ -44,8 +44,9 @@ oidc:
 
 # Clients Keycloak autorisés sur /api/internal/* (claim `azp`). Les clientIds
 # hors de cette liste sont rejetés en 403 SERVICE_FORBIDDEN.
-# Le serveur de jeu appelle le marché ; svc-admin est la console d'admin.
-internalServiceClients: "svc-game,svc-admin,svc-mission"
+# svc-game et svc-admin gèrent les inventaires ; svc-mission lit les objectifs
+# owns_items / deliver_items ; svc-market place et libère la caution des ordres.
+internalServiceClients: "svc-game,svc-admin,svc-mission,svc-market"
 
 # DEV ONLY: the chart creates service-inventory-internal-key from this value, the
 # way livekit creates its keys Secret when no existingKeysSecret is set. The game
@@ -65,6 +66,9 @@ serviceClient:
 
 economy:
   apiUrl: "http://service-economie:3000"
+
+social:
+  apiUrl: "http://service-social:3000"
 
 # Exposed through the dev Traefik gateway (traefik/values-dev.yaml) on the shared
 # `service.dyingstar.local` host, which the minikube tunnel resolves; the hostname

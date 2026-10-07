@@ -16,10 +16,11 @@ l'opérateur.
 | --- | --- |
 | `00-cnpg-cluster.yaml` | Cluster CloudNativePG `keycloak-db` |
 | `03-keycloak.yaml` | CR `Keycloak` (image custom, issuer `https://auth-preprod.dyingstar-game.com`, DB CNPG) |
-| `04-realm-import.yaml` | `KeycloakRealmImport` du realm `dyingstar` (31 rôles + launcher + clients `svc-*`) |
+| `04-realm-import.yaml` | `KeycloakRealmImport` du realm `dyingstar` (33 rôles + launcher + clients `svc-*`) |
 | `05-httproute.yaml` | `HTTPRoute` `auth-preprod.dyingstar-game.com` (listener Traefik `keycloak`, HTTPS) |
-| `06-service-clients.yaml` | `KeycloakOIDCClient` `svc-*` (secrets hors-bande) |
+| `06-service-clients.yaml` | `KeycloakOIDCClient` `svc-*` (`svc-game`, `svc-market`, `svc-inventory`, `svc-mission`, `svc-admin`, `svc-economie` — secrets hors-bande) |
 | `07-discord-bootstrap-job.yaml` | Job PostSync : provider Discord via `bootstrap-discord-idp.sh` |
+| `08-role-bootstrap-job.yaml` | Job PostSync idempotent : (re)crée les rôles de capacité du realm **et** les mappers d'audience des clients `svc-*` (voir § Wipe) |
 
 ## Pré-requis : Secrets hors-bande
 
@@ -55,7 +56,7 @@ kubectl --context "$CTX" -n "$NS" create secret generic keycloak-discord \
   --from-literal=DISCORD_CLIENT_SECRET='<secret>'
 
 # 4. Secrets des clients de service (clé `secret`), un par `svc-*`
-for c in svc-game svc-market svc-inventory svc-mission svc-admin; do
+for c in svc-game svc-market svc-inventory svc-mission svc-admin svc-economie; do
   kubectl --context "$CTX" -n "$NS" create secret generic "${c}-client-secret" \
     --from-literal=secret="$(openssl rand -hex 32)"
 done
@@ -69,6 +70,29 @@ namespace applicatif `dyingstar-preprod` sous les noms attendus par les charts :
 | `svc-mission` | `service-mission-mission-client` (clé `secret`) |
 | `svc-market` | `service-market-market-client` (clé `secret`) |
 | `svc-inventory` | `service-inventory-inventory-client` (clé `secret`) |
+| `svc-economie` | `service-economie-economie-client` (clé `secret`) |
+
+### Secret `X-Internal-Key` par service applicatif
+
+Chaque chart `service-*` référence, en `env`, le Secret littéral
+`service-<nom>-internal-key` (clé `INTERNAL_API_KEY`) pour lire/envoyer le
+header `X-Internal-Key`. En preprod `internalApiKey.create` reste à `false`
+(donc le chart ne le crée **pas**) : il doit exister **hors-bande** dans le
+namespace applicatif, sinon le pod reste en `CreateContainerConfigError`.
+
+Une **même** valeur est utilisée par tous les services (le header est partagé) :
+
+```bash
+NS=dyingstar-preprod
+KEY="$(openssl rand -hex 32)"
+for s in service-economie service-social service-inventory service-market service-mission; do
+  kubectl --context "$CTX" -n "$NS" create secret generic "${s}-internal-key" \
+    --from-literal=INTERNAL_API_KEY="$KEY"
+done
+```
+
+> Ces Secrets ne sont pas liés à Keycloak : ils portent un secret partagé entre
+> services, pas une identité `client_credentials`.
 
 ## Ordre de réconciliation (sync-waves)
 
@@ -78,9 +102,24 @@ namespace applicatif `dyingstar-preprod` sous les noms attendus par les charts :
 4. `2` : `KeycloakOIDCClient`.
 5. `3` : `HTTPRoute`.
 6. `4` (hook PostSync) : Job Discord.
+7. `5` (hook PostSync) : Job des rôles de capacité (`08-role-bootstrap-job.yaml`).
 
 ## Wipe
 
 Le realm import est **create-only** (`--override=false`) : pour réappliquer une
 modification de `04-realm-import.yaml`, il faut repartir d'une base neuve
 (supprimer le PVC de `keycloak-db`). Un wipe complet est toléré.
+
+> ⚠ Conséquence : ajouter un client (`svc-economie`) ou une audience
+> (`inventory-api` / `social-api` sur `svc-market`, `social-api` sur
+> `svc-inventory`) **n'a aucun effet** sur un realm déjà importé — hors wipe,
+> il faut créer ces objets à la main via `kcadm.sh`, ou repartir de zéro.
+> Même comportement en dev-local.
+>
+> Les **rôles** et les **mappers d'audience** sont en revanche couverts par le
+> job PostSync `08-role-bootstrap-job.yaml` : il les recrée (idempotent,
+> n'écrase et ne supprime rien) à chaque sync, ce qui évite l'erreur
+> `Cannot assign role ... does not exist` sur les CR `KeycloakOIDCClient` et
+> les tokens sans audience. Toute nouvelle capacité doit donc être ajoutée à
+> `04-realm-import.yaml` **et** à la liste inline du job (mirrors documentés en
+> tête du job et dans `import/README.md`).

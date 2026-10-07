@@ -226,7 +226,8 @@ Both the operator and our CRs are declared by a single infra Application,
 | `03-keycloak.yaml` | La CR Keycloak (base, hostname, proxy, ressources) + feature `client-admin-api:v2` requise par les CRs clients |
 | `04-realm-import.yaml` | Realm `dyingstar`, rôles de capacité, clients OIDC (dont `svc-*` + mappers d'audience), importé par le job `kcadm` de l'opérateur |
 | `05-httproute.yaml` | Exposition via la Gateway Traefik |
-| `06-service-clients.yaml` | Clients de service `KeycloakOIDCClient` (`svc-game`, `svc-market`, `svc-inventory`, `svc-mission`, `svc-admin`) : `secretRef` + rôles du service account, et leurs Secrets dev (`svc-*-client-secret`) |
+| `06-service-clients.yaml` | Clients de service `KeycloakOIDCClient` (`svc-game`, `svc-market`, `svc-inventory`, `svc-mission`, `svc-admin`, `svc-economie`) : `secretRef` + rôles du service account, et leurs Secrets dev (`svc-*-client-secret`) |
+| `07-role-bootstrap-job.yaml` | Job PostSync idempotent : (re)crée les rôles de capacité du realm **et** les mappers d'audience des clients `svc-*` — indispensable car l'import est create-only (`--override=false`), un objet ajouté après le 1er import n'existerait jamais |
 
 Key points:
 
@@ -301,9 +302,10 @@ in the APIs; never rename any of it.**
 | clientId | `aud` in the access token | realm roles on the service account |
 | --- | --- | --- |
 | `svc-game` | `economie-api`, `social-api`, `mission-api`, `market-api`, `inventory-api` | the 31 capacity roles |
-| `svc-market` | `economie-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit` |
-| `svc-inventory` | `economie-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit` |
+| `svc-market` | `economie-api`, `inventory-api`, `social-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit`, `inventory:read`, `inventory:hold`, `inventory:transfer`, `social:corporation:read`, `social:group:read`, `social:profile:read` |
+| `svc-inventory` | `economie-api`, `social-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit`, `social:corporation:read`, `social:group:read`, `social:profile:read` |
 | `svc-mission` | `economie-api`, `social-api`, `inventory-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit`, `social:corporation:read`, `social:group:read`, `social:profile:read`, `inventory:read` |
+| `svc-economie` | `social-api` | `social:corporation:read`, `social:group:read`, `social:profile:read` |
 | `svc-admin` | `economie-api`, `social-api`, `mission-api`, `market-api`, `inventory-api` | the 31 capacity roles (console d'admin — client le plus privilégié) |
 
 The 31 realm roles (no realm prefix). **Naming authority:
@@ -326,10 +328,11 @@ mission:read  mission:write  mission:progress  mission:complete
 market:read  market:manage  market:settle
 ```
 
-Note the distinction: `svc-market` / `svc-inventory` are the identities those two
-**services** use to *call* the economy API. The `market` / `inventory` APIs
-themselves are called by `svc-game` / `svc-admin` (audiences `market-api` /
-`inventory-api`).
+Note the distinction: `svc-market` / `svc-inventory` / `svc-economie` are the
+identities those three **services** use to *call* the economy / inventory /
+social APIs. The `market` / `inventory` APIs themselves are called by `svc-game`
+/ `svc-admin` (audiences `market-api` / `inventory-api`), plus `svc-mission` and
+`svc-market` on `inventory-api`.
 
 #### Which CRD does what (verified against the deployed operator)
 
@@ -376,12 +379,10 @@ band**, one per environment, and never committed:
 
 ```bash
 # Once per environment, BEFORE the KeycloakOIDCClient is reconciled:
-kubectl -n keycloak create secret generic svc-game-client-secret \
-  --from-literal=secret="$(openssl rand -hex 32)"
-kubectl -n keycloak create secret generic svc-market-client-secret \
-  --from-literal=secret="$(openssl rand -hex 32)"
-kubectl -n keycloak create secret generic svc-inventory-client-secret \
-  --from-literal=secret="$(openssl rand -hex 32)"
+for c in svc-game svc-market svc-inventory svc-mission svc-admin svc-economie; do
+  kubectl -n keycloak create secret generic "${c}-client-secret" \
+    --from-literal=secret="$(openssl rand -hex 32)"
+done
 ```
 
 **En dev-local**, pour que la stack soit auto-portante (mêmes valeurs en clair que
@@ -420,15 +421,26 @@ other shared secret.
 
 #### Values to report to the APIs, per environment
 
-| Env | Issuer (`OIDC_ISSUER`) | `OIDC_SERVICE_AUDIENCE` | `INTERNAL_SERVICE_CLIENTS` |
-| --- | --- | --- | --- |
-| dev-local | `http://auth.dyingstar.local/realms/dyingstar` | `economie-api` / `social-api` / `mission-api` / `market-api` / `inventory-api` | `svc-game,svc-market,svc-mission,svc-admin` |
-| preprod | `https://auth-preprod.dyingstar-game.com/realms/dyingstar` | `economie-api` / `social-api` / `mission-api` / `market-api` / `inventory-api` | `svc-game,svc-market,svc-mission,svc-admin` |
-| prod | `https://auth.dyingstar-game.com/realms/dyingstar` | `economie-api` / `social-api` / `mission-api` / `market-api` / `inventory-api` | `svc-game,svc-market,svc-mission,svc-admin` |
+| Env | Issuer (`OIDC_ISSUER`) |
+| --- | --- |
+| dev-local | `http://auth.dyingstar.local/realms/dyingstar` |
+| preprod | `https://auth-preprod.dyingstar-game.com/realms/dyingstar` |
+| prod | `https://auth.dyingstar-game.com/realms/dyingstar` |
 
-`OIDC_SERVICE_AUDIENCE` is per API (economie / social / mission / market /
-inventory); `INTERNAL_SERVICE_CLIENTS`
-is the allowlist of callers for all of them. **A clientId absent from `INTERNAL_SERVICE_CLIENTS`
+`OIDC_SERVICE_AUDIENCE` is per API (`economie-api` / `social-api` /
+`mission-api` / `market-api` / `inventory-api`), and so is
+`INTERNAL_SERVICE_CLIENTS` — the allowlist of callers for **that** API
+(`values-dev.yaml` / `values-preprod.yaml`, key `internalServiceClients`):
+
+| API (`OIDC_SERVICE_AUDIENCE`) | `INTERNAL_SERVICE_CLIENTS` |
+| --- | --- |
+| `economie-api` | `svc-game,svc-market,svc-inventory,svc-mission,svc-admin` |
+| `social-api` | `svc-game,svc-market,svc-inventory,svc-economie,svc-mission,svc-admin` |
+| `inventory-api` | `svc-game,svc-admin,svc-mission,svc-market` |
+| `mission-api` | `svc-game,svc-admin` |
+| `market-api` | `svc-game,svc-admin` |
+
+**A clientId absent from `INTERNAL_SERVICE_CLIENTS`
 is rejected with `403 SERVICE_FORBIDDEN`**, and a token whose `aud` does not match
 the API is rejected as well. The player client (`dyingstar-game`) carries
 `azp = dyingstar-game`, which is never in the allowlist: player tokens are never
@@ -825,9 +837,19 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
   HTTPRoute, `/economie` prefix stripped by a `URLRewrite` filter)
 - **Preprod hostname**: `service-preprod.dyingstar-game.com/economie` (same
   path-prefix + URLRewrite model)
+- **Caller**: `svc-game`, `svc-market`, `svc-inventory`, `svc-mission` and
+  `svc-admin` are allow-listed on `/api/internal/*` (`internalServiceClients`),
+  with `OIDC_SERVICE_AUDIENCE=economie-api`
+- **Calls out** as the `svc-economie` Keycloak service account (client_credentials,
+  audience `social-api`): `SOCIAL_API_URL` to resolve corporation/group
+  membership. The client secret is read from the Secret
+  `service-economie-economie-client` (key `secret`), created by the chart in dev
+  from `serviceClient.clientSecret`; it must equal `svc-economie-client-secret`
+  in `keycloak-managed/dev/06-service-clients.yaml`
 - **Env**: `POSTGRES_*` and `DATABASE_URL` are generated by the Deployment
-  template from `database`; `OIDC_ISSUER` comes from the per-environment `oidc`
-  block (empty by default); `INTERNAL_API_KEY` is read from the Secret
+  template from `database`; `OIDC_ISSUER` / `INTERNAL_SERVICE_CLIENTS` /
+  `SOCIAL_*` come from the per-environment `oidc` / `internalServiceClients` /
+  `social` + `serviceClient` blocks; `INTERNAL_API_KEY` is read from the Secret
   `service-economie-internal-key`, created by the chart in dev from
   `internalApiKey.key`; the rest (`NODE_ENV`, `CORS_ORIGIN`,
   `AUTH_DEV_BYPASS`, `ECONOMY_*`) lives in `env` in `values.yaml`
@@ -843,9 +865,14 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
   HTTPRoute, `/social` prefix stripped by a `URLRewrite` filter)
 - **Preprod hostname**: `service-preprod.dyingstar-game.com/social` (same
   path-prefix + URLRewrite model)
+- **Caller**: `svc-game`, `svc-market`, `svc-inventory`, `svc-economie`,
+  `svc-mission` and `svc-admin` are allow-listed on `/api/internal/*`
+  (`internalServiceClients`), with `OIDC_SERVICE_AUDIENCE=social-api`
+- **Calls out**: nothing — `service-social` has no `serviceClient` block
 - **Env**: `POSTGRES_*` and `DATABASE_URL` are generated by the Deployment
-  template from `database`; `OIDC_ISSUER` comes from the per-environment `oidc`
-  block (empty by default); `INTERNAL_API_KEY` is read from the Secret
+  template from `database`; `OIDC_ISSUER` / `INTERNAL_SERVICE_CLIENTS` come from
+  the per-environment `oidc` / `internalServiceClients` blocks;
+  `INTERNAL_API_KEY` is read from the Secret
   `service-social-internal-key`, created by the chart in dev from
   `internalApiKey.key`; the rest (`NODE_ENV`, `CORS_ORIGIN`, `AUTH_DEV_BYPASS`,
   `REPUTATION_*`) lives in `env` in `values.yaml`
@@ -861,21 +888,24 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
   HTTPRoute, `/mission` prefix stripped by a `URLRewrite` filter)
 - **Preprod hostname**: `service-preprod.dyingstar-game.com/mission` (same
   path-prefix + URLRewrite model)
-- **Caller**: only the game server (`svc-game`) is allow-listed on
-  `/api/internal/*` (`internalServiceClients`), with `OIDC_SERVICE_AUDIENCE=mission-api`
+- **Caller**: the game server (`svc-game`) and the admin console (`svc-admin`)
+  are allow-listed on `/api/internal/*` (`internalServiceClients`), with
+  `OIDC_SERVICE_AUDIENCE=mission-api`
 - **Calls out** as the `svc-mission` Keycloak service account (client_credentials,
   audience `economie-api` + `social-api` + `inventory-api`): `ECONOMY_API_URL` to
   pay rewards, `SOCIAL_API_URL` to verify corporation/group membership and
-  reputation, and the inventory API to check `owns_items` / `deliver_items`
+  reputation, and `INVENTORY_API_URL` to check `owns_items` / `deliver_items`
   objectives. The client secret is read
   from the Secret `service-mission-mission-client` (key `secret`), created by the
   chart in dev from `serviceClient.clientSecret`; it must equal
   `svc-mission-client-secret` in `keycloak-managed/dev/06-service-clients.yaml`
 - **Env**: `POSTGRES_*` / `DATABASE_URL`, `OIDC_*`, `INTERNAL_SERVICE_CLIENTS`,
-  `ECONOMY_*`, `SOCIAL_*` and `PORT` are rendered by the Deployment template;
-  `INTERNAL_API_KEY` comes from the Secret `service-mission-internal-key`; the
-   rest (`NODE_ENV`, `CORS_ORIGIN`, `AUTH_DEV_BYPASS`, `INTERNAL_DEV_BYPASS`,
-   `MISSION_*`) lives in `env` in `values.yaml`
+  `ECONOMY_*`, `SOCIAL_*`, `INVENTORY_*` and `PORT` are rendered by the
+  Deployment template; `INTERNAL_API_KEY` / `ECONOMY_INTERNAL_API_KEY` /
+  `SOCIAL_INTERNAL_API_KEY` / `INVENTORY_INTERNAL_API_KEY` come from the Secret
+  `service-mission-internal-key`; the rest (`NODE_ENV`, `CORS_ORIGIN`,
+  `AUTH_DEV_BYPASS`, `INTERNAL_DEV_BYPASS`, `MISSION_*`) lives in `env` in
+  `values.yaml`
 
 ### Service Market
 - **Ports**: 3000 (HTTP API), 9200 (WebSocket). No `PORT` env var is injected:
@@ -892,14 +922,18 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
   are allow-listed on `/api/internal/*` (`internalServiceClients`), with
   `OIDC_SERVICE_AUDIENCE=market-api`
 - **Calls out** as the `svc-market` Keycloak service account (client_credentials,
-  audience `economie-api`): `ECONOMY_API_URL` to debit/credit wallets. The client
+  audience `economie-api` + `inventory-api` + `social-api`): `ECONOMY_API_URL` to
+  debit/credit wallets, `INVENTORY_API_URL` to escrow/hold the items backing open
+  orders, `SOCIAL_API_URL` to resolve corporation membership. The client
   secret is read from the Secret `service-market-market-client` (key `secret`),
   created by the chart in dev from `serviceClient.clientSecret`; it must equal
   `svc-market-client-secret` in `keycloak-managed/dev/06-service-clients.yaml`
-- **Env**: `POSTGRES_*` / `DATABASE_URL`, `OIDC_*`, `INTERNAL_SERVICE_CLIENTS`
-  and `ECONOMY_*` are rendered by the Deployment template; `INTERNAL_API_KEY`
-  comes from the Secret `service-market-internal-key`; the rest (`NODE_ENV`,
-  `CORS_ORIGIN`, `AUTH_DEV_BYPASS`) lives in `env` in `values.yaml`
+- **Env**: `POSTGRES_*` / `DATABASE_URL`, `OIDC_*`, `INTERNAL_SERVICE_CLIENTS`,
+  `ECONOMY_*`, `INVENTORY_*` and `SOCIAL_*` are rendered by the Deployment
+  template; `INTERNAL_API_KEY` / `ECONOMY_INTERNAL_API_KEY` /
+  `INVENTORY_INTERNAL_API_KEY` / `SOCIAL_INTERNAL_API_KEY` come from the Secret
+  `service-market-internal-key`; the rest (`NODE_ENV`, `CORS_ORIGIN`,
+  `AUTH_DEV_BYPASS`) lives in `env` in `values.yaml`
 
 ### Service Inventory
 - **Ports**: 3000 (HTTP API), 9200 (WebSocket). No `PORT` env var is injected:
@@ -912,19 +946,22 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
   HTTPRoute, `/inventory` prefix stripped by a `URLRewrite` filter)
 - **Preprod hostname**: `service-preprod.dyingstar-game.com/inventory` (same
   path-prefix + URLRewrite model)
-- **Caller**: the game server (`svc-game`), the admin console (`svc-admin`) and
+- **Caller**: the game server (`svc-game`), the admin console (`svc-admin`),
   the mission service (`svc-mission`, for `owns_items` / `deliver_items`
-  objectives) are allow-listed on `/api/internal/*` (`internalServiceClients`),
-  with `OIDC_SERVICE_AUDIENCE=inventory-api`
+  objectives) and the market service (`svc-market`, order escrow) are
+  allow-listed on `/api/internal/*` (`internalServiceClients`), with
+  `OIDC_SERVICE_AUDIENCE=inventory-api`
 - **Calls out** as the `svc-inventory` Keycloak service account
-  (client_credentials, audience `economie-api`): `ECONOMY_API_URL` to debit/credit
-  wallets. The client secret is read from the Secret
+  (client_credentials, audience `economie-api` + `social-api`): `ECONOMY_API_URL`
+  to debit/credit wallets, `SOCIAL_API_URL` to resolve corporation membership.
+  The client secret is read from the Secret
   `service-inventory-inventory-client` (key `secret`), created by the chart in dev
   from `serviceClient.clientSecret`; it must equal `svc-inventory-client-secret`
   in `keycloak-managed/dev/06-service-clients.yaml`
-- **Env**: `POSTGRES_*` / `DATABASE_URL`, `OIDC_*`, `INTERNAL_SERVICE_CLIENTS`
-  and `ECONOMY_*` are rendered by the Deployment template; `INTERNAL_API_KEY`
-  comes from the Secret `service-inventory-internal-key`; the rest (`NODE_ENV`,
+- **Env**: `POSTGRES_*` / `DATABASE_URL`, `OIDC_*`, `INTERNAL_SERVICE_CLIENTS`,
+  `ECONOMY_*` and `SOCIAL_*` are rendered by the Deployment template;
+  `INTERNAL_API_KEY` / `ECONOMY_INTERNAL_API_KEY` / `SOCIAL_INTERNAL_API_KEY`
+  come from the Secret `service-inventory-internal-key`; the rest (`NODE_ENV`,
   `CORS_ORIGIN`, `AUTH_DEV_BYPASS`) lives in `env` in `values.yaml`
 
 ### Service Persistence
@@ -952,8 +989,16 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
   - `keycloak-discord` — keys `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`
 - **Required Secrets** in **preprod** (operator, out-of-band in namespace `keycloak`):
   `keycloak-bootstrap-user`, `keycloak-admin`, `keycloak-db-secret`,
-  `keycloak-discord`, `svc-*-client-secret` ×5. See
+  `keycloak-discord`, `svc-*-client-secret` ×6. See
   [`keycloak-managed/preprod/README.md`](keycloak-managed/preprod/README.md).
+- **Required Secrets** in **preprod**, namespace `dyingstar-preprod` (out-of-band,
+  the charts never create them because `serviceClient.create` /
+  `internalApiKey.create` stay `false`):
+  - `service-{economie,inventory,mission,market}-*-client` (key `secret`) — the
+    same value as the matching `svc-*-client-secret` in `keycloak`
+  - `service-{economie,social,inventory,market,mission}-internal-key` (key
+    `INTERNAL_API_KEY`) — one **shared** `X-Internal-Key` value for all five
+    services
 - **Discord OAuth callback URLs** to register on the Discord developer portal:
   - prod:    `https://auth.dyingstar-game.com/realms/dyingstar/broker/discord/endpoint`
   - preprod: `https://auth-preprod.dyingstar-game.com/realms/dyingstar/broker/discord/endpoint`

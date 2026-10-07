@@ -79,7 +79,7 @@ spec:
         # (KeycloakOIDCClient.serviceAccountRoles), donc on les déclare ici avec
         # les MÊMES noms. Ne jamais les renommer ni les préfixer (ex: /dyingstar).
         #
-        # Social (10)
+        # Social (11)
         - name: social:profile:read
         - name: social:profile:write
         - name: social:player:write
@@ -90,6 +90,7 @@ spec:
         - name: social:politics:write
         - name: social:sanctions:read
         - name: social:reputation:write
+        - name: social:authorize
         # Économie (9)
         - name: economie:wallet:read
         - name: economie:wallet:ensure
@@ -100,12 +101,13 @@ spec:
         - name: economie:politics:read
         - name: economie:politics:manage
         - name: economie:money:issue
-        # Inventory (5)
+        # Inventory (6)
         - name: inventory:read
         - name: inventory:credit
         - name: inventory:transfer
         - name: inventory:hold
         - name: inventory:corporation:manage
+        - name: inventory:poi:manage
         # Mission (4) — noms EXACTS exigés par l'API mission (l'API répond
         # « Requires service role mission:read » etc.) : pas de segment ressource
         # ici, contrairement à economie:wallet:*. `mission:progress` remplace
@@ -349,7 +351,7 @@ spec:
               id.token.claim: "false"
       - clientId: svc-market
         name: DyingStar market (client_credentials)
-        description: Marché -> economie-api uniquement (pas d'audience social-api).
+        description: Marché -> economie-api + inventory-api + social-api.
         enabled: true
         protocol: openid-connect
         publicClient: false
@@ -365,11 +367,26 @@ spec:
               included.custom.audience: economie-api
               access.token.claim: "true"
               id.token.claim: "false"
-      # Service inventory -> economie-api uniquement (comme svc-market : il
-      # débite/crédite les wallets pour les mouvements de stock).
+          - name: inventory-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: inventory-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: social-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: social-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+      # Service inventory -> economie-api + social-api : il débite/crédite les
+      # wallets pour les mouvements de stock et lit l'appartenance corporation /
+      # groupe pour les dépôts et retraits en corporation.
       - clientId: svc-inventory
         name: DyingStar inventory (client_credentials)
-        description: Inventaire -> economie-api uniquement.
+        description: Inventaire -> economie-api + social-api.
         enabled: true
         protocol: openid-connect
         publicClient: false
@@ -383,6 +400,33 @@ spec:
             protocolMapper: oidc-audience-mapper
             config:
               included.custom.audience: economie-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: social-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: social-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+      # Service economie -> social-api : résout l'appartenance corporation /
+      # groupe (comptes en corporation, opérations politique).
+      - clientId: svc-economie
+        name: DyingStar economie (client_credentials)
+        description: Economie -> social-api.
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: true
+        protocolMappers:
+          - name: social-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: social-api
               access.token.claim: "true"
               id.token.claim: "false"
       # Service mission -> economie-api + social-api + inventory-api : règle les

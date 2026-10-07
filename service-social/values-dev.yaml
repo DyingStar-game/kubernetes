@@ -45,8 +45,10 @@ oidc:
 # Clients Keycloak autorisés sur /api/internal/* (claim `azp`). Les clientIds
 # hors de cette liste sont rejetés en 403 SERVICE_FORBIDDEN.
 # svc-mission vérifie l'appartenance à une corporation (social:corporation:read) ;
+# svc-inventory et svc-economie lisent l'appartenance corporation / groupe ;
+# svc-market lit l'appartenance pour les ordres en corporation ;
 # svc-admin est la console d'admin (toutes capacités).
-internalServiceClients: "svc-game,svc-market,svc-mission,svc-admin"
+internalServiceClients: "svc-game,svc-market,svc-inventory,svc-economie,svc-mission,svc-admin"
 
 # DEV ONLY: the chart creates service-social-internal-key from this value, the
 # way livekit creates its keys Secret when no existingKeysSecret is set. The game

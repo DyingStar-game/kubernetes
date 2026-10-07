@@ -206,6 +206,14 @@ env:
       secretKeyRef:
         name: service-economie-internal-key
         key: INTERNAL_API_KEY
+  # Same shared X-Internal-Key, presented outbound when calling the social API.
+  # Reads the same Secret: the value is identical across services (see
+  # internalApiKey below), so one Secret per service is enough.
+  - name: SOCIAL_INTERNAL_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: service-economie-internal-key
+        key: INTERNAL_API_KEY
   # Economy: automatic tax applied to player-to-player transfers (basis points,
   # 500 = 5%). Amounts are integer minor units (crédits).
   - name: ECONOMY_TRANSFER_TAX_BPS
@@ -222,6 +230,28 @@ env:
   # Reserved account collecting automatic taxes (system holder)
   - name: ECONOMY_TAX_VAULT_UUID
     value: "00000000-0000-0000-0000-000000000001"
+
+# Downstream API this service calls with its own Keycloak service account
+# (client_credentials). Rendered by templates/deployment.yaml because the client
+# secret's Secret name depends on the release fullname.
+#
+# `serviceClient` is the `svc-economie` Keycloak client (economie acting as a
+# caller), used to read corporation/group membership on the social internal API:
+#   - clientId        : the client_credentials client (svc-economie).
+#   - existingSecret  : Secret (app namespace) holding the client secret under
+#                       key `secret`. Empty => chart-created
+#                       <fullname>-economie-client.
+#   - create          : create that Secret from `clientSecret` (dev only).
+serviceClient:
+  clientId: ""
+  existingSecret: ""
+  create: false
+  clientSecret: ""
+
+social:
+  # Social internal API used to resolve corporation/group membership. Empty
+  # disables the integration.
+  apiUrl: ""
 
 # Keycloak / OIDC. Rendered by templates/deployment.yaml rather than listed in
 # `env` because the issuer changes with the environment and Helm replaces lists

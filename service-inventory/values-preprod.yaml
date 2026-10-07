@@ -31,7 +31,7 @@ oidc:
   issuer: "https://auth-preprod.dyingstar-game.com/realms/dyingstar"
   serviceAudience: "inventory-api"
 
-internalServiceClients: "svc-game,svc-admin,svc-mission"
+internalServiceClients: "svc-game,svc-admin,svc-mission,svc-market"
 
 # The `svc-inventory` client secret is created out of band as
 # `service-inventory-inventory-client` (key `secret`); it MUST equal
@@ -43,6 +43,9 @@ serviceClient:
 
 economy:
   apiUrl: "http://service-economie:3000"
+
+social:
+  apiUrl: "http://service-social:3000"
 
 # Exposed through the preprod Traefik gateway on the shared
 # `service-preprod.dyingstar-game.com` host; the `/inventory` prefix is stripped
