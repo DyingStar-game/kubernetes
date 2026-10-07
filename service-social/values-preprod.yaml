@@ -34,7 +34,7 @@ oidc:
 internalServiceClients: "svc-game,svc-market,svc-inventory,svc-economie,svc-mission,svc-admin"
 
 # Exposed through the preprod Traefik gateway on the shared
-# `service-preprod.dyingstar-game.com` host; the `/social` prefix is stripped
+# `services-preprod.dyingstar-game.space` host; the `/social` prefix is stripped
 # by a URLRewrite filter so the app keeps serving at root (`/api/*`).
 httpRoute:
   enabled: true
@@ -43,7 +43,7 @@ httpRoute:
       namespace: traefik
       sectionName: service
   hostnames:
-    - "service-preprod.dyingstar-game.com"
+    - "services-preprod.dyingstar-game.space"
   rules:
     - matches:
         - path:

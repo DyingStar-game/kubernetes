@@ -835,7 +835,7 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
   [Databases (dev-local)](#databases-dev-local-via-cloudnativepg))
 - **Dev hostname**: `service.dyingstar.local/economie` (shared Traefik
   HTTPRoute, `/economie` prefix stripped by a `URLRewrite` filter)
-- **Preprod hostname**: `service-preprod.dyingstar-game.com/economie` (same
+- **Preprod hostname**: `services-preprod.dyingstar-game.space/economie` (same
   path-prefix + URLRewrite model)
 - **Caller**: `svc-game`, `svc-market`, `svc-inventory`, `svc-mission` and
   `svc-admin` are allow-listed on `/api/internal/*` (`internalServiceClients`),
@@ -863,7 +863,7 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
   [Databases (dev-local)](#databases-dev-local-via-cloudnativepg))
 - **Dev hostname**: `service.dyingstar.local/social` (shared Traefik
   HTTPRoute, `/social` prefix stripped by a `URLRewrite` filter)
-- **Preprod hostname**: `service-preprod.dyingstar-game.com/social` (same
+- **Preprod hostname**: `services-preprod.dyingstar-game.space/social` (same
   path-prefix + URLRewrite model)
 - **Caller**: `svc-game`, `svc-market`, `svc-inventory`, `svc-economie`,
   `svc-mission` and `svc-admin` are allow-listed on `/api/internal/*`
@@ -886,7 +886,7 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
   [Databases (dev-local)](#databases-dev-local-via-cloudnativepg))
 - **Dev hostname**: `service.dyingstar.local/mission` (shared Traefik
   HTTPRoute, `/mission` prefix stripped by a `URLRewrite` filter)
-- **Preprod hostname**: `service-preprod.dyingstar-game.com/mission` (same
+- **Preprod hostname**: `services-preprod.dyingstar-game.space/mission` (same
   path-prefix + URLRewrite model)
 - **Caller**: the game server (`svc-game`) and the admin console (`svc-admin`)
   are allow-listed on `/api/internal/*` (`internalServiceClients`), with
@@ -916,7 +916,7 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
   [Databases (dev-local)](#databases-dev-local-via-cloudnativepg))
 - **Dev hostname**: `service.dyingstar.local/market` (shared Traefik
   HTTPRoute, `/market` prefix stripped by a `URLRewrite` filter)
-- **Preprod hostname**: `service-preprod.dyingstar-game.com/market` (same
+- **Preprod hostname**: `services-preprod.dyingstar-game.space/market` (same
   path-prefix + URLRewrite model)
 - **Caller**: the game server (`svc-game`) and the admin console (`svc-admin`)
   are allow-listed on `/api/internal/*` (`internalServiceClients`), with
@@ -944,7 +944,7 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
   [Databases (dev-local)](#databases-dev-local-via-cloudnativepg))
 - **Dev hostname**: `service.dyingstar.local/inventory` (shared Traefik
   HTTPRoute, `/inventory` prefix stripped by a `URLRewrite` filter)
-- **Preprod hostname**: `service-preprod.dyingstar-game.com/inventory` (same
+- **Preprod hostname**: `services-preprod.dyingstar-game.space/inventory` (same
   path-prefix + URLRewrite model)
 - **Caller**: the game server (`svc-game`), the admin console (`svc-admin`),
   the mission service (`svc-mission`, for `owns_items` / `deliver_items`

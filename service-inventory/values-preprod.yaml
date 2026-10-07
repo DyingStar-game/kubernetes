@@ -48,7 +48,7 @@ social:
   apiUrl: "http://service-social:3000"
 
 # Exposed through the preprod Traefik gateway on the shared
-# `service-preprod.dyingstar-game.com` host; the `/inventory` prefix is stripped
+# `services-preprod.dyingstar-game.space` host; the `/inventory` prefix is stripped
 # by a URLRewrite filter so the app keeps serving at root (`/api/*`).
 httpRoute:
   enabled: true
@@ -57,7 +57,7 @@ httpRoute:
       namespace: traefik
       sectionName: service
   hostnames:
-    - "service-preprod.dyingstar-game.com"
+    - "services-preprod.dyingstar-game.space"
   rules:
     - matches:
         - path:
