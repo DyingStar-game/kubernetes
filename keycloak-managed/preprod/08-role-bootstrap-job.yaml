@@ -148,8 +148,8 @@ spec:
               mcreated=0
               mskipped=0
               for client in "${!CLIENT_AUD[@]}"; do
-                cid=$("${KC}" get clients -q "clientId=${client}" \
-                      | grep -o '"id" *: *"[^"]*"' | head -1 | sed 's/.*: *"//; s/"$//')
+                cid=$("${KC}" get clients -r "${KC_REALM}" -q "clientId=${client}" \
+                      | { grep -o '"id" *: *"[^"]*"' || true; } | head -1 | sed 's/.*: *"//; s/"$//')
                 if [ -z "${cid}" ]; then
                   # Le client n'existe pas encore (créé par l'import ou par la CR) :
                   # la prochaine sync le rattrapera.
@@ -157,13 +157,13 @@ spec:
                   mskipped=$((mskipped + 1))
                   continue
                 fi
-                CMP=$("${KC}" get "clients/${cid}/protocol-mappers/models" | tr -d '[:space:]')
+                CMP=$("${KC}" get "clients/${cid}/protocol-mappers/models" -r "${KC_REALM}" | tr -d '[:space:]')
                 for aud in ${CLIENT_AUD[${client}]}; do
                   name="${aud}-audience"
                   if [[ "${CMP}" == *'"name":"'"${name}"'"'* ]]; then
                     mpresent=$((mpresent + 1))
                   else
-                    "${KC}" create "clients/${cid}/protocol-mappers/models" -f - <<JSON
+                    "${KC}" create "clients/${cid}/protocol-mappers/models" -r "${KC_REALM}" -f - <<JSON
               {"name":"${name}","protocol":"openid-connect","protocolMapper":"oidc-audience-mapper","config":{"included.custom.audience":"${aud}","access.token.claim":"true","id.token.claim":"false"}}
               JSON
                     mcreated=$((mcreated + 1))
