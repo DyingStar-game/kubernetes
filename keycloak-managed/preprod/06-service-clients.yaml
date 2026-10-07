@@ -19,13 +19,14 @@
 #
 # ⚠ Les Secrets référencés par `auth.secretRef` (`<clientId>-client-secret`,
 # clé `secret`) ne sont PAS commités : ils sont créés hors-bande dans le
-# namespace `keycloak` AVANT que ces CRs soient réconciliés, sinon ils restent
-# NotReady. Cf. README.md de ce dossier.
+# namespace `dyingstar-preprod` AVANT que ces CRs soient réconciliés, sinon ils
+# restent NotReady. Cf. README.md de ce dossier.
 ---
 apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakOIDCClient
 metadata:
   name: svc-game
+  namespace: dyingstar-preprod
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 spec:
@@ -82,6 +83,7 @@ apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakOIDCClient
 metadata:
   name: svc-market
+  namespace: dyingstar-preprod
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 spec:
@@ -115,6 +117,7 @@ apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakOIDCClient
 metadata:
   name: svc-inventory
+  namespace: dyingstar-preprod
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 spec:
@@ -144,6 +147,7 @@ apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakOIDCClient
 metadata:
   name: svc-economie
+  namespace: dyingstar-preprod
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 spec:
@@ -170,6 +174,7 @@ apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakOIDCClient
 metadata:
   name: svc-mission
+  namespace: dyingstar-preprod
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 spec:
@@ -203,6 +208,7 @@ apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakOIDCClient
 metadata:
   name: svc-admin
+  namespace: dyingstar-preprod
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 spec:

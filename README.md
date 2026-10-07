@@ -979,6 +979,10 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
 - **Preprod** now uses the **Keycloak Operator** (same model as dev-local), see
   [`keycloak-managed/preprod/`](keycloak-managed/preprod) and
   [`argocd/preprod/infra/keycloak-app.yaml`](argocd/preprod/infra/keycloak-app.yaml).
+  The operator runs **cluster-wide** (upstream source `kubernetes/cluster-wide`,
+  namespace `keycloak-operator`) so it can reconcile one `Keycloak` CR per
+  environment: preprod lives in `dyingstar-preprod`, a future prod instance in
+  `dyingstar-prod`, each with its own CNPG cluster and realm.
 - **Ports**: 8080 (HTTP), 9000 (management/health/metrics)
 - **Database**: Bundled PostgreSQL (single-pod) for prod; CloudNativePG `keycloak-db` for preprod (operator)
 - **Hostnames**: `auth.dyingstar-game.com` (prod), `auth-preprod.dyingstar-game.com` (preprod), NodePort `30180` (dev-local)
@@ -987,7 +991,7 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
 - **Required Secrets** in **prod** (chart-managed via `values-prod.yaml` → `existingSecret`):
   - `keycloak-admin` — keys `KEYCLOAK_ADMIN`, `KEYCLOAK_ADMIN_PASSWORD`
   - `keycloak-discord` — keys `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`
-- **Required Secrets** in **preprod** (operator, out-of-band in namespace `keycloak`):
+- **Required Secrets** in **preprod** (operator, out-of-band in namespace `dyingstar-preprod`):
   `keycloak-bootstrap-user`, `keycloak-admin`, `keycloak-db-secret`,
   `keycloak-discord`, `svc-*-client-secret` ×6. See
   [`keycloak-managed/preprod/README.md`](keycloak-managed/preprod/README.md).
@@ -995,7 +999,7 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
   the charts never create them because `serviceClient.create` /
   `internalApiKey.create` stay `false`):
   - `service-{economie,inventory,mission,market}-*-client` (key `secret`) — the
-    same value as the matching `svc-*-client-secret` in `keycloak`
+    same value as the matching `svc-*-client-secret` in `dyingstar-preprod`
   - `service-{economie,social,inventory,market,mission}-internal-key` (key
     `INTERNAL_API_KEY`) — one **shared** `X-Internal-Key` value for all five
     services

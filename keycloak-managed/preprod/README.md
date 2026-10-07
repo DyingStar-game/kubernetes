@@ -3,7 +3,15 @@
 Ressources Keycloak de **preprod**, réconciliées par l'opérateur upstream
 (`keycloak-k8s-resources` `26.7.0`) installé par
 [`argocd/preprod/infra/keycloak-app.yaml`](../../argocd/preprod/infra/keycloak-app.yaml),
-dans le namespace `keycloak`.
+dans le namespace `keycloak-operator`.
+
+L'opérateur tourne en **cluster-wide** (source upstream `kubernetes/cluster-wide`,
+env `JOSDK_ALL_NAMESPACES`) : il observe les CR de **tous** les namespaces. Les
+ressources de ce dossier vivent donc dans le namespace du jeu
+**`dyingstar-preprod`** (namespace explicite dans chaque manifeste) — au même
+endroit que les services applicatifs qui consomment ce Keycloak. Une seconde
+instance (prod, namespace `dyingstar-prod`) pourra être ajoutée plus tard sans
+nouvelle installation d'opérateur.
 
 C'est l'équivalent preprod de [`keycloak-managed/dev/`](../dev)
 (dev-local), en remplacement du chart Helm [`keycloak/`](../keycloak)
@@ -24,13 +32,13 @@ l'opérateur.
 
 ## Pré-requis : Secrets hors-bande
 
-Ces Secrets sont créés **à la main** dans le namespace `keycloak` **avant** le
-premier sync — ils ne sont **jamais** commités (contrairement au dev-local qui
-inline des valeurs DEV ONLY). Exécuter avec le contexte preprod :
+Ces Secrets sont créés **à la main** dans le namespace `dyingstar-preprod`
+**avant** le premier sync — ils ne sont **jamais** commités (contrairement au
+dev-local qui inline des valeurs DEV ONLY). Exécuter avec le contexte preprod :
 
 ```bash
 CTX=dyingstar   # contexte kubectl du cluster preprod
-NS=keycloak
+NS=dyingstar-preprod
 
 # 1. Admin master : compte humain + service account de l'opérateur
 kubectl --context "$CTX" -n "$NS" create secret generic keycloak-bootstrap-user \
@@ -62,8 +70,9 @@ for c in svc-game svc-market svc-inventory svc-mission svc-admin svc-economie; d
 done
 ```
 
-Les mêmes secrets client (`svc-*-client-secret`) doivent être recopiés dans le
-namespace applicatif `dyingstar-preprod` sous les noms attendus par les charts :
+Les mêmes secrets client (`svc-*-client-secret`) doivent aussi exister sous les
+noms attendus par les charts applicatifs — même namespace (`dyingstar-preprod`)
+depuis le déménagement de l'instance, mais noms différents :
 
 | Client Keycloak | Secret applicatif (`dyingstar-preprod`) |
 | --- | --- |
@@ -108,7 +117,8 @@ done
 
 Le realm import est **create-only** (`--override=false`) : pour réappliquer une
 modification de `04-realm-import.yaml`, il faut repartir d'une base neuve
-(supprimer le PVC de `keycloak-db`). Un wipe complet est toléré.
+(supprimer le PVC de `keycloak-db` dans `dyingstar-preprod`). Un wipe complet est
+toléré.
 
 > ⚠ Conséquence : ajouter un client (`svc-economie`) ou une audience
 > (`inventory-api` / `social-api` sur `svc-market`, `social-api` sur

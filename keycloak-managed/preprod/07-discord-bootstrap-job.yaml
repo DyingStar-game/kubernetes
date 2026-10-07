@@ -10,11 +10,12 @@
 #
 # ⚠ `keycloak-bootstrap-user` (username/password de l'admin master) et
 # `keycloak-discord` (DISCORD_CLIENT_ID / DISCORD_CLIENT_SECRET) sont créés
-# hors-bande dans le namespace `keycloak`. Cf. README.md de ce dossier.
+# hors-bande dans le namespace `dyingstar-preprod`. Cf. README.md de ce dossier.
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: keycloak-bootstrap-discord
+  namespace: dyingstar-preprod
   annotations:
     argocd.argoproj.io/hook: PostSync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
