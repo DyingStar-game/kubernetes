@@ -1,15 +1,17 @@
 mosquitto:
   auth:
-    mode: anonymous
+    mode: jwt
   service:
     type: ClusterIP
 
 chatAuth:
   image:
-    repository: harbor.dyingstar-game.space/dyingstar/service-chatauth
+    repository: harbor.dyingstar-game.space/dyingstar/chatauth
     tag: "develop"
     pullPolicy: IfNotPresent
-  oidcIssuer: "https://auth-preprod.dyingstar-game.com/realms/dyingstar"
+  # Local Keycloak issuer (frontend): must match the "iss" claim of tokens
+  # minted for auth.dyingstar.local — not the internal service URL.
+  oidcIssuer: "http://auth.dyingstar.local/realms/dyingstar"
   allowedTopics: "chat/#"
 
 
