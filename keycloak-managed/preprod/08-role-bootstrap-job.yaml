@@ -147,6 +147,7 @@ spec:
                 [svc-economie]="social-api"
                 [svc-mission]="economie-api social-api inventory-api"
                 [svc-admin]="economie-api social-api mission-api market-api inventory-api"
+                [svc-chat]="social-api"
               )
 
               mpresent=0

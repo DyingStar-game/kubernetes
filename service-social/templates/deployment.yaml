@@ -87,6 +87,43 @@ spec:
             - name: INTERNAL_SERVICE_CLIENTS
               value: {{ . | quote }}
             {{- end }}
+            {{- if .Values.valkey.enabled }}
+            - name: VALKEY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "service-social.valkeySecretName" . }}
+                  key: password
+            {{- end }}
+            {{- if .Values.valkey.url }}
+            - name: VALKEY_URL
+              value: {{ .Values.valkey.url | quote }}
+            {{- else if .Values.valkey.enabled }}
+            - name: VALKEY_URL
+              value: {{ printf "redis://:$(VALKEY_PASSWORD)@%s-valkey:6379" (include "service-social.fullname" .) | quote }}
+            {{- end }}
+            {{- with .Values.mqtt.url }}
+            - name: MOSQUITTO_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.mqtt.clientId }}
+            - name: MQTT_CLIENT_ID
+              value: {{ . | quote }}
+            {{- if or $.Values.mqtt.clientSecret.existingSecret $.Values.mqtt.clientSecret.create }}
+            - name: MQTT_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.mqtt.clientSecret.existingSecret | default (printf "%s-mqtt-client" (include "service-social.fullname" $)) }}
+                  key: secret
+            {{- end }}
+            {{- end }}
+            {{- with .Values.mqtt.tokenUrl }}
+            - name: MQTT_TOKEN_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.mqtt.topicRoot }}
+            - name: MQTT_TOPIC_ROOT
+              value: {{ . | quote }}
+            {{- end }}
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

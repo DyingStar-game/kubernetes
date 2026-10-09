@@ -60,3 +60,14 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Name of the Valkey password Secret.
+*/}}
+{{- define "service-social.valkeySecretName" -}}
+{{- if .Values.valkey.auth.existingSecret }}
+{{- .Values.valkey.auth.existingSecret }}
+{{- else }}
+{{- printf "%s-valkey" (include "service-social.fullname" .) }}
+{{- end }}
+{{- end }}

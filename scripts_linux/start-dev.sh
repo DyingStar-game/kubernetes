@@ -28,6 +28,42 @@ fi
 echo "--- Starting Minikube ---"
 minikube start --disk-size=150g --mount-string $PWD:/mnt/local-repo.git
 
+# 1b. Raise inotify limits inside the node. minikube's defaults
+# (fs.inotify.max_user_watches=65536/8192, max_user_instances=128) are far too
+# low once several dozen pods mount ConfigMaps/Secrets (each mount consumes
+# watches) — horizon then panics with "to create fsnotify watcher: too many
+# open files" and exits (139). Applied at runtime via a privileged pod + nsenter
+# (we do not assume `minikube ssh` works everywhere); /etc/sysctl.d is inside
+# the node's writable overlay and survives pod restarts, but a `minikube
+# delete` / node recreate needs this step again — hence right after start.
+echo "--- Raising inotify limits inside the node ---"
+kubectl apply -f - <<'EOF' >/dev/null
+apiVersion: v1
+kind: Pod
+metadata:
+  name: inotify-fix
+  namespace: kube-system
+spec:
+  hostPID: true
+  restartPolicy: Never
+  tolerations:
+    - operator: Exists
+  containers:
+    - name: fix
+      image: busybox:1.37
+      securityContext:
+        privileged: true
+      command: ["nsenter", "-t", "1", "-m", "-u", "-i", "-n", "--", "sh", "-c"]
+      args:
+        - |
+          sysctl -w fs.inotify.max_user_watches=1048576
+          sysctl -w fs.inotify.max_user_instances=8192
+          printf 'fs.inotify.max_user_watches=1048576\nfs.inotify.max_user_instances=8192\n' > /etc/sysctl.d/99-inotify.conf
+EOF
+kubectl -n kube-system wait --for=jsonpath='{.status.phase}=Succeeded' pod/inotify-fix --timeout=90s
+kubectl -n kube-system logs inotify-fix
+kubectl -n kube-system delete pod inotify-fix --wait=false >/dev/null
+
 # 2. Initial installation (if not present)
 if ! helm list -n argocd | grep -q "argocd"; then
     echo "--- Installing ArgoCD and components ---"

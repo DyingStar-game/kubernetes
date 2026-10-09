@@ -17,8 +17,10 @@
     # renommer.
     #
     # Clients déclarés : svc-game, svc-market, svc-inventory, svc-mission,
-    # svc-admin, svc-economie, et le client de connexion du panneau d'admin
-    # `dyingstar-admin` (flow standard, en fin de fichier).
+    # svc-admin, svc-economie, svc-social (publisher MQTT de social, aucune
+    # capacité), svc-chat (chatauth, probes d'appartenance / mute / ban), et le
+    # client de connexion du panneau d'admin `dyingstar-admin` (flow standard,
+    # en fin de fichier).
 #
 # Pré-requis : le Secret référencé par `auth.secretRef` doit exister AVANT que
 # le CR soit réconcilié, sinon le CR reste NotReady. En dev-local (minikube) les
@@ -97,6 +99,26 @@ metadata:
 type: Opaque
 stringData:
   secret: svc-economie-dev-secret
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: svc-social-client-secret
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+type: Opaque
+stringData:
+  secret: svc-social-dev-secret
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: svc-chat-client-secret
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+type: Opaque
+stringData:
+  secret: svc-chat-dev-secret
 ---
 apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakOIDCClient
@@ -333,6 +355,62 @@ spec:
       - market:read
       - market:manage
       - market:settle
+---
+# Publisher MQTT du service social : il publie les notifications éphémères des
+# joueurs sur {MQTT_TOPIC_ROOT}/{playerId} (notify/…). Aucune capacité : son
+# jeton client_credentials ne sert qu'à s'authentifier sur le broker (mot de
+# passe MQTT), ce que chatauth autorise via CHAT_SERVICE_CLIENTS (claim `azp`).
+# Pas de mapper d'audience : ce client n'appelle aucune API interne.
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: KeycloakOIDCClient
+metadata:
+  name: svc-social
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  keycloakCRName: keycloak
+  realm: dyingstar
+  client:
+    enabled: true
+    loginFlows:
+      - SERVICE_ACCOUNT
+    auth:
+      method: client-secret
+      secretRef:
+        name: svc-social-client-secret
+        key: secret
+---
+# chatauth (adapter d'auth du broker MQTT) : appelle l'API interne de social
+# pour les probes d'appartenance (DM / groupe / corporation) et mute / ban.
+# Le mapper d'audience `social-api` est posé par le job PostSync
+# (07-role-bootstrap-job.yaml, miroir CLIENT_AUD).
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: KeycloakOIDCClient
+metadata:
+  name: svc-chat
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  keycloakCRName: keycloak
+  realm: dyingstar
+  client:
+    enabled: true
+    loginFlows:
+      - SERVICE_ACCOUNT
+    auth:
+      method: client-secret
+      secretRef:
+        name: svc-chat-client-secret
+        key: secret
+    # Lecture seule de l'appartenance corporation / groupe, de la réputation
+    # (mute / ban) et de l'autorisation générique — mêmes lectures que les
+    # autres clients qui ne font que consulter le social.
+    serviceAccountRoles:
+      - social:profile:read
+      - social:corporation:read
+      - social:group:read
+      - social:sanctions:read
+      - social:authorize
 ---
 # Panneau d'admin (https://github.com/DyingStar-game/adminpanel, chart
 # dyingstar-admin) : client CONFIDENTIEL de son BFF, flow standard (code +
