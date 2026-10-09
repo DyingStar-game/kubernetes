@@ -1,7 +1,7 @@
 {{- if .Values.mosquitto.enabled }}
 {{- $jwt := eq .Values.mosquitto.auth.mode "jwt" }}
 {{- $image := ternary .Values.mosquitto.goauthImage .Values.mosquitto.image $jwt }}
-{{- $confPath := ternary "/etc/mosquitto/mosquitto.conf" "/mosquitto/config/mosquitto.conf" $jwt }}
+{{- $confDir := ternary "/etc/mosquitto" "/mosquitto/config" $jwt }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,6 +25,19 @@ spec:
         app.kubernetes.io/component: mosquitto
     spec:
       serviceAccountName: {{ include "textchat.serviceAccountName" . }}
+      initContainers:
+        - name: copy-config
+          image: "{{ $image.repository }}:{{ $image.tag }}"
+          imagePullPolicy: {{ $image.pullPolicy }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - cp /config-in/mosquitto.conf /config-out/mosquitto.conf
+          volumeMounts:
+            - name: config
+              mountPath: /config-in
+              readOnly: true
+            - name: config-data
+              mountPath: /config-out
       containers:
         - name: mosquitto
           image: "{{ $image.repository }}:{{ $image.tag }}"
@@ -37,9 +50,8 @@ spec:
               containerPort: {{ .Values.mosquitto.service.websocketPort }}
               protocol: TCP
           volumeMounts:
-            - name: config
-              mountPath: {{ $confPath }}
-              subPath: mosquitto.conf
+            - name: config-data
+              mountPath: {{ $confDir }}
           {{- with .Values.mosquitto.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -58,4 +70,6 @@ spec:
         - name: config
           configMap:
             name: {{ include "textchat.fullname" . }}-mosquitto
+        - name: config-data
+          emptyDir: {}
 {{- end }}
