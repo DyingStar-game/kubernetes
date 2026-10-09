@@ -31,8 +31,7 @@ spec:
           imagePullPolicy: {{ $image.pullPolicy }}
           command: ["/bin/sh", "-c"]
           args:
-            - cp /config-in/mosquitto.conf /config-out/mosquitto.conf
-            - cp /usr/sbin/mosquitto /bin-out/mosquitto
+            - cp /config-in/mosquitto.conf /config-out/mosquitto.conf && cp /usr/sbin/mosquitto /bin-out/mosquitto
           volumeMounts:
             - name: config
               mountPath: /config-in
