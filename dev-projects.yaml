@@ -96,10 +96,17 @@ projects:
     dockerfile: docker/Dockerfile.prod
     deployment: dyingstar-admin
 
+  # Adapter JWT du broker MQTT (textchat en mode jwt) — valide les tokens
+  # Keycloak et répond aux checks user/acl de go-auth.
+  - name: chatauth
+    path: ../services/chatauth
+    dockerfile: docker/Dockerfile
+    deployment: textchat-chatauth
+
 # Non listés volontairement :
 #   keycloak   déployé par l'opérateur officiel (argocd/dev/game/keycloak-app.yaml
 #              pointe sur keycloak/manifests) — pas de Deployment issu d'un chart local
 #   livekit    livekit/values-dev.yaml utilise l'image upstream livekit/livekit-server,
 #              pas l'image custom de ../services/livekit — un rebuild serait sans effet
-#   textchat   ../services/chatauth ne contient aucun Dockerfile
+#   mosquitto  broker du chart textchat (image upstream eclipse-mosquitto ou go-auth)
 #   npc, orchestrator, reverseproxy   pas d'Application ArgoCD en dev
