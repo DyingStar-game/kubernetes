@@ -146,6 +146,22 @@ sync with each service's `src/middleware/auth.ts` `SERVICE_ROLES`.
 > `social:corporation:read` + `social:group:read` + `social:profile:read` (corporation and
 > political treasuries). Its client carries `social-api` only.
 
+## Admin panel (`dyingstar-admin`)
+
+The admin panel ([DyingStar-game/adminpanel](https://github.com/DyingStar-game/adminpanel), chart
+`dyingstar-admin`) signs people in through the confidential client `dyingstar-admin` (standard
+flow + PKCE), declared by the `KeycloakOIDCClient` CRs of `keycloak-managed/{dev,preprod}/06-service-clients.yaml`.
+Its machine calls go through `svc-admin` (above).
+
+- **Realm roles** `moderator` < `admin` < `supervisor`: moderation levels, checked by the services'
+  Admin routes and by the panel.
+- **Client roles** of `dyingstar-admin`, given to people (Users › Role mapping): `persistence:read`,
+  `persistence:write`, `persistence:delete`, `social:corporation:write`, `social:politics:write`,
+  `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit`,
+  `economie:politics:read`, `economie:politics:manage`, `economie:corporation:read`,
+  `economie:corporation:manage`, `economie:money:issue`. The panel's list (its ADR 0023) is the
+  authority for these names.
+
 ## Required GitHub Secrets
 
 | Secret | Purpose |

@@ -1,0 +1,8 @@
+apiVersion: v2
+name: dyingstar-admin
+description: DyingStar admin panel - Hono BFF serving the React SPA (persistence, social, economie administration)
+type: application
+# Chart version, Semantic Versioning: bump it on every change to the chart.
+version: 0.1.0
+# Version of the panel deployed; the image tag defaults to it when `image.tag` is empty.
+appVersion: "0.0.1"

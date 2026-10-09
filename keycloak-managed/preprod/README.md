@@ -70,7 +70,8 @@ kubectl --context "$CTX" -n "$NS" create secret generic keycloak-discord \
   --from-literal=DISCORD_CLIENT_SECRET='<secret>'
 
 # 4. Secrets des clients de service (clé `secret`), un par `svc-*`
-for c in svc-game svc-market svc-inventory svc-mission svc-admin svc-economie; do
+# + `dyingstar-admin` : client de connexion du panneau d'admin (flow standard)
+for c in svc-game svc-market svc-inventory svc-mission svc-admin svc-economie dyingstar-admin; do
   kubectl --context "$CTX" -n "$NS" create secret generic "${c}-client-secret" \
     --from-literal=secret="$(openssl rand -hex 32)"
 done
@@ -86,6 +87,10 @@ depuis le déménagement de l'instance, mais noms différents :
 | `svc-market` | `service-market-market-client` (clé `secret`) |
 | `svc-inventory` | `service-inventory-inventory-client` (clé `secret`) |
 | `svc-economie` | `service-economie-economie-client` (clé `secret`) |
+
+Exception : le chart `dyingstar-admin` (panneau d'admin) lit directement
+`dyingstar-admin-client-secret` et `svc-admin-client-secret`
+(`dyingstar-admin/values-preprod.yaml`) : rien à dupliquer.
 
 ### Secret `X-Internal-Key` par service applicatif
 

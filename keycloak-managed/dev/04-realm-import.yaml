@@ -60,6 +60,14 @@ spec:
           description: Joueur de DyingStar
         - name: moderator
           description: Modération du chat
+        # Niveaux de modération au-dessus de `moderator` (moderator < admin <
+        # supervisor), lus par les services (routes Admin) et par le panneau
+        # d'admin (client `dyingstar-admin`). Miroir dans le job de bootstrap
+        # des rôles (import create-only).
+        - name: admin
+          description: Administration (modération étendue)
+        - name: supervisor
+          description: Supervision (tous les droits de modération)
         # Rôles de capacité des services machine-to-machine (client_credentials).
         # ⚠ Autorité de nommage : keycloak-managed/dev/import/README.md (section
         # « Service capability roles »), qui décrit le modèle prod/preprod. En
@@ -550,6 +558,36 @@ spec:
               included.custom.audience: inventory-api
               access.token.claim: "true"
               id.token.claim: "false"
+      # Panneau d'admin : client confidentiel du BFF, flow standard + PKCE.
+      # Le secret, les redirect URIs et les client roles sont portés par la CR
+      # KeycloakOIDCClient `dyingstar-admin` (06-service-clients.yaml) ; ce
+      # bloc ne sert qu'à un realm neuf (import create-only) et aux attributs
+      # que le CRD n'expose pas, que le job de bootstrap repose sur un realm
+      # existant.
+      - clientId: dyingstar-admin
+        name: DyingStar admin panel
+        description: Client confidentiel du BFF du panneau d'admin (code + PKCE).
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        standardFlowEnabled: true
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: false
+        redirectUris:
+          - http://admin.dyingstar.local/auth/callback
+          - http://localhost:5173/auth/callback
+          - http://localhost:3000/auth/callback
+        webOrigins: []
+        attributes:
+          pkce.code.challenge.method: S256
+          post.logout.redirect.uris: http://admin.dyingstar.local/##http://localhost:5173/##http://localhost:3000/
+        defaultClientScopes:
+          - openid
+          - profile
+          - email
+          - roles
+          - web-origins
       # ⚠ Ne PAS redéclarer `account-console` / `security-admin-console` ici :
       # Keycloak les provisionne lui-même à la création du realm. Les re-déclarer
       # fait échouer l'import (`ModelDuplicateException` / duplicate key sur

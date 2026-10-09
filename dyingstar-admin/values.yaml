@@ -1,0 +1,128 @@
+# Default values for dyingstar-admin, the DyingStar admin panel
+# (https://github.com/DyingStar-game/adminpanel): one image, the Hono BFF
+# serving the built SPA on a single port. Every setting is an environment
+# variable of the BFF, listed in the panel's `.env.sample`.
+
+replicaCount: 1
+
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/dyingstar-admin
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  # The panel never calls the Kubernetes API.
+  automount: false
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+
+# The image already runs as the non-root `node` user.
+securityContext:
+  allowPrivilegeEscalation: false
+
+service:
+  type: ClusterIP
+  # BFF port: rendered as the PORT env var, the container port, the Service
+  # port and the HTTPRoute backend.
+  port: 3000
+
+# Expose the panel via gateway-api HTTPRoute. The panel is a SPA served at the
+# root of its own host: it cannot live under a path prefix like the services.
+httpRoute:
+  enabled: false
+  annotations: {}
+  parentRefs:
+  - name: gateway
+    sectionName: http
+  hostnames:
+  - chart-example.local
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+
+resources: {}
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 30
+  timeoutSeconds: 5
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 3
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# The settings below are rendered by templates/deployment.yaml rather than
+# listed in `env`, because Helm replaces lists instead of merging them: each
+# overlay would have to repeat the whole `env`.
+panel:
+  # Environment this panel serves (one panel per environment, with that
+  # environment's Keycloak and its one game server).
+  environment: "testing"
+  # The game server of this environment, shown in the top bar.
+  gameServerName: "Game server"
+  # Origin the browser uses: the OIDC redirect URI is built from it
+  # (<publicUrl>/auth/callback, registered on the `dyingstar-admin` client).
+  publicUrl: ""
+
+# Internal URLs of the game services, never sent to the browser. Empty hides
+# the service in the panel. Persistence without `/items`, social without `/api`.
+services:
+  persistenceUrl: ""
+  socialUrl: ""
+  economieUrl: ""
+
+# Keycloak sign-in: the BFF is the OIDC client `dyingstar-admin`
+# (confidential, standard flow). The BFF does not start without it.
+oidc:
+  # dev: http://auth.dyingstar.local/realms/dyingstar
+  # preprod: https://auth-preprod.dyingstar-game.com/realms/dyingstar
+  issuer: ""
+  # Where the BFF reads the discovery document when it reaches Keycloak by
+  # another name than the browser. Empty = the issuer.
+  discoveryUrl: ""
+  clientId: "dyingstar-admin"
+  # Secret holding the client secret under key `secret`. Empty => the
+  # chart-created <fullname>-oidc-client (only with `create`, dev only).
+  existingSecret: ""
+  create: false
+  clientSecret: ""
+
+# The panel's service account for the services' internal APIs (social's
+# organisation management, economie's wallets, settings and money movements).
+# Without it, those actions stay hidden; reading and moderation keep working.
+svcAdmin:
+  enabled: true
+  clientId: "svc-admin"
+  # Secret holding the client secret under key `secret`. Empty => the
+  # chart-created <fullname>-svc-admin-client (only with `create`, dev only).
+  existingSecret: ""
+  create: false
+  clientSecret: ""
+
+# Any other BFF setting (`GITHUB_TOKEN`, timeouts, `DEFINITIONS_*`…).
+env: []
+
+envFrom: []

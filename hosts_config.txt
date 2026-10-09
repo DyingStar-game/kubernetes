@@ -7,3 +7,4 @@ vocal.dyingstar.local
 otlp.dyingstar.local
 auth.dyingstar.local
 services.dyingstar.local
+admin.dyingstar.local

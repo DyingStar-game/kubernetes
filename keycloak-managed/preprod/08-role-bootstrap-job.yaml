@@ -14,11 +14,14 @@
 # périmètre de `KeycloakOIDCClient`, donc les deux suivent la même dérive.
 # L'assignation des rôles au service account reste portée par
 # `06-service-clients.yaml` (`serviceAccountRoles`), cf. la répartition des
-# responsabilités décrite en tête de ce fichier. Ce job ne supprime RIEN.
+# responsabilités décrite en tête de ce fichier. Il pose aussi les attributs
+# du client `dyingstar-admin` (panneau d'admin) que KeycloakOIDCClient
+# n'expose pas (PKCE, `post.logout.redirect.uris`). Ce job ne supprime RIEN.
 #
 # ⠠ Miroirs de 04-realm-import.yaml : `ROLES` = `spec.realm.roles`,
 # `CLIENT_AUD` = `protocolMappers[].config.included.custom.audience` par
-# client. L'autorité de nommage reste `import/README.md` (sections « Service
+# client, `PANEL_POST_LOGOUT_URIS` = `post.logout.redirect.uris` de
+# `dyingstar-admin`. L'autorité de nommage reste `import/README.md` (sections « Service
 # capability roles » et la note sur les audiences) : toute ajout dans un de ces
 # miroirs doit l'être dans les trois.
 #
@@ -70,6 +73,8 @@ spec:
               done
 
               ROLES=$(cat <<'EOF'
+              admin
+              supervisor
               social:profile:read
               social:profile:write
               social:player:write
@@ -173,6 +178,24 @@ spec:
               done
 
               echo "audiences: present=${mpresent} created=${mcreated} skipped_clients=${mskipped}"
+
+              # ------------------------------------------------------------------
+              # 3. Client du panneau d'admin : attributs hors CRD
+              # ------------------------------------------------------------------
+              # La CR `dyingstar-admin` (06-service-clients.yaml) n'expose pas
+              # les attributs : PKCE obligatoire et URIs autorisées après
+              # déconnexion (sans elles, Keycloak refuse le retour au panneau).
+              # `update` ne touche que ces deux clés : rejouable à chaque sync.
+              pid=$("${KC}" get clients -r "${KC_REALM}" -q "clientId=dyingstar-admin" \
+                    | { grep -o '"id" *: *"[^"]*"' || true; } | head -1 | sed 's/.*: *"//; s/"$//')
+              if [ -z "${pid}" ]; then
+                echo "dyingstar-admin absent, ignoré"
+              else
+                "${KC}" update "clients/${pid}" -r "${KC_REALM}" \
+                  -s 'attributes."pkce.code.challenge.method"=S256' \
+                  -s "attributes.\"post.logout.redirect.uris\"=${PANEL_POST_LOGOUT_URIS}"
+                echo "dyingstar-admin: attributes set"
+              fi
           env:
             # kcadm écrit sa config dans ${HOME}/.keycloak ; HOME de l'image
             # (/opt/keycloak) n'est pas forcément inscriptible selon l'image.
@@ -182,6 +205,10 @@ spec:
               value: "http://keycloak:8080/"
             - name: KC_REALM
               value: "dyingstar"
+            # Miroir de `post.logout.redirect.uris` du client `dyingstar-admin`
+            # dans 04-realm-import.yaml (séparateur `##`).
+            - name: PANEL_POST_LOGOUT_URIS
+              value: "https://admin-preprod.dyingstar-game.space/"
             - name: KEYCLOAK_ADMIN
               valueFrom:
                 secretKeyRef:

@@ -17,7 +17,8 @@
     # renommer.
     #
     # Clients déclarés : svc-game, svc-market, svc-inventory, svc-mission,
-    # svc-admin, svc-economie.
+    # svc-admin, svc-economie, et le client de connexion du panneau d'admin
+    # `dyingstar-admin` (flow standard, en fin de fichier).
 #
 # Pré-requis : le Secret référencé par `auth.secretRef` doit exister AVANT que
 # le CR soit réconcilié, sinon le CR reste NotReady. En dev-local (minikube) les
@@ -74,6 +75,18 @@ metadata:
 type: Opaque
 stringData:
   secret: svc-admin-dev-secret
+---
+# Même valeur que `oidc.clientSecret` de dyingstar-admin/values-dev.yaml (le
+# pod du panneau vit dans `dyingstar`, ce Secret dans `keycloak`).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dyingstar-admin-client-secret
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+type: Opaque
+stringData:
+  secret: dyingstar-admin-dev-secret
 ---
 apiVersion: v1
 kind: Secret
@@ -320,3 +333,54 @@ spec:
       - market:read
       - market:manage
       - market:settle
+---
+# Panneau d'admin (https://github.com/DyingStar-game/adminpanel, chart
+# dyingstar-admin) : client CONFIDENTIEL de son BFF, flow standard (code +
+# PKCE), pour la connexion des personnes — pas un compte de service (les
+# appels machine du panneau passent par `svc-admin` ci-dessus).
+#
+# `roles` = client roles de `dyingstar-admin` : les capacités du panneau,
+# données aux personnes (Users › Role mapping › dyingstar-admin). Les noms
+# viennent de la liste du panneau (adminpanel/docker/keycloak/, ADR 0023) et
+# des README des services. Les realm roles `admin` / `supervisor` (niveaux de
+# modération, avec `moderator`) sont créés par le job de bootstrap, qui pose
+# aussi les attributs que ce CRD n'expose pas (PKCE, post-logout redirect).
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: KeycloakOIDCClient
+metadata:
+  name: dyingstar-admin
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  keycloakCRName: keycloak
+  realm: dyingstar
+  client:
+    enabled: true
+    displayName: DyingStar admin panel
+    loginFlows:
+      - STANDARD
+    auth:
+      method: client-secret
+      secretRef:
+        name: dyingstar-admin-client-secret
+        key: secret
+    redirectUris:
+      # Le panneau déployé par ArgoCD (dyingstar-admin/values-dev.yaml)…
+      - http://admin.dyingstar.local/auth/callback
+      # …et le panneau lancé en local contre ce Keycloak (`make up K8S=1`).
+      - http://localhost:5173/auth/callback
+      - http://localhost:3000/auth/callback
+    roles:
+      - persistence:read
+      - persistence:write
+      - persistence:delete
+      - social:corporation:write
+      - social:politics:write
+      - economie:wallet:read
+      - economie:politics:read
+      - economie:corporation:read
+      - economie:corporation:manage
+      - economie:politics:manage
+      - economie:wallet:credit
+      - economie:wallet:debit
+      - economie:money:issue

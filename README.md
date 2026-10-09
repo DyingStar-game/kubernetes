@@ -26,6 +26,7 @@ Helm charts for the **DyingStar** gaming platform microservices.
 | `keycloak` | Keycloak identity provider (prod only; preprod + dev-local now use the Keycloak Operator) | `../services/keycloak` |
 | `livekit` | LiveKit Server (WebRTC SFU + TURN) for voice/video rooms | `../services/livekit` |
 | `service-persistence` | Persistence service — ScyllaDB-backed data layer (Rust) | `../services/persistence` |
+| `dyingstar-admin` | Admin panel — Hono BFF serving the React SPA (`admin-preprod.dyingstar-game.space`, `admin.dyingstar.local`); Keycloak client `dyingstar-admin` in `keycloak-managed/` | `../adminpanel` |
 | `dev-services` | Shared developer infrastructure (PostGIS) | — |
 | `nextcloud` | Nextcloud 3D asset library (TrueNAS/NFS storage, GitHub login via Keycloak) — dev-shared only | — |
 
@@ -49,6 +50,7 @@ Helm charts for the **DyingStar** gaming platform microservices.
 ├── keycloak/                      # Helm chart (prod only)
 ├── livekit/                       # Helm chart
 ├── service-persistence/           # Helm chart
+├── dyingstar-admin/               # Helm chart (admin panel, no database)
 ├── dev-services/                  # Helm chart (shared dev infra)
 ├── nextcloud/                     # Helm chart (shared dev infra, 3D asset library)
 ├── keycloak-managed/              # Keycloak opérateur (Raw manifests)

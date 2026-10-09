@@ -1,0 +1,56 @@
+# Preprod overrides for dyingstar-admin (dyingstar-preprod, deployed by ArgoCD).
+# Usage: helm upgrade --install -n dyingstar-preprod dyingstar-admin ./dyingstar-admin \
+#          -f dyingstar-admin/values-preprod.yaml
+
+replicaCount: 1
+
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/dyingstar-admin
+  pullPolicy: Always
+  tag: "develop"
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+panel:
+  environment: "testing"
+  gameServerName: "Universe Testing"
+  publicUrl: "https://admin-preprod.dyingstar-game.space"
+
+services:
+  persistenceUrl: "http://service-persistence:3001"
+  socialUrl: "http://service-social:3000"
+  economieUrl: "http://service-economie:3000"
+
+# The Keycloak CR (keycloak-managed/preprod/) lives in this same namespace.
+# Discovery goes through the public issuer, like the services' JWKS.
+oidc:
+  issuer: "https://auth-preprod.dyingstar-game.com/realms/dyingstar"
+  # Created out of band (keycloak-managed/preprod/README.md): the same Secret
+  # feeds the `dyingstar-admin` KeycloakOIDCClient and this pod.
+  existingSecret: "dyingstar-admin-client-secret"
+
+svcAdmin:
+  # Created out of band, same Secret as the `svc-admin` KeycloakOIDCClient.
+  existingSecret: "svc-admin-client-secret"
+
+# Own host on the preprod Traefik gateway (listener `admin` in
+# traefik/values-preprod.yaml, certificate from cert-manager).
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: traefik-gateway
+      namespace: traefik
+      sectionName: admin
+  hostnames:
+    - "admin-preprod.dyingstar-game.space"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
