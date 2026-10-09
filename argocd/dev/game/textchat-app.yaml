@@ -21,3 +21,18 @@ spec:
       selfHeal: true
     syncOptions:
     - CreateNamespace=true
+    # Sans ceci, ignoreDifferences n'agit que sur la détection de drift : une sync
+    # déclenchée par un commit ré-appliquerait l'image Harbor sur le build local.
+    - RespectIgnoreDifferences=true
+
+  # Le build local (./scripts_linux/build-and-deploy.sh chatauth) patche l'image du
+  # container chatauth du Deployment textchat-chatauth avec imagePullPolicy: Never —
+  # sans ceci, selfHeal l'annulerait au reconcile suivant. Filtré par nom de
+  # container : l'Application gère aussi textchat-mosquitto, dont l'image doit
+  # rester entièrement gérée par Git.
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jqPathExpressions:
+        - '.spec.template.spec.containers[] | select(.name == "chatauth") | .image'
+        - '.spec.template.spec.containers[] | select(.name == "chatauth") | .imagePullPolicy'
