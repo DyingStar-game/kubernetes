@@ -54,8 +54,36 @@ chatAuth:
   # Expected token issuer and (optionally) an explicit JWKS URL.
   oidcIssuer: "http://keycloak:8080/realms/dyingstar"
   oidcJwksUrl: ""
+  # Client-credentials token URL used to call Social's internal API.
+  # Defaults to ${oidcIssuer}/protocol/openid-connect/token when left empty.
+  oidcTokenUrl: ""
   # Topic filters any authenticated player may use (MVP; tighten per claims later).
   allowedTopics: "chat/#"
+  # First topic segment (topics: {root}/global, {root}/dm/{from}/{to},
+  # {root}/group/{id}, {root}/corporation/{id}).
+  topicRoot: "chat"
+  # Notification topic root: players subscribe to {root}/{theirId}, only the
+  # service clients below may publish there.
+  notifyRoot: "notify"
+  # Comma-separated `azp` values allowed to publish notifications (social's
+  # MQTT client).
+  serviceClients: "svc-social"
+  # Social service internal API (membership + mute/ban probes). Leave `url`
+  # empty to disable: DM/group/corporation channels are then refused.
+  socialApi:
+    url: ""
+    serviceClientId: ""
+    # Chart-managed Secret holding the client secret (same pattern as
+    # service-mission's serviceClient). preprod/prod must set `existingSecret`
+    # to a Secret managed out-of-band.
+    existingSecret: ""
+    create: false
+    # Only used when `create` is true. Never put a real secret in values-preprod.yaml.
+    clientSecret: ""
+  # In-memory cache of membership/mute probes.
+  aclCache:
+    ttlSeconds: "30"
+    max: "10000"
   resources:
     requests:
       cpu: 25m

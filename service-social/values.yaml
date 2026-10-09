@@ -190,6 +190,17 @@ env:
   # ignored when NODE_ENV=production, hence the "false" there.
   - name: AUTH_DEV_BYPASS
     value: "false"
+  # Same dev escape hatch for /api/internal/* (X-Internal-Key instead of a
+  # service-account JWT). Ignored when NODE_ENV=production.
+  - name: INTERNAL_DEV_BYPASS
+    value: "false"
+  # Live presence + playtime accumulator (see the `valkey` block).
+  - name: PRESENCE_TTL_SECONDS
+    value: "90"
+  - name: PRESENCE_BATCH_MAX
+    value: "5000"
+  - name: PLAYTIME_FLUSH_INTERVAL_MINUTES
+    value: "5"
   # OIDC_ISSUER is intentionally absent: it has no environment-neutral value.
   # Each overlay sets it — dev: http://auth.dyingstar.local/realms/dyingstar
   # (keycloak-managed/dev/03-keycloak.yaml), preprod:
@@ -257,6 +268,62 @@ oidc:
 # Any clientId not listed here — including the player client `dyingstar-game` —
 # is rejected with 403 SERVICE_FORBIDDEN.
 internalServiceClients: ""
+
+# Live presence (heartbeat batch with TTL) + playtime accumulator.
+# PRESENCE_TTL_SECONDS / PRESENCE_BATCH_MAX / PLAYTIME_FLUSH_INTERVAL_MINUTES
+# are environment-neutral: they live in `env` below. `valkey` is the cache
+# backing both — same bundled pattern as livekit's redis.
+valkey:
+  # Off by default: an empty VALKEY_URL disables the cache (the API falls back
+  # to database-only, legacy behaviour). Each environment enables it.
+  enabled: false
+  image:
+    registry: docker.io
+    repository: valkey/valkey
+    tag: "8-alpine"
+    pullPolicy: IfNotPresent
+  auth:
+    # Reference an existing Secret holding the `password` key.
+    # When empty the chart creates one from `auth.password` (DEV ONLY).
+    existingSecret: ""
+    password: "changeme-in-production"
+  primary:
+    persistence:
+      enabled: true
+      size: 1Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+  # VALKEY_URL override for an external instance. Takes precedence over the
+  # bundled instance when set (even if valkey.enabled is true).
+  url: ""
+
+# MQTT broker for ephemeral player notifications
+# (POST /api/internal/players/:id/notifications).
+# Empty `url` disables the publisher: calls return
+# {delivered:false, reason:"unreachable"}.
+mqtt:
+  url: ""
+  # Service client authenticating on the broker: its Keycloak token is sent as
+  # the MQTT password and its `azp` must be listed in chatauth's
+  # CHAT_SERVICE_CLIENTS. Empty secret connects anonymously — dev broker only.
+  clientId: ""
+  # Defaults to ${OIDC_ISSUER}/protocol/openid-connect/token when left empty.
+  tokenUrl: ""
+  # Notifications are published to {topicRoot}/{playerId}.
+  topicRoot: "notify"
+  # Chart-managed Secret holding the client secret (same pattern as
+  # internalApiKey / mission's serviceClient). preprod/prod must set
+  # `existingSecret` to a Secret managed out-of-band.
+  clientSecret:
+    existingSecret: ""
+    create: false
+    # Only used when `create` is true. Never put a real secret in values-preprod.yaml.
+    secret: ""
 
 # Shared secret presented by the game server in the X-Internal-Key header.
 # Same pattern as livekit's keys Secret: the chart only creates one when

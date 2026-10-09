@@ -26,7 +26,7 @@ l'opérateur.
 | `03-keycloak.yaml` | CR `Keycloak` (image custom, issuer `https://auth-preprod.dyingstar-game.com`, DB CNPG) |
 | `04-realm-import.yaml` | `KeycloakRealmImport` du realm `dyingstar` (33 rôles + launcher + clients `svc-*`) |
 | `05-httproute.yaml` | `HTTPRoute` `auth-preprod.dyingstar-game.com` (listener Traefik `keycloak`, HTTPS) |
-| `06-service-clients.yaml` | `KeycloakOIDCClient` `svc-*` (`svc-game`, `svc-market`, `svc-inventory`, `svc-mission`, `svc-admin`, `svc-economie` — secrets hors-bande) |
+| `06-service-clients.yaml` | `KeycloakOIDCClient` `svc-*` (`svc-game`, `svc-market`, `svc-inventory`, `svc-mission`, `svc-admin`, `svc-economie`, `svc-social`, `svc-chat` — secrets hors-bande) |
 | `07-discord-bootstrap-job.yaml` | Job PostSync : provider Discord via `bootstrap-discord-idp.sh` |
 | `08-role-bootstrap-job.yaml` | Job PostSync idempotent : (re)crée les rôles de capacité du realm **et** les mappers d'audience des clients `svc-*` (voir § Wipe) |
 
@@ -71,7 +71,7 @@ kubectl --context "$CTX" -n "$NS" create secret generic keycloak-discord \
 
 # 4. Secrets des clients de service (clé `secret`), un par `svc-*`
 # + `dyingstar-admin` : client de connexion du panneau d'admin (flow standard)
-for c in svc-game svc-market svc-inventory svc-mission svc-admin svc-economie dyingstar-admin; do
+for c in svc-game svc-market svc-inventory svc-mission svc-admin svc-economie svc-social svc-chat dyingstar-admin; do
   kubectl --context "$CTX" -n "$NS" create secret generic "${c}-client-secret" \
     --from-literal=secret="$(openssl rand -hex 32)"
 done
@@ -87,6 +87,8 @@ depuis le déménagement de l'instance, mais noms différents :
 | `svc-market` | `service-market-market-client` (clé `secret`) |
 | `svc-inventory` | `service-inventory-inventory-client` (clé `secret`) |
 | `svc-economie` | `service-economie-economie-client` (clé `secret`) |
+| `svc-social` | `service-social-mqtt-client` (clé `secret`) — client MQTT du publisher de notifications |
+| `svc-chat` | `textchat-social-client` (clé `secret`) — client d'appel de l'API social par chatauth |
 
 Exception : le chart `dyingstar-admin` (panneau d'admin) lit directement
 `dyingstar-admin-client-secret` et `svc-admin-client-secret`

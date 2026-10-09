@@ -12,7 +12,21 @@ chatAuth:
   # Local Keycloak issuer (frontend): must match the "iss" claim of tokens
   # minted for auth.dyingstar.local — not the internal service URL.
   oidcIssuer: "http://auth.dyingstar.local/realms/dyingstar"
+  # Explicit token URL for client_credentials calls to Social (defaults to
+  # ${oidcIssuer}/protocol/openid-connect/token when left empty, but the
+  # frontend issuer is the reachable one from inside the cluster here).
+  oidcTokenUrl: "http://auth.dyingstar.local/realms/dyingstar/protocol/openid-connect/token"
   allowedTopics: "chat/#"
+  serviceClients: "svc-social"
+  # Social internal API for membership / mute / ban probes (DM, group and
+  # corporation channels are refused while this stays empty).
+  socialApi:
+    url: "http://service-social:3000"
+    serviceClientId: "svc-chat"
+    create: true
+    # MUST match `svc-chat-client-secret` (key `secret`) in
+    # keycloak-managed/dev/06-service-clients.yaml — same Keycloak client.
+    clientSecret: "svc-chat-dev-secret"
 
 
 httpRoute:

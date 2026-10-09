@@ -31,7 +31,21 @@ oidc:
   issuer: "https://auth-preprod.dyingstar-game.com/realms/dyingstar"
   serviceAudience: "social-api"
 
-internalServiceClients: "svc-game,svc-market,svc-inventory,svc-economie,svc-mission,svc-admin"
+internalServiceClients: "svc-game,svc-market,svc-inventory,svc-economie,svc-mission,svc-admin,svc-chat"
+
+# Dedicated Valkey cache for live presence + playtime (see values.yaml).
+# Persistence on: preprod keeps its cache across pod restarts.
+valkey:
+  enabled: true
+
+# MQTT publisher. The preprod broker (textchat chart) is still in anonymous
+# mode, so no client secret is wired here — an empty secret connects
+# anonymously. When the preprod broker flips to jwt mode, add
+# `clientSecret.existingSecret` pointing at an out-of-band Secret holding the
+# svc-social client secret.
+mqtt:
+  url: "mqtt://textchat-mosquitto:1883"
+  clientId: "svc-social"
 
 # Exposed through the preprod Traefik gateway on the shared
 # `services-preprod.dyingstar-game.space` host; the `/social` prefix is stripped

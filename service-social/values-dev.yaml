@@ -47,8 +47,10 @@ oidc:
 # svc-mission vérifie l'appartenance à une corporation (social:corporation:read) ;
 # svc-inventory et svc-economie lisent l'appartenance corporation / groupe ;
 # svc-market lit l'appartenance pour les ordres en corporation ;
-# svc-admin est la console d'admin (toutes capacités).
-internalServiceClients: "svc-game,svc-market,svc-inventory,svc-economie,svc-mission,svc-admin"
+# svc-admin est la console d'admin (toutes capacités) ;
+# svc-chat appelle /api/internal pour les probes d'appartenance / mute / ban
+# des channels DM / groupe / corporation (rôle social:authorize).
+internalServiceClients: "svc-game,svc-market,svc-inventory,svc-economie,svc-mission,svc-admin,svc-chat"
 
 # DEV ONLY: the chart creates service-social-internal-key from this value, the
 # way livekit creates its keys Secret when no existingKeysSecret is set. The game
@@ -56,6 +58,30 @@ internalServiceClients: "svc-game,svc-market,svc-inventory,svc-economie,svc-miss
 internalApiKey:
   create: true
   key: "dev-internal-key"
+
+# Dedicated Valkey cache for live presence + playtime accumulator (see
+# values.yaml). Persistence off in dev: the cache is disposable, and the PVC
+# would otherwise pin the pod on the same node (RWO) for no benefit.
+valkey:
+  enabled: true
+  auth:
+    password: "dev-valkey-password"
+  primary:
+    persistence:
+      enabled: false
+
+# MQTT publisher for ephemeral player notifications. The broker is the local
+# mosquitto (textchat chart, JWT mode): svc-social authenticates with a
+# client_credentials token sent as the MQTT password (CHAT_SERVICE_CLIENTS
+# must list svc-social on chatauth's side).
+mqtt:
+  url: "mqtt://textchat-mosquitto:1883"
+  clientId: "svc-social"
+  clientSecret:
+    create: true
+    # MUST match `svc-social-client-secret` (key `secret`) in
+    # keycloak-managed/dev/06-service-clients.yaml — same Keycloak client.
+    secret: "svc-social-dev-secret"
 
 # Exposed through the dev Traefik gateway (traefik/values-dev.yaml) on the shared
 # `service.dyingstar.local` host, which the minikube tunnel resolves; the hostname

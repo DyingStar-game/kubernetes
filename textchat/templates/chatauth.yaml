@@ -36,8 +36,37 @@ spec:
             - name: OIDC_JWKS_URL
               value: {{ .Values.chatAuth.oidcJwksUrl | quote }}
             {{- end }}
+            {{- with .Values.chatAuth.oidcTokenUrl }}
+            - name: OIDC_TOKEN_URL
+              value: {{ . | quote }}
+            {{- end }}
             - name: CHAT_ALLOWED_TOPICS
               value: {{ .Values.chatAuth.allowedTopics | quote }}
+            - name: CHAT_TOPIC_ROOT
+              value: {{ .Values.chatAuth.topicRoot | quote }}
+            - name: CHAT_NOTIFY_ROOT
+              value: {{ .Values.chatAuth.notifyRoot | quote }}
+            - name: CHAT_SERVICE_CLIENTS
+              value: {{ .Values.chatAuth.serviceClients | quote }}
+            {{- with .Values.chatAuth.socialApi.url }}
+            - name: CHAT_SOCIAL_API_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.chatAuth.socialApi.serviceClientId }}
+            - name: CHAT_SOCIAL_SERVICE_CLIENT_ID
+              value: {{ . | quote }}
+            {{- if or $.Values.chatAuth.socialApi.existingSecret $.Values.chatAuth.socialApi.create }}
+            - name: CHAT_SOCIAL_SERVICE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.chatAuth.socialApi.existingSecret | default (printf "%s-social-client" (include "textchat.fullname" $)) }}
+                  key: secret
+            {{- end }}
+            {{- end }}
+            - name: CHAT_ACL_CACHE_TTL_SECONDS
+              value: {{ .Values.chatAuth.aclCache.ttlSeconds | quote }}
+            - name: CHAT_ACL_CACHE_MAX
+              value: {{ .Values.chatAuth.aclCache.max | quote }}
           {{- with .Values.chatAuth.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
