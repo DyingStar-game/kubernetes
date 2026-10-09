@@ -90,6 +90,12 @@ projects:
     dockerfile: docker/Dockerfile
     deployment: service-monitoring
 
+  # Panneau d'admin : image unique (BFF + SPA), contexte = racine du dépôt.
+  - name: dyingstar-admin
+    path: ../adminpanel
+    dockerfile: docker/Dockerfile.prod
+    deployment: dyingstar-admin
+
 # Non listés volontairement :
 #   keycloak   déployé par l'opérateur officiel (argocd/dev/game/keycloak-app.yaml
 #              pointe sur keycloak/manifests) — pas de Deployment issu d'un chart local

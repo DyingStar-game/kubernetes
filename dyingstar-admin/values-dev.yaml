@@ -1,0 +1,62 @@
+# Dev overrides for dyingstar-admin (minikube, deployed by ArgoCD in namespace dyingstar)
+# Usage: helm upgrade --install -n dyingstar dyingstar-admin ./dyingstar-admin -f dyingstar-admin/values-dev.yaml
+
+replicaCount: 1
+
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/dyingstar-admin
+  pullPolicy: Always
+  tag: "develop"
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi
+
+panel:
+  environment: "dev"
+  gameServerName: "Universe Dev"
+  publicUrl: "http://admin.dyingstar.local"
+
+services:
+  persistenceUrl: "http://service-persistence:3001"
+  socialUrl: "http://service-social:3000"
+  economieUrl: "http://service-economie:3000"
+
+# Issuer of the dev-local Keycloak (`hostname` in
+# keycloak-managed/dev/03-keycloak.yaml). The pod reaches it by that name, like
+# the services do for their JWKS.
+oidc:
+  issuer: "http://auth.dyingstar.local/realms/dyingstar"
+  # DEV ONLY: the chart creates dyingstar-admin-oidc-client from this value. It
+  # MUST match `dyingstar-admin-client-secret` (key `secret`) in
+  # keycloak-managed/dev/06-service-clients.yaml — same Keycloak client.
+  create: true
+  clientSecret: "dyingstar-admin-dev-secret"
+
+svcAdmin:
+  # DEV ONLY: the chart creates dyingstar-admin-svc-admin-client from this
+  # value. It MUST match `svc-admin-client-secret` (key `secret`) in
+  # keycloak-managed/dev/06-service-clients.yaml — same Keycloak client.
+  create: true
+  clientSecret: "svc-admin-dev-secret"
+
+# Exposed through the dev Traefik gateway (traefik/values-dev.yaml, listener
+# `web`) on its own host, which the minikube tunnel resolves; the hostname is
+# registered in hosts_config.txt and written to /etc/hosts by start-dev.sh.
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: traefik-gateway
+      namespace: traefik
+      sectionName: web
+  hostnames:
+    - "admin.dyingstar.local"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
