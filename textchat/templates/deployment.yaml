@@ -32,16 +32,25 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - cp /config-in/mosquitto.conf /config-out/mosquitto.conf
+            - cp /usr/sbin/mosquitto /bin-out/mosquitto
           volumeMounts:
             - name: config
               mountPath: /config-in
               readOnly: true
             - name: config-data
               mountPath: /config-out
+            - name: bin-data
+              mountPath: /bin-out
       containers:
         - name: mosquitto
           image: "{{ $image.repository }}:{{ $image.tag }}"
           imagePullPolicy: {{ $image.pullPolicy }}
+          # Run the broker from a copied binary: the host AppArmor profile
+          # /etc/apparmor.d/usr.sbin.mosquitto (if mosquitto is installed on the
+          # minikube host) follows execs of /usr/sbin/mosquitto into containers
+          # and denies reading our config path. A copy at another path is
+          # unaffected by that profile.
+          command: ["/opt/mosquitto/mosquitto", "-c", "{{ $confDir }}/mosquitto.conf"]
           ports:
             - name: mqtt
               containerPort: {{ .Values.mosquitto.service.mqttPort }}
@@ -52,6 +61,8 @@ spec:
           volumeMounts:
             - name: config-data
               mountPath: {{ $confDir }}
+            - name: bin-data
+              mountPath: /opt/mosquitto
           {{- with .Values.mosquitto.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -71,5 +82,7 @@ spec:
           configMap:
             name: {{ include "textchat.fullname" . }}-mosquitto
         - name: config-data
+          emptyDir: {}
+        - name: bin-data
           emptyDir: {}
 {{- end }}
