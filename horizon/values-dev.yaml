@@ -10,8 +10,8 @@ image:
 extraEnv:
   # - name: GAME_SERVER_HOST
   #   value: "host.minikube.internal"
-  - name: BYPASS_AUTH
-    value: "true"
+  # - name: BYPASS_AUTH
+  #  value: "true"
   - name: LIVEKIT_URL
     value: "ws://vocal.dyingstar.local"
   - name: LIVEKIT_API_URL
