@@ -229,7 +229,7 @@ Both the operator and our CRs are declared by a single infra Application,
 | `04-realm-import.yaml` | Realm `dyingstar`, rôles de capacité, clients OIDC (dont `svc-*` + mappers d'audience), importé par le job `kcadm` de l'opérateur |
 | `05-httproute.yaml` | Exposition via la Gateway Traefik |
 | `06-service-clients.yaml` | Clients de service `KeycloakOIDCClient` (`svc-game`, `svc-market`, `svc-inventory`, `svc-mission`, `svc-admin`, `svc-economie`) : `secretRef` + rôles du service account, et leurs Secrets dev (`svc-*-client-secret`) |
-| `07-role-bootstrap-job.yaml` | Job PostSync idempotent : (re)crée les rôles de capacité du realm **et** les mappers d'audience des clients `svc-*` — indispensable car l'import est create-only (`--override=false`), un objet ajouté après le 1er import n'existerait jamais |
+| `07-role-bootstrap-job.yaml` | Job PostSync idempotent : (re)crée les rôles de capacité du realm, **les mappers d'audience** des clients `svc-*` **et réassigne les rôles de `svc-chat`** à son service account — indispensable car l'import est create-only (`--override=false`), un objet ajouté après le 1er import n'existerait jamais |
 
 Key points:
 

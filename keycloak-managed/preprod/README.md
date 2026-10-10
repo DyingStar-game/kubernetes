@@ -28,7 +28,7 @@ l'opérateur.
 | `05-httproute.yaml` | `HTTPRoute` `auth-preprod.dyingstar-game.com` (listener Traefik `keycloak`, HTTPS) |
 | `06-service-clients.yaml` | `KeycloakOIDCClient` `svc-*` (`svc-game`, `svc-market`, `svc-inventory`, `svc-mission`, `svc-admin`, `svc-economie`, `svc-social`, `svc-chat` — secrets hors-bande) |
 | `07-discord-bootstrap-job.yaml` | Job PostSync : provider Discord via `bootstrap-discord-idp.sh` |
-| `08-role-bootstrap-job.yaml` | Job PostSync idempotent : (re)crée les rôles de capacité du realm **et** les mappers d'audience des clients `svc-*` (voir § Wipe) |
+| `08-role-bootstrap-job.yaml` | Job PostSync idempotent : (re)crée les rôles de capacité du realm, **les mappers d'audience** des clients `svc-*` **et réassigne les rôles de `svc-chat`** à son service account (voir § Wipe) |
 
 ## Pré-requis : Secrets hors-bande
 

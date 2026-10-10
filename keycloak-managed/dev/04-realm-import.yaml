@@ -507,6 +507,31 @@ spec:
               included.custom.audience: inventory-api
               access.token.claim: "true"
               id.token.claim: "false"
+      # Service chat (chatauth) -> social-api : probes d'appartenance
+      # (groupe / corporation), de réputation (mute / ban) et l'ACL centrale des
+      # channels DM / groupe / corporation du broker MQTT. Lecteur seul.
+      # L'assignation des rôles au service account est portée par la CR
+      # `svc-chat` de 06-service-clients.yaml ; le mapper d'audience est
+      # répliqué dans CLIENT_AUD de 07-role-bootstrap-job.yaml (realm déjà
+      # importé = import create-only, le job le rattrape à chaque sync).
+      - clientId: svc-chat
+        name: DyingStar chat auth (client_credentials)
+        description: Chat auth -> social-api.
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: true
+        protocolMappers:
+          - name: social-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: social-api
+              access.token.claim: "true"
+              id.token.claim: "false"
       # Client d'administration : porte TOUTES les capacités du realm (les 31
       # rôles, cf. 06-service-clients.yaml) et les audiences des 5 APIs. Réservé
       # à une console/interface d'admin — jamais au jeu. Sa compromission donne
