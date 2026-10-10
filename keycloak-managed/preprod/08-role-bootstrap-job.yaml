@@ -181,7 +181,42 @@ spec:
               echo "audiences: present=${mpresent} created=${mcreated} skipped_clients=${mskipped}"
 
               # ------------------------------------------------------------------
-              # 3. Client du panneau d'admin : attributs hors CRD
+              # 3. Assignation des rôles au service account de svc-chat
+              # ------------------------------------------------------------------
+              # La CR `svc-chat` (06-service-clients.yaml) porte déjà
+              # `serviceAccountRoles`, mais l'opérateur échoue à l'appliquer si le
+              # rôle n'existe pas encore sur un realm importé AVANT l'ajout du
+              # rôle (`Cannot assign role ... does not exist`) — et cet échec n'est
+              # pas rejoué : le compte de service reste sans aucun rôle. Symptôme :
+              # chatauth appelle social-api avec un token sans capacité -> 403
+              # FORBIDDEN sur les probes d'appartenance (groupe / corporation),
+              # ce qui refuse l'ACL des channels DM / groupe / corporation. Ce
+              # rattrapage, idempotent et rejoué à chaque sync, garantit les
+              # rôles même quand la CR a déjà « réussi ».
+              declare -A CLIENT_ROLES=(
+                [svc-chat]="social:profile:read social:corporation:read social:group:read social:sanctions:read social:authorize"
+              )
+
+              aok=0
+              afail=0
+              for client in "${!CLIENT_ROLES[@]}"; do
+                for role in ${CLIENT_ROLES[${client}]}; do
+                  if "${KC}" add-roles -r "${KC_REALM}" \
+                        --uusername "service-account-${client}" \
+                        --rolename "${role}" >/dev/null 2>&1; then
+                    aok=$((aok + 1))
+                    echo "role ${client} -> ${role} (ok)"
+                  else
+                    afail=$((afail + 1))
+                    echo "role ${client} -> ${role} (FAILED)"
+                  fi
+                done
+              done
+
+              echo "rôles assignés: ok=${aok} failed=${afail}"
+
+              # ------------------------------------------------------------------
+              # 4. Client du panneau d'admin : attributs hors CRD
               # ------------------------------------------------------------------
               # La CR `dyingstar-admin` (06-service-clients.yaml) n'expose pas
               # les attributs : PKCE obligatoire et URIs autorisées après
