@@ -183,6 +183,13 @@ spec:
               # ------------------------------------------------------------------
               # 3. Assignation des rôles au service account de svc-chat
               # ------------------------------------------------------------------
+              # Les 4 rôles dont l'adapter a besoin sur social-api (README du
+              # service chatauth, autorité) : profile:read (probe d'amitié pour
+              # les topics DM), group:read et corporation:read (appartenance),
+              # sanctions:read (mutes / bans). `social:notify:write` serait à
+              # ajouter si un service publiait directement sur notify/# au lieu
+              # de passer par service-social.
+              #
               # La CR `svc-chat` (06-service-clients.yaml) porte déjà
               # `serviceAccountRoles`, mais l'opérateur échoue à l'appliquer si le
               # rôle n'existe pas encore sur un realm importé AVANT l'ajout du
@@ -194,7 +201,7 @@ spec:
               # rattrapage, idempotent et rejoué à chaque sync, garantit les
               # rôles même quand la CR a déjà « réussi ».
               declare -A CLIENT_ROLES=(
-                [svc-chat]="social:profile:read social:corporation:read social:group:read social:sanctions:read social:authorize"
+                [svc-chat]="social:profile:read social:group:read social:corporation:read social:sanctions:read"
               )
 
               aok=0
