@@ -223,7 +223,30 @@ spec:
               echo "rôles assignés: ok=${aok} failed=${afail}"
 
               # ------------------------------------------------------------------
-              # 4. Client du panneau d'admin : attributs hors CRD
+              # 4. fullScopeAllowed sur le client svc-chat
+              # ------------------------------------------------------------------
+              # La CRD KeycloakOIDCClient n'expose pas ce champ et le défaut
+              # Keycloak est `false` : le mapper `realm roles` du client-scope
+              # `roles` n'est alors pas appliqué, le token client_credentials sort
+              # sans `realm_access`, et social-api répond 403 FORBIDDEN
+              # (« Requires service role social:group:read ») sur les probes
+              # d'appartenance — ce qui refuse l'ACL des channels DM / groupe /
+              # corporation. Les clients créés par l'import du realm (svc-game,
+              # svc-economie...) sont en `true`, d'où l'asymétrie.
+              # Idempotent, comme les sections précédentes.
+              for client in "${!CLIENT_ROLES[@]}"; do
+                fcid=$("${KC}" get clients -r "${KC_REALM}" -q "clientId=${client}" \
+                      | { grep -o '"id" *: *"[^"]*"' || true; } | head -1 | sed 's/.*: *"//; s/"$//')
+                if [ -z "${fcid}" ]; then
+                  echo "fullScopeAllowed: ${client} absent, ignoré"
+                  continue
+                fi
+                "${KC}" update "clients/${fcid}" -r "${KC_REALM}" -s "fullScopeAllowed=true" >/dev/null
+                echo "fullScopeAllowed: ${client} -> true"
+              done
+
+              # ------------------------------------------------------------------
+              # 5. Client du panneau d'admin : attributs hors CRD
               # ------------------------------------------------------------------
               # La CR `dyingstar-admin` (06-service-clients.yaml) n'expose pas
               # les attributs : PKCE obligatoire et URIs autorisées après
