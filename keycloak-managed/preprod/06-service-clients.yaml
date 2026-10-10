@@ -309,14 +309,17 @@ spec:
       secretRef:
         name: svc-chat-client-secret
         key: secret
-    # Lecture seule de l'appartenance corporation / groupe, de la réputation
-    # (mute / ban) et de l'autorisation générique.
+    # Exactement les quatre rôles dont l'adapter a besoin sur social-api (README
+    # du service chatauth, autorité) :
+    #   social:profile:read     — probe d'amitié pour les topics DM
+    #   social:group:read       — probe d'appartenance groupe
+    #   social:corporation:read — probe d'appartenance corporation
+    #   social:sanctions:read   — mutes / bans
     serviceAccountRoles:
       - social:profile:read
-      - social:corporation:read
       - social:group:read
+      - social:corporation:read
       - social:sanctions:read
-      - social:authorize
 ---
 # Panneau d'admin (https://github.com/DyingStar-game/adminpanel, chart
 # dyingstar-admin) : client CONFIDENTIEL de son BFF, flow standard (code +
