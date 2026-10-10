@@ -39,7 +39,15 @@ data:
     auth_opt_jwt_host {{ include "textchat.fullname" . }}-chatauth
     auth_opt_jwt_port {{ .Values.chatAuth.service.port }}
     auth_opt_jwt_getuser_uri /user
+    {{- if ne .Values.mosquitto.auth.disableSuperuser false }}
+    # The chat has no superuser. go-auth's checkSuperuserThenACL calls
+    # GetSuperuser before every ACL check, which would hit the adapter's
+    # /superuser endpoint first (3 HTTP round-trips per subscription batch, plus
+    # the matching log lines). Disabling the check removes them.
+    auth_opt_disable_superuser true
+    {{- else }}
     auth_opt_jwt_superuser_uri /superuser
+    {{- end }}
     auth_opt_jwt_aclcheck_uri /acl
     auth_opt_jwt_response_mode json
     auth_opt_jwt_params_mode json
