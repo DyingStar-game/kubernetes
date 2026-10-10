@@ -12,6 +12,10 @@ mosquitto:
   # "anonymous" or "jwt".
   auth:
     mode: anonymous
+    # Disable go-auth's superuser check (and the /superuser call it makes before
+    # every ACL check). Only relevant in jwt mode; prod keeps it enabled.
+    # Any value but `false` (including unset) disables superuser.
+    disableSuperuser: true
   # Image for anonymous mode.
   image:
     repository: eclipse-mosquitto

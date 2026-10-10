@@ -4,6 +4,9 @@
 mosquitto:
   auth:
     mode: jwt
+    # Keep the superuser check enabled in prod (out of scope of the dev change
+    # that removed it).
+    disableSuperuser: false
   service:
     type: ClusterIP
 
