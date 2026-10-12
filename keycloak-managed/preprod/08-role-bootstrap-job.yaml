@@ -191,6 +191,26 @@ spec:
               echo "audiences: present=${mpresent} created=${mcreated} skipped_clients=${mskipped}"
 
               # ------------------------------------------------------------------
+              # 2b. Mapper « client roles » du client scope `roles`
+              # ------------------------------------------------------------------
+              # Absent des realms importés avant son ajout à 04-realm-import.yaml :
+              # sans lui, aucun token ne porte `resource_access` (rôles client).
+              sid=$("${KC}" get client-scopes -r "${KC_REALM}" --fields id,name \
+                    | tr -d '[:space:]' | { grep -o '"id":"[^"]*","name":"roles"' || true; } \
+                    | sed 's/"id":"//; s/".*//')
+              if [ -z "${sid}" ]; then
+                echo "client scope roles absent, ignoré"
+              elif "${KC}" get "client-scopes/${sid}/protocol-mappers/models" -r "${KC_REALM}" \
+                     | tr -d '[:space:]' | grep -q '"name":"clientroles"'; then
+                echo "client roles mapper: present"
+              else
+                "${KC}" create "client-scopes/${sid}/protocol-mappers/models" -r "${KC_REALM}" -f - <<'JSON'
+              {"name":"client roles","protocol":"openid-connect","protocolMapper":"oidc-usermodel-client-role-mapper","config":{"claim.name":"resource_access.${client_id}.roles","jsonType.label":"String","multivalued":"true","access.token.claim":"true"}}
+              JSON
+                echo "client roles mapper: created"
+              fi
+
+              # ------------------------------------------------------------------
               # 3. Assignation des rôles au service account de svc-chat
               # ------------------------------------------------------------------
               # Les 4 rôles dont l'adapter a besoin sur social-api (README du
