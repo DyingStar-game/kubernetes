@@ -270,6 +270,19 @@ spec:
                   -s 'attributes."pkce.code.challenge.method"=S256' \
                   -s "attributes.\"post.logout.redirect.uris\"=${PANEL_POST_LOGOUT_URIS}"
                 echo "dyingstar-admin: attributes set"
+                # Client créé par sa CR : fullScopeAllowed=false, ses tokens ne portent
+                # que ses rôles client. Le panneau lit aussi les rôles de modération
+                # du realm (social, economie, universesimulator) : on les ajoute à son
+                # scope, et eux seuls. Rejouable (un mapping existant est ignoré).
+                for role in moderator admin supervisor; do
+                  rid=$("${KC}" get "roles/${role}" -r "${KC_REALM}" --fields id \
+                        | { grep -o '"id" *: *"[^"]*"' || true; } | head -1 | sed 's/.*: *"//; s/"$//')
+                  [ -z "${rid}" ] && continue
+                  "${KC}" create "clients/${pid}/scope-mappings/realm" -r "${KC_REALM}" -f - <<JSON
+              [{"id":"${rid}","name":"${role}"}]
+              JSON
+                done
+                echo "dyingstar-admin: moderation roles in scope"
               fi
           env:
             # kcadm écrit sa config dans ${HOME}/.keycloak ; HOME de l'image
