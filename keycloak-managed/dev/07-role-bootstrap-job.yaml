@@ -167,6 +167,11 @@ spec:
                   mskipped=$((mskipped + 1))
                   continue
                 fi
+                # Un client créé par sa CR (absent du premier import du realm) naît
+                # avec fullScopeAllowed=false : ses rôles de realm ne sont alors pas
+                # émis dans le token (pas de realm_access) et chaque service
+                # appelé répond 403. Les clients importés l'ont à true.
+                "${KC}" update "clients/${cid}" -r "${KC_REALM}" -s fullScopeAllowed=true
                 CMP=$("${KC}" get "clients/${cid}/protocol-mappers/models" -r "${KC_REALM}" | tr -d '[:space:]')
                 for aud in ${CLIENT_AUD[${client}]}; do
                   name="${aud}-audience"
