@@ -65,6 +65,10 @@ spec:
             - name: ECONOMIE_URL
               value: {{ . | quote }}
             {{- end }}
+            {{- with .Values.services.universesimulatorUrl }}
+            - name: UNIVERSESIMULATOR_URL
+              value: {{ . | quote }}
+            {{- end }}
             {{- with .Values.oidc.issuer }}
             - name: OIDC_ISSUER
               value: {{ . | quote }}
