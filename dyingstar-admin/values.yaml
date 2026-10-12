@@ -93,6 +93,8 @@ services:
   persistenceUrl: ""
   socialUrl: ""
   economieUrl: ""
+  # universesimulator base URL (the BFF adds `/api`).
+  universesimulatorUrl: ""
 
 # Keycloak sign-in: the BFF is the OIDC client `dyingstar-admin`
 # (confidential, standard flow). The BFF does not start without it.
