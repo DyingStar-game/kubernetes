@@ -26,6 +26,7 @@ services:
   persistenceUrl: "http://service-persistence:3001"
   socialUrl: "http://service-social:3000"
   economieUrl: "http://service-economie:3000"
+  universesimulatorUrl: "http://service-universesimulator:9600"
 
 # The Keycloak CR (keycloak-managed/preprod/) lives in this same namespace.
 # Discovery goes through the public issuer, like the services' JWKS.
