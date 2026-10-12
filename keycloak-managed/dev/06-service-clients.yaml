@@ -18,9 +18,9 @@
     #
     # Clients déclarés : svc-game, svc-market, svc-inventory, svc-mission,
     # svc-admin, svc-economie, svc-social (publisher MQTT de social, aucune
-    # capacité), svc-chat (chatauth, probes d'appartenance / mute / ban), et le
-    # client de connexion du panneau d'admin `dyingstar-admin` (flow standard,
-    # en fin de fichier).
+    # capacité), svc-chat (chatauth, probes d'appartenance / mute / ban),
+    # svc-universesimulator, et le client de connexion du panneau d'admin
+    # `dyingstar-admin` (flow standard, en fin de fichier).
 #
 # Pré-requis : le Secret référencé par `auth.secretRef` doit exister AVANT que
 # le CR soit réconcilié, sinon le CR reste NotReady. En dev-local (minikube) les
@@ -120,6 +120,19 @@ type: Opaque
 stringData:
   secret: svc-chat-dev-secret
 ---
+# Même valeur que `serviceClient.clientSecret` de
+# service-universesimulator/values-dev.yaml (le pod vit dans `dyingstar`, ce
+# Secret dans `keycloak`).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: svc-universesimulator-client-secret
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+type: Opaque
+stringData:
+  secret: svc-universesimulator-dev-secret
+---
 apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakOIDCClient
 metadata:
@@ -139,8 +152,9 @@ spec:
       secretRef:
         name: svc-game-client-secret
         key: secret
-    # Les 33 rôles de capacité (rôles realm), assignés au service account
-    # `service-account-svc-game`.
+    # Les 33 rôles de capacité des 5 premières APIs (rôles realm, sans
+    # mission:escrow:politics) + usim:read / usim:deliver, assignés au service
+    # account `service-account-svc-game`.
     serviceAccountRoles:
       - social:profile:read
       - social:profile:write
@@ -175,6 +189,10 @@ spec:
       - market:read
       - market:manage
       - market:settle
+      # Universe simulator : lectures internes et livraisons hors mission en
+      # entrepôt (POST /api/internal/warehouse-deliveries).
+      - usim:read
+      - usim:deliver
 ---
 apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakOIDCClient
@@ -303,6 +321,45 @@ spec:
 apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakOIDCClient
 metadata:
+  name: svc-universesimulator
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  keycloakCRName: keycloak
+  realm: dyingstar
+  client:
+    enabled: true
+    loginFlows:
+      - SERVICE_ACCOUNT
+    auth:
+      method: client-secret
+      secretRef:
+        name: svc-universesimulator-client-secret
+        key: secret
+    # Le simulateur publie les missions d'approvisionnement, séquestrées sur la
+    # trésorerie de la fédération (mission:escrow:politics), réserve et
+    # transfère les stocks des entrepôts (inventory), lit/écrit la hiérarchie
+    # politique (social) et alimente la trésorerie (economie, émission de
+    # monnaie). Les mappers d'audience (mission-api, inventory-api, social-api,
+    # economie-api) sont déclarés dans 04-realm-import.yaml.
+    serviceAccountRoles:
+      - mission:read
+      - mission:write
+      - mission:escrow:politics
+      - inventory:read
+      - inventory:hold
+      - inventory:transfer
+      - inventory:credit
+      - social:politics:read
+      - social:politics:write
+      - economie:wallet:ensure
+      - economie:politics:read
+      - economie:politics:manage
+      - economie:money:issue
+---
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: KeycloakOIDCClient
+metadata:
   name: svc-admin
   annotations:
     argocd.argoproj.io/sync-wave: "2"
@@ -318,7 +375,7 @@ spec:
       secretRef:
         name: svc-admin-client-secret
         key: secret
-    # Console d'admin : TOUTES les capacités du realm (les 33 rôles). C'est
+    # Console d'admin : TOUTES les capacités du realm (les 37 rôles). C'est
     # volontairement le client le plus privilégié — à réserver à un backend
     # d'administration et à isoler (secret dédié, rotation régulière).
     serviceAccountRoles:
@@ -352,9 +409,13 @@ spec:
       - mission:write
       - mission:progress
       - mission:complete
+      - mission:escrow:politics
       - market:read
       - market:manage
       - market:settle
+      - usim:read
+      - usim:write
+      - usim:deliver
 ---
 # Publisher MQTT du service social : il publie les notifications éphémères des
 # joueurs sur {MQTT_TOPIC_ROOT}/{playerId} (notify/…). Aucune capacité : son

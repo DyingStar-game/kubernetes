@@ -31,7 +31,7 @@ oidc:
   issuer: "https://auth-preprod.dyingstar-game.com/realms/dyingstar"
   serviceAudience: "economie-api"
 
-internalServiceClients: "svc-game,svc-market,svc-inventory,svc-mission,svc-admin"
+internalServiceClients: "svc-game,svc-market,svc-inventory,svc-mission,svc-admin,svc-universesimulator"
 
 # The `svc-economie` client secret is created out of band as
 # `service-economie-economie-client` (key `secret`); it MUST equal

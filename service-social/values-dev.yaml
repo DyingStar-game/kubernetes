@@ -50,7 +50,8 @@ oidc:
 # svc-admin est la console d'admin (toutes capacités) ;
 # svc-chat appelle /api/internal pour les probes d'appartenance / mute / ban
 # des channels DM / groupe / corporation (rôle social:authorize).
-internalServiceClients: "svc-game,svc-market,svc-inventory,svc-economie,svc-mission,svc-admin,svc-chat"
+# svc-universesimulator lit/écrit la hiérarchie politique (social:politics:*).
+internalServiceClients: "svc-game,svc-market,svc-inventory,svc-economie,svc-mission,svc-admin,svc-chat,svc-universesimulator"
 
 # DEV ONLY: the chart creates service-social-internal-key from this value, the
 # way livekit creates its keys Secret when no existingKeysSecret is set. The game

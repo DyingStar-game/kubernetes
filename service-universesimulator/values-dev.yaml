@@ -1,0 +1,75 @@
+# Dev overrides for service-universesimulator (minikube, deployed by ArgoCD in namespace dyingstar)
+# Usage: helm upgrade --install -n dyingstar service-universesimulator ./service-universesimulator -f service-universesimulator/values-dev.yaml
+
+replicaCount: 1
+
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/universesimulator
+  pullPolicy: Always
+  tag: "develop"
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 128Mi
+
+# The database is NOT declared by this chart in dev-local: it is a CloudNativePG
+# Cluster (service-universesimulator/database/) applied as a second source by the
+# same ArgoCD app. `database.host` is the `<cluster>-rw` Service CloudNativePG
+# creates; the Secret is the one its initdb was bootstrapped with.
+# port / name / user are inherited from values.yaml.
+database:
+  host: universesimulator-db-rw
+  existingSecret: universesimulator-db-auth
+
+# Must stay false here: values.yaml defaults to true, which is what prod relies
+# on. The rest of the postgresql block is dead config in dev and is deliberately
+# not repeated here.
+postgresql:
+  enabled: false
+
+# Issuer of the dev-local Keycloak, declared as `hostname` in
+# keycloak-managed/dev/03-keycloak.yaml — the tokens it issues carry this value, so
+# pointing anywhere else makes every JWT fail validation. It resolves through
+# the minikube tunnel (hostname registered in hosts_config.txt).
+# serviceAudience (universesimulator-api) is inherited from values.yaml.
+oidc:
+  issuer: "http://auth.dyingstar.local/realms/dyingstar"
+
+# DEV ONLY: the chart creates service-universesimulator-universesimulator-client
+# holding the client secret of the `svc-universesimulator` Keycloak client, used
+# to call the social, inventory, mission and economie internal APIs. The value
+# MUST match `svc-universesimulator-client-secret` (key `secret`) in
+# keycloak-managed/dev/06-service-clients.yaml — same Keycloak client.
+serviceClient:
+  clientId: "svc-universesimulator"
+  create: true
+  clientSecret: "svc-universesimulator-dev-secret"
+
+# Exposed through the dev Traefik gateway (traefik/values-dev.yaml) on the shared
+# `services.dyingstar.local` host, which the minikube tunnel resolves; the hostname
+# is registered in hosts_config.txt and written to /etc/hosts by start-dev.sh.
+# The service is served under the `/universesimulator` path prefix; the URLRewrite
+# filter strips it before forwarding, so the app keeps serving at root (`/api/*`).
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: traefik-gateway
+      namespace: traefik
+      sectionName: web
+  hostnames:
+    - "services.dyingstar.local"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /universesimulator
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /

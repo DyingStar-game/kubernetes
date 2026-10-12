@@ -98,6 +98,7 @@ sync with each service's `src/middleware/auth.ts` `SERVICE_ROLES`.
 | `mission:write` | Create, update, expire, cancel, assign missions |
 | `mission:progress` | Objective progress |
 | `mission:complete` | Complete and settle missions |
+| `mission:escrow:politics` | Missions escrowed on a political entity's treasury (federation) |
 
 ### market (`market-api`)
 | Role | Grants |
@@ -105,6 +106,13 @@ sync with each service's `src/middleware/auth.ts` `SERVICE_ROLES`.
 | `market:read` | Catalog, orders, demands, trades reads |
 | `market:manage` | Catalog management, place/cancel orders and demands |
 | `market:settle` | Settle trades |
+
+### universesimulator (`universesimulator-api`)
+| Role | Grants |
+|---|---|
+| `usim:read` | Internal reads (federations, warehouses, stocks, prices, orders) |
+| `usim:write` | Create supply orders (`POST /api/internal/orders`) |
+| `usim:deliver` | Off-mission warehouse deliveries (`POST /api/internal/warehouse-deliveries`) |
 
 > When adding a capability, create the client role on the target `*-api` client and assign it to
 > the calling `svc-*` service account. The game server (`svc-game`) typically needs the write
@@ -145,6 +153,15 @@ sync with each service's `src/middleware/auth.ts` `SERVICE_ROLES`.
 > The economy service (`svc-economie`) only calls `social-api`, for
 > `social:corporation:read` + `social:group:read` + `social:profile:read` (corporation and
 > political treasuries). Its client carries `social-api` only.
+>
+> The universe simulator (`svc-universesimulator`) needs `mission:read` + `mission:write` +
+> `mission:escrow:politics` on `mission-api` (supply missions escrowed on the federation
+> treasury), `inventory:read` + `inventory:hold` + `inventory:transfer` + `inventory:credit`
+> on `inventory-api` (warehouse stocks), `social:politics:read` + `social:politics:write` on
+> `social-api` (political hierarchy) and `economie:wallet:ensure` + `economie:politics:read` +
+> `economie:politics:manage` + `economie:money:issue` on `economie-api` (treasury, minting).
+> Its client carries those four audiences — and never `universesimulator-api`, which
+> `svc-game` (`usim:read`, `usim:deliver`) and `svc-admin` carry.
 
 ## Admin panel (`dyingstar-admin`)
 

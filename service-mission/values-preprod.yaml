@@ -31,7 +31,7 @@ oidc:
   issuer: "https://auth-preprod.dyingstar-game.com/realms/dyingstar"
   serviceAudience: "mission-api"
 
-internalServiceClients: "svc-game,svc-admin"
+internalServiceClients: "svc-game,svc-admin,svc-universesimulator"
 
 # The `svc-mission` client secret is created out of band as
 # `service-mission-mission-client` (key `secret`); it MUST equal

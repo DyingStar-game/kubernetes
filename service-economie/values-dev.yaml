@@ -46,8 +46,9 @@ oidc:
 # hors de cette liste sont rejetés en 403 SERVICE_FORBIDDEN.
 # svc-mission règle les récompenses (economie:wallet:credit/debit) ;
 # svc-inventory débite/credite les wallets depuis l'API inventaire ;
-# svc-admin est la console d'admin (toutes capacités).
-internalServiceClients: "svc-game,svc-market,svc-inventory,svc-mission,svc-admin"
+# svc-admin est la console d'admin (toutes capacités) ;
+# svc-universesimulator gère la trésorerie de la fédération (politics, émission).
+internalServiceClients: "svc-game,svc-market,svc-inventory,svc-mission,svc-admin,svc-universesimulator"
 
 # DEV ONLY: the chart creates service-economie-internal-key from this value, the
 # way livekit creates its keys Secret when no existingKeysSecret is set. The game
