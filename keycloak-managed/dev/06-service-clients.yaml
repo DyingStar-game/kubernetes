@@ -312,11 +312,16 @@ spec:
       - economie:wallet:read
       - economie:wallet:credit
       - economie:wallet:debit
+      # Escrow des missions payées par une entité politique (débit/remboursement
+      # de la trésorerie, ADR universesimulator 0009).
+      - economie:politics:manage
       - social:corporation:read
       - social:group:read
       - social:profile:read
       - social:authorize
       - inventory:read
+      # deliver_items : déplace les biens du joueur vers le destinataire.
+      - inventory:transfer
 ---
 apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakOIDCClient
