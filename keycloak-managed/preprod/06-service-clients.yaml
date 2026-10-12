@@ -16,8 +16,8 @@
     #
     # Clients déclarés : svc-game, svc-market, svc-inventory, svc-mission,
     # svc-admin, svc-economie, svc-social (publisher MQTT de social), svc-chat
-    # (chatauth), et le client de connexion du panneau d'admin
-    # `dyingstar-admin` (flow standard, en fin de fichier ; son Secret
+    # (chatauth), svc-universesimulator, et le client de connexion du panneau
+    # d'admin `dyingstar-admin` (flow standard, en fin de fichier ; son Secret
     # `dyingstar-admin-client-secret` est aussi lu par le pod du panneau).
 #
 # ⚠ Les Secrets référencés par `auth.secretRef` (`<clientId>-client-secret`,
@@ -45,8 +45,9 @@ spec:
       secretRef:
         name: svc-game-client-secret
         key: secret
-    # Les 33 rôles de capacité (rôles realm), assignés au service account
-    # `service-account-svc-game`.
+    # Les 33 rôles de capacité des 5 premières APIs (rôles realm, sans
+    # mission:escrow:politics) + usim:read / usim:deliver, assignés au service
+    # account `service-account-svc-game`.
     serviceAccountRoles:
       - social:profile:read
       - social:profile:write
@@ -81,6 +82,10 @@ spec:
       - market:read
       - market:manage
       - market:settle
+      # Universe simulator : lectures internes et livraisons hors mission en
+      # entrepôt (POST /api/internal/warehouse-deliveries).
+      - usim:read
+      - usim:deliver
 ---
 apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakOIDCClient
@@ -210,6 +215,46 @@ spec:
 apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakOIDCClient
 metadata:
+  name: svc-universesimulator
+  namespace: dyingstar-preprod
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  keycloakCRName: keycloak
+  realm: dyingstar
+  client:
+    enabled: true
+    loginFlows:
+      - SERVICE_ACCOUNT
+    auth:
+      method: client-secret
+      secretRef:
+        name: svc-universesimulator-client-secret
+        key: secret
+    # Le simulateur publie les missions d'approvisionnement, séquestrées sur la
+    # trésorerie de la fédération (mission:escrow:politics), réserve et
+    # transfère les stocks des entrepôts (inventory), lit/écrit la hiérarchie
+    # politique (social) et alimente la trésorerie (economie, émission de
+    # monnaie). Les mappers d'audience (mission-api, inventory-api, social-api,
+    # economie-api) sont déclarés dans 04-realm-import.yaml.
+    serviceAccountRoles:
+      - mission:read
+      - mission:write
+      - mission:escrow:politics
+      - inventory:read
+      - inventory:hold
+      - inventory:transfer
+      - inventory:credit
+      - social:politics:read
+      - social:politics:write
+      - economie:wallet:ensure
+      - economie:politics:read
+      - economie:politics:manage
+      - economie:money:issue
+---
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: KeycloakOIDCClient
+metadata:
   name: svc-admin
   namespace: dyingstar-preprod
   annotations:
@@ -226,7 +271,7 @@ spec:
       secretRef:
         name: svc-admin-client-secret
         key: secret
-    # Console d'admin : TOUTES les capacités du realm (les 33 rôles).
+    # Console d'admin : TOUTES les capacités du realm (les 37 rôles).
     serviceAccountRoles:
       - social:profile:read
       - social:profile:write
@@ -258,9 +303,13 @@ spec:
       - mission:write
       - mission:progress
       - mission:complete
+      - mission:escrow:politics
       - market:read
       - market:manage
       - market:settle
+      - usim:read
+      - usim:write
+      - usim:deliver
 ---
 # Publisher MQTT du service social (notifications éphémères des joueurs).
 # Aucune capacité : le jeton client_credentials ne sert qu'à s'authentifier

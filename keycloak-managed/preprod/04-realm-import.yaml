@@ -118,7 +118,7 @@ spec:
         - name: inventory:hold
         - name: inventory:corporation:manage
         - name: inventory:poi:manage
-        # Mission (4) — noms EXACTS exigés par l'API mission (l'API répond
+        # Mission (5) — noms EXACTS exigés par l'API mission (l'API répond
         # « Requires service role mission:read » etc.) : pas de segment ressource
         # ici, contrairement à economie:wallet:*. `mission:progress` remplace
         # l'ancien `mission:manage`, jamais référencé par l'API.
@@ -126,10 +126,19 @@ spec:
         - name: mission:write
         - name: mission:progress
         - name: mission:complete
+        # Missions séquestrées (escrow) sur la trésorerie d'une entité politique
+        # (fédération) — utilisé par universesimulator.
+        - name: mission:escrow:politics
         # Market (3)
         - name: market:read
         - name: market:manage
         - name: market:settle
+        # Universe simulator (3) — audience `universesimulator-api` :
+        # usim:read (lectures internes), usim:write (ordres d'approvisionnement),
+        # usim:deliver (livraisons hors mission en entrepôt, serveur de jeu).
+        - name: usim:read
+        - name: usim:write
+        - name: usim:deliver
     groups:
       - name: players
       - name: staff
@@ -315,7 +324,7 @@ spec:
       # ⚠ Le `clientId` est codé en dur dans les APIs : ne jamais le renommer.
       - clientId: svc-game
         name: DyingStar game server (client_credentials)
-        description: Serveur de jeu -> economie-api + social-api + mission-api.
+        description: Serveur de jeu -> economie-api + social-api + mission-api + universesimulator-api.
         enabled: true
         protocol: openid-connect
         publicClient: false
@@ -357,6 +366,13 @@ spec:
             protocolMapper: oidc-audience-mapper
             config:
               included.custom.audience: inventory-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: universesimulator-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: universesimulator-api
               access.token.claim: "true"
               id.token.claim: "false"
       - clientId: svc-market
@@ -500,14 +516,57 @@ spec:
               included.custom.audience: social-api
               access.token.claim: "true"
               id.token.claim: "false"
-      # Client d'administration : porte TOUTES les capacités du realm (les 31
-      # rôles, cf. 06-service-clients.yaml) et les audiences des 5 APIs. Réservé
+      # Service universesimulator -> mission-api + inventory-api + social-api +
+      # economie-api : publie les missions d'approvisionnement (séquestrées sur la
+      # trésorerie de la fédération), réserve/transfère les stocks des
+      # entrepôts, lit/écrit la hiérarchie politique et émet la monnaie.
+      - clientId: svc-universesimulator
+        name: DyingStar universesimulator (client_credentials)
+        description: Universe simulator -> mission-api + inventory-api + social-api + economie-api.
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: true
+        protocolMappers:
+          - name: mission-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: mission-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: inventory-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: inventory-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: social-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: social-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: economie-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: economie-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+      # Client d'administration : porte TOUTES les capacités du realm (les 37
+      # rôles, cf. 06-service-clients.yaml) et les audiences des 6 APIs. Réservé
       # à une console/interface d'admin — jamais au jeu. Sa compromission donne
       # toutes les capacités machine du realm : c'est volontaire, mais à isoler
       # (secret dédié, rotation, réseau).
       - clientId: svc-admin
         name: DyingStar admin console (client_credentials)
-        description: Console d'admin -> economie-api + social-api + mission-api, toutes capacités.
+        description: Console d'admin -> economie-api + social-api + mission-api + universesimulator-api, toutes capacités.
         enabled: true
         protocol: openid-connect
         publicClient: false
@@ -549,6 +608,13 @@ spec:
             protocolMapper: oidc-audience-mapper
             config:
               included.custom.audience: inventory-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: universesimulator-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: universesimulator-api
               access.token.claim: "true"
               id.token.claim: "false"
       # Panneau d'admin : client confidentiel du BFF, flow standard + PKCE.

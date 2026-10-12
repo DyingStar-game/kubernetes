@@ -24,9 +24,9 @@ l'opérateur.
 | --- | --- |
 | `00-cnpg-cluster.yaml` | Cluster CloudNativePG `keycloak-db` |
 | `03-keycloak.yaml` | CR `Keycloak` (image custom, issuer `https://auth-preprod.dyingstar-game.com`, DB CNPG) |
-| `04-realm-import.yaml` | `KeycloakRealmImport` du realm `dyingstar` (33 rôles + launcher + clients `svc-*`) |
+| `04-realm-import.yaml` | `KeycloakRealmImport` du realm `dyingstar` (37 rôles + launcher + clients `svc-*`) |
 | `05-httproute.yaml` | `HTTPRoute` `auth-preprod.dyingstar-game.com` (listener Traefik `keycloak`, HTTPS) |
-| `06-service-clients.yaml` | `KeycloakOIDCClient` `svc-*` (`svc-game`, `svc-market`, `svc-inventory`, `svc-mission`, `svc-admin`, `svc-economie`, `svc-social`, `svc-chat` — secrets hors-bande) |
+| `06-service-clients.yaml` | `KeycloakOIDCClient` `svc-*` (`svc-game`, `svc-market`, `svc-inventory`, `svc-mission`, `svc-admin`, `svc-economie`, `svc-social`, `svc-chat`, `svc-universesimulator` — secrets hors-bande) |
 | `07-discord-bootstrap-job.yaml` | Job PostSync : provider Discord via `bootstrap-discord-idp.sh` |
 | `08-role-bootstrap-job.yaml` | Job PostSync idempotent : (re)crée les rôles de capacité du realm, **les mappers d'audience** des clients `svc-*` **et réassigne les rôles de `svc-chat`** à son service account (voir § Wipe) |
 
@@ -71,7 +71,7 @@ kubectl --context "$CTX" -n "$NS" create secret generic keycloak-discord \
 
 # 4. Secrets des clients de service (clé `secret`), un par `svc-*`
 # + `dyingstar-admin` : client de connexion du panneau d'admin (flow standard)
-for c in svc-game svc-market svc-inventory svc-mission svc-admin svc-economie svc-social svc-chat dyingstar-admin; do
+for c in svc-game svc-market svc-inventory svc-mission svc-admin svc-economie svc-social svc-chat svc-universesimulator dyingstar-admin; do
   kubectl --context "$CTX" -n "$NS" create secret generic "${c}-client-secret" \
     --from-literal=secret="$(openssl rand -hex 32)"
 done
@@ -89,6 +89,7 @@ depuis le déménagement de l'instance, mais noms différents :
 | `svc-economie` | `service-economie-economie-client` (clé `secret`) |
 | `svc-social` | `service-social-mqtt-client` (clé `secret`) — client MQTT du publisher de notifications |
 | `svc-chat` | `textchat-social-client` (clé `secret`) — client d'appel de l'API social par chatauth |
+| `svc-universesimulator` | `service-universesimulator-universesimulator-client` (clé `secret`) |
 
 Exception : le chart `dyingstar-admin` (panneau d'admin) lit directement
 `dyingstar-admin-client-secret` et `svc-admin-client-secret`

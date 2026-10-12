@@ -105,9 +105,13 @@ spec:
               mission:write
               mission:progress
               mission:complete
+              mission:escrow:politics
               market:read
               market:manage
               market:settle
+              usim:read
+              usim:write
+              usim:deliver
               EOF
               )
 
@@ -141,13 +145,14 @@ spec:
               # token ne porte alors plus l'audience de l'API appelée (le
               # resource server répond 401 avant même la vérification de rôle).
               declare -A CLIENT_AUD=(
-                [svc-game]="economie-api social-api mission-api market-api inventory-api"
+                [svc-game]="economie-api social-api mission-api market-api inventory-api universesimulator-api"
                 [svc-market]="economie-api inventory-api social-api"
                 [svc-inventory]="economie-api social-api"
                 [svc-economie]="social-api"
                 [svc-mission]="economie-api social-api inventory-api"
-                [svc-admin]="economie-api social-api mission-api market-api inventory-api"
+                [svc-admin]="economie-api social-api mission-api market-api inventory-api universesimulator-api"
                 [svc-chat]="social-api"
+                [svc-universesimulator]="mission-api inventory-api social-api economie-api"
               )
 
               mpresent=0

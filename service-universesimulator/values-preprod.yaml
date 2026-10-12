@@ -1,0 +1,66 @@
+# Preprod overrides for service-universesimulator (dyingstar-preprod, deployed by ArgoCD).
+# Usage: helm upgrade --install -n dyingstar-preprod service-universesimulator ./service-universesimulator \
+#          -f service-universesimulator/values-preprod.yaml
+
+replicaCount: 1
+
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/universesimulator
+  pullPolicy: Always
+  tag: "develop"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# The database is a CloudNativePG Cluster (service-universesimulator/database-preprod/)
+# applied as a second source by the same ArgoCD app. The `universesimulator-db-auth`
+# Secret is created out of band — never committed.
+database:
+  host: universesimulator-db-rw
+  existingSecret: universesimulator-db-auth
+
+postgresql:
+  enabled: false
+
+oidc:
+  issuer: "https://auth-preprod.dyingstar-game.com/realms/dyingstar"
+  serviceAudience: "universesimulator-api"
+
+internalServiceClients: "svc-game,svc-admin"
+
+# The `svc-universesimulator` client secret is created out of band as
+# `service-universesimulator-universesimulator-client` (key `secret`); it MUST
+# equal `svc-universesimulator-client-secret` in
+# keycloak-managed/preprod/06-service-clients.yaml.
+serviceClient:
+  clientId: "svc-universesimulator"
+  existingSecret: "service-universesimulator-universesimulator-client"
+  create: false
+
+# Exposed through the preprod Traefik gateway on the shared
+# `services-preprod.dyingstar-game.space` host; the `/universesimulator` prefix is
+# stripped by a URLRewrite filter so the app keeps serving at root (`/api/*`).
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: traefik-gateway
+      namespace: traefik
+      sectionName: service
+  hostnames:
+    - "services-preprod.dyingstar-game.space"
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /universesimulator
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /

@@ -1,0 +1,46 @@
+# Production overrides for service-universesimulator
+# Usage: helm upgrade --install -n dyingstar-prod service-universesimulator ./service-universesimulator -f service-universesimulator/values-prod.yaml
+
+replicaCount: 1
+
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/universesimulator
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 1
+    memory: 512Mi
+
+oidc:
+  issuer: "https://auth.dyingstar-game.com/realms/dyingstar"
+  serviceAudience: "universesimulator-api"
+
+internalServiceClients: "svc-game,svc-admin"
+
+# The `svc-universesimulator` client secret is created out of band as
+# `service-universesimulator-universesimulator-client` (key `secret`). Never put
+# a real secret in this file.
+serviceClient:
+  clientId: "svc-universesimulator"
+  existingSecret: "service-universesimulator-universesimulator-client"
+  create: false
+
+postgresql:
+  enabled: true
+  auth:
+    password: "CHANGE_ME_IN_PRODUCTION"
+  primary:
+    persistence:
+      enabled: true
+      size: 5Gi
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 1
+        memory: 1Gi
