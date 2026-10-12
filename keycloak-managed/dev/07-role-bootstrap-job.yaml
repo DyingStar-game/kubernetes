@@ -283,6 +283,11 @@ spec:
               JSON
                 done
                 echo "dyingstar-admin: moderation roles in scope"
+                # Même cause : ses propres rôles client (persistence:*, social:*,
+                # economie:*) ne sont pas non plus émis sans scope mapping.
+                "${KC}" get "clients/${pid}/roles" -r "${KC_REALM}" --fields id,name \
+                  | "${KC}" create "clients/${pid}/scope-mappings/clients/${pid}" -r "${KC_REALM}" -f -
+                echo "dyingstar-admin: own client roles in scope"
               fi
           env:
             # kcadm écrit sa config dans ${HOME}/.keycloak ; HOME de l'image
