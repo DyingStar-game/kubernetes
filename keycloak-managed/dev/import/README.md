@@ -68,8 +68,10 @@ sync with each service's `src/middleware/auth.ts` `SERVICE_ROLES`.
 | `social:politics:read` | Political membership reads |
 | `social:politics:write` | NPC political membership + internal political entity management |
 | `social:sanctions:read` | Active sanctions (mute/ban enforcement) |
+| `social:notify:write` | Ephemeral push to a player's MQTT channel (`POST /internal/players/:playerId/notifications`) |
 | `social:reputation:write` | Reputation adjustments and rehabilitation passes |
-| `social:authorize` | Central ACL: `POST /api/internal/authorize` + permission catalog |
+| `social:standing:write` | Character standing deltas (mission standing rewards: `PATCH /internal/players/:playerId/standing`) |
+| `social:authorize` | Policy decision point: `POST /internal/authorize` (single or batched) and `GET /internal/permissions/catalog` |
 
 ### economie (`economie-api`)
 | Role | Grants |
@@ -88,17 +90,18 @@ sync with each service's `src/middleware/auth.ts` `SERVICE_ROLES`.
 | `inventory:credit` | Credit/debit stacks and instances |
 | `inventory:transfer` | Transfers (stacks, instances, hold consumption) |
 | `inventory:hold` | Reserve (hold) and release items |
+| `inventory:carried:write` | Carried-quantity delta (`POST /holders/:holderType/:holderId/stacks/:goodType/carried`) — mining deposit / delivery drop-off |
 | `inventory:corporation:manage` | *(declared, not yet wired to a route)* |
-| `inventory:poi:manage` | Create/edit/delete POIs on the internal API |
+| `inventory:poi:manage` | POI lifecycle on behalf of any holder (create / patch / delete `/internal/pois`) |
 
 ### mission (`mission-api`)
 | Role | Grants |
 |---|---|
 | `mission:read` | List missions / player missions |
-| `mission:write` | Create, update, expire, cancel, assign missions |
-| `mission:progress` | Objective progress |
+| `mission:write` | Create, update, expire, cancel, assign missions + batch player-states (`PUT /missions/player-states`) |
+| `mission:progress` | Objective progress, objective confirm, verify |
 | `mission:complete` | Complete and settle missions |
-| `mission:escrow:politics` | Missions escrowed on a political entity's treasury (federation) |
+| `mission:escrow:politics` | Fund an internal mission's reward from a political treasury (`escrow` on creation) |
 
 ### market (`market-api`)
 | Role | Grants |
@@ -116,8 +119,11 @@ sync with each service's `src/middleware/auth.ts` `SERVICE_ROLES`.
 
 > When adding a capability, create the client role on the target `*-api` client and assign it to
 > the calling `svc-*` service account. The game server (`svc-game`) typically needs the write
-> roles: `social:corporation:write`, `social:politics:write`, `economie:wallet:*`,
-> `economie:politics:*`, `inventory:*`, `mission:*` and `market:*`.
+> roles: `social:corporation:write`, `social:politics:write`, `social:standing:write`,
+> `economie:wallet:*`, `economie:politics:*`, `inventory:*` (incl. `inventory:carried:write`),
+> `mission:*` and `market:*`. Add `social:notify:write` only if a future service starts
+> publishing to `notify/#` instead of going through `service-social` — today no `svc-*` holds it
+> (`svc-admin` is the sole exception, as the catch-all client).
 >
 > A new role must be declared in **three** places: this table (naming authority),
 > `spec.realm.roles` of `04-realm-import.yaml` (dev **and** preprod), and the inline
@@ -134,10 +140,12 @@ sync with each service's `src/middleware/auth.ts` `SERVICE_ROLES`.
 > 401 before any role check.
 >
 > The mission service (`svc-mission`) needs, on top of the write roles it already uses:
-> `social:corporation:read`, `social:group:read`, `social:profile:read` (prereq `min_reputation`)
-> on `social-api`, `economie:wallet:read` on `economie-api` (prereq/objective `has_credits`),
-> and `inventory:read` on `inventory-api` (objectives `owns_items` / `deliver_items`). The
-> `inventory-api` audience must therefore be mapped on its client too.
+> `social:corporation:read`, `social:group:read`, `social:profile:read` (prereq `min_reputation`,
+> prereq `min_standing`) on `social-api` (plus `social:politics:read` for `escrowSource: issuer`
+> on political entities), `social:standing:write` (mission standing reward settlement) on
+> `social-api`, `economie:wallet:read` on `economie-api` (prereq/objective `has_credits`),
+> and `inventory:read` on `inventory-api` (objectives `owns_items` / `deliver_items` /
+> `transport`). The `inventory-api` audience must therefore be mapped on its client too.
 >
 > The market service (`svc-market`) needs `economie:wallet:read/credit/debit` on
 > `economie-api` (settlement), `inventory:read` + `inventory:hold` + `inventory:transfer` on
