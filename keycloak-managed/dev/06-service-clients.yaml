@@ -152,9 +152,9 @@ spec:
       secretRef:
         name: svc-game-client-secret
         key: secret
-    # Les 33 rôles de capacité des 5 premières APIs (rôles realm, sans
-    # mission:escrow:politics) + usim:read / usim:deliver, assignés au service
-    # account `service-account-svc-game`.
+    # Les 36 rôles de capacité des 5 premières APIs (rôles realm, sans
+    # mission:escrow:politics ni social:notify:write) + usim:read / usim:deliver,
+    # assignés au service account `service-account-svc-game`.
     serviceAccountRoles:
       - social:profile:read
       - social:profile:write
@@ -166,6 +166,9 @@ spec:
       - social:politics:write
       - social:sanctions:read
       - social:reputation:write
+      # Récompenses de standing de personnage (missions) —
+      # PATCH /internal/players/:playerId/standing.
+      - social:standing:write
       - social:authorize
       - economie:wallet:read
       - economie:wallet:ensure
@@ -180,6 +183,8 @@ spec:
       - inventory:credit
       - inventory:transfer
       - inventory:hold
+      # Dépôt minier / livraison côté joueur — delta de quantité transportée.
+      - inventory:carried:write
       - inventory:corporation:manage
       - inventory:poi:manage
       - mission:read
@@ -305,9 +310,10 @@ spec:
         key: secret
     # Le service mission règle les récompenses économiques (credit/debit),
     # vérifie l'appartenance à une corporation/un groupe et la réputation
-    # (prereq min_reputation), et lit l'inventaire (objectifs owns_items /
-    # deliver_items). Le mapper d'audience `inventory-api` est déclaré dans
-    # 04-realm-import.yaml (KeycloakOIDCClient ne l'expose pas).
+    # (prereq min_reputation / min_standing), règle le standing de personnage
+    # (récompense de mission) et lit l'inventaire (objectifs owns_items /
+    # deliver_items / transport). Le mapper d'audience `inventory-api` est
+    # déclaré dans 04-realm-import.yaml (KeycloakOIDCClient ne l'expose pas).
     serviceAccountRoles:
       - economie:wallet:read
       - economie:wallet:credit
@@ -318,6 +324,11 @@ spec:
       - social:corporation:read
       - social:group:read
       - social:profile:read
+      # escrowSource: issuer sur une entité politique.
+      - social:politics:read
+      # Récompense de standing de mission (PATCH
+      # /internal/players/:playerId/standing).
+      - social:standing:write
       - social:authorize
       - inventory:read
       # deliver_items : déplace les biens du joueur vers le destinataire.
@@ -380,7 +391,7 @@ spec:
       secretRef:
         name: svc-admin-client-secret
         key: secret
-    # Console d'admin : TOUTES les capacités du realm (les 37 rôles). C'est
+    # Console d'admin : TOUTES les capacités du realm (les 40 rôles). C'est
     # volontairement le client le plus privilégié — à réserver à un backend
     # d'administration et à isoler (secret dédié, rotation régulière).
     serviceAccountRoles:
@@ -393,7 +404,9 @@ spec:
       - social:politics:read
       - social:politics:write
       - social:sanctions:read
+      - social:notify:write
       - social:reputation:write
+      - social:standing:write
       - social:authorize
       - economie:wallet:read
       - economie:wallet:ensure
@@ -408,6 +421,7 @@ spec:
       - inventory:credit
       - inventory:transfer
       - inventory:hold
+      - inventory:carried:write
       - inventory:corporation:manage
       - inventory:poi:manage
       - mission:read

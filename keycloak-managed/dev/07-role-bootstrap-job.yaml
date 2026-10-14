@@ -83,7 +83,9 @@ spec:
               social:politics:read
               social:politics:write
               social:sanctions:read
+              social:notify:write
               social:reputation:write
+              social:standing:write
               social:authorize
               economie:wallet:read
               economie:wallet:ensure
@@ -98,6 +100,7 @@ spec:
               inventory:credit
               inventory:transfer
               inventory:hold
+              inventory:carried:write
               inventory:corporation:manage
               inventory:poi:manage
               mission:read

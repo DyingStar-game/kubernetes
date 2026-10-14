@@ -89,7 +89,7 @@ spec:
         # (KeycloakOIDCClient.serviceAccountRoles), donc on les déclare ici avec
         # les MÊMES noms. Ne jamais les renommer ni les préfixer (ex: /dyingstar).
         #
-        # Social (11)
+        # Social (13)
         - name: social:profile:read
         - name: social:profile:write
         - name: social:player:write
@@ -99,7 +99,14 @@ spec:
         - name: social:politics:read
         - name: social:politics:write
         - name: social:sanctions:read
+        # Push éphémère sur le canal MQTT d'un joueur — réservé à un service
+        # qui publierait directement sur notify/# (aujourd'hui : passe par
+        # service-social, donc non assigné).
+        - name: social:notify:write
         - name: social:reputation:write
+        # Récompenses de standing de personnage (missions) — PATCH
+        # /internal/players/:playerId/standing, réglé par svc-mission.
+        - name: social:standing:write
         - name: social:authorize
         # Économie (9)
         - name: economie:wallet:read
@@ -111,11 +118,14 @@ spec:
         - name: economie:politics:read
         - name: economie:politics:manage
         - name: economie:money:issue
-        # Inventory (6)
+        # Inventory (7)
         - name: inventory:read
         - name: inventory:credit
         - name: inventory:transfer
         - name: inventory:hold
+        # Delta de quantité transportée (dépôt minier / livraison) — POST
+        # /holders/:holderType/:holderId/stacks/:goodType/carried, serveur de jeu.
+        - name: inventory:carried:write
         - name: inventory:corporation:manage
         - name: inventory:poi:manage
         # Mission (5) — noms EXACTS exigés par l'API mission (l'API répond
