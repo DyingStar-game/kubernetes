@@ -20,6 +20,21 @@ resources:
 env:
   - name: DEBUG_GDB
     value: "0"
+  - name: DS_PERF
+    value: "0"
+  - name: DS_AUTH_URL
+    value: "https://auth.dyingstar-game.com"
+  - name: DS_AUTH_REALM
+    value: "dyingstar"
+  - name: DS_AUTH_CLIENT_ID
+    value: "svc-game"
+  # Client credentials of the `svc-game` Keycloak client (created out-of-band,
+  # see keycloak-managed/preprod/README.md).
+  - name: DS_AUTH_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: svc-game-client-secret
+        key: secret
 
 # Tiles + prebaked collision shared by every pod, on a static NFS PV backed by
 # a TrueNAS dataset (local-path is RWO only). Create the dataset + NFS share on
