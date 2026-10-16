@@ -15,6 +15,9 @@ spec:
     - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
       targetRevision: main
       ref: values
+    - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
+      targetRevision: main
+      path: grafana/dashboards
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: observability

@@ -46,3 +46,16 @@ datasources:
         type: tempo
         url: http://tempo:3200
         access: proxy
+# Dashboards versionnés dans grafana/dashboards/ : kustomize en fait des
+# ConfigMaps labellisées grafana_dashboard (source ajoutée dans
+# argocd/preprod/observability/grafana-app.yaml) que le sidecar charge à chaud.
+# Grafana n'a pas de persistance : un dashboard créé seulement dans l'UI
+# disparaît au redémarrage du pod.
+sidecar:
+  dashboards:
+    enabled: true
+    label: grafana_dashboard
+    labelValue: "1"
+    folderAnnotation: grafana_folder
+    provider:
+      foldersFromFilesStructure: true

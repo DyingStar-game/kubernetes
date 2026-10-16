@@ -1,0 +1,16 @@
+# Dashboards Grafana provisionnés par le sidecar (voir grafana/values-preprod.yaml).
+# Le JSON de chaque dashboard se modifie ici, pas dans l'UI : une modification
+# faite dans Grafana est perdue au redémarrage du pod.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: observability
+generatorOptions:
+  disableNameSuffixHash: true
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: DyingStar
+configMapGenerator:
+  - name: grafana-dashboard-godot-servers
+    files:
+      - godot-servers.json

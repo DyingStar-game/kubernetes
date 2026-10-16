@@ -1,0 +1,2225 @@
+{
+  "uid": "dyingstar-godot-servers",
+  "title": "DyingStar — Serveurs Godot",
+  "description": "Serveurs de jeu Godot : joueurs, server meshing (log `[mesh] state` de Horizon), ressources des pods (cAdvisor) et erreurs.",
+  "tags": [
+    "dyingstar",
+    "godot",
+    "gameserver"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "ds_prom",
+        "label": "Prometheus",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {
+          "text": "Prometheus",
+          "value": "Prometheus"
+        },
+        "hide": 2
+      },
+      {
+        "name": "ds_loki",
+        "label": "Loki",
+        "type": "datasource",
+        "query": "loki",
+        "current": {
+          "text": "Loki",
+          "value": "Loki"
+        },
+        "hide": 2
+      },
+      {
+        "name": "namespace",
+        "label": "Environnement",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${ds_prom}"
+        },
+        "query": {
+          "query": "label_values(container_memory_working_set_bytes{container=\"godotserver\"}, namespace)",
+          "refId": "ns"
+        },
+        "definition": "label_values(container_memory_working_set_bytes{container=\"godotserver\"}, namespace)",
+        "current": {
+          "text": "dyingstar-preprod",
+          "value": "dyingstar-preprod"
+        },
+        "refresh": 1,
+        "sort": 1
+      },
+      {
+        "name": "pod",
+        "label": "Pod",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${ds_prom}"
+        },
+        "multi": true,
+        "includeAll": true,
+        "allValue": "godotserver-.*",
+        "query": {
+          "query": "label_values(container_memory_working_set_bytes{namespace=\"$namespace\", container=\"godotserver\"}, pod)",
+          "refId": "pod"
+        },
+        "definition": "label_values(container_memory_working_set_bytes{namespace=\"$namespace\", container=\"godotserver\"}, pod)",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "refresh": 2,
+        "sort": 1
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      },
+      {
+        "name": "Opérations de meshing",
+        "datasource": {
+          "type": "loki",
+          "uid": "${ds_loki}"
+        },
+        "enable": true,
+        "iconColor": "purple",
+        "expr": "{namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] op started\" | regexp `\\[mesh\\] op started: (?P<op>.*)` | line_format `{{.op}}`",
+        "instant": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Vue d'ensemble",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Joueurs connectés",
+      "description": "Somme des joueurs comptés par les serveurs Godot (champ players_godot du log `[mesh] state` de Horizon, toutes les 5 s).",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "max(max_over_time({namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | label_format v=`{{ $d := fromJson .j }}{{ $v := 0 }}{{ range $d.servers }}{{ $v = add $v .players_godot }}{{ end }}{{ $v }}` | keep v | v >= 0 | unwrap v [$__auto]))",
+          "legendFormat": "joueurs",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Joueurs vus par Horizon",
+      "description": "Même total, compté côté Horizon. Un écart durable avec le compteur Godot signale une désynchronisation.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "gridPos": {
+        "x": 3,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "max(max_over_time({namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | label_format v=`{{ $d := fromJson .j }}{{ $v := 0 }}{{ range $d.servers }}{{ $v = add $v .players_horizon }}{{ end }}{{ $v }}` | keep v | v >= 0 | unwrap v [$__auto]))",
+          "legendFormat": "joueurs",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Serveurs actifs",
+      "description": "Serveurs en état Running : ils portent des zones et accueillent des joueurs.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "max(max_over_time({namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | label_format v=`{{ $d := fromJson .j }}{{ $v := 0 }}{{ range $d.servers }}{{ if eq .state \"Running\" }}{{ $v = add $v 1 }}{{ end }}{{ end }}{{ $v }}` | keep v | v >= 0 | unwrap v [$__auto]))",
+          "legendFormat": "running",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Pool inactif",
+      "description": "Serveurs connectés à Horizon mais sans zone (état Online), prêts pour un split.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "gridPos": {
+        "x": 9,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "max(max_over_time({namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | label_format v=`{{ $d := fromJson .j }}{{ $v := 0 }}{{ range $d.servers }}{{ if eq .state \"Online\" }}{{ $v = add $v 1 }}{{ end }}{{ end }}{{ $v }}` | keep v | v >= 0 | unwrap v [$__auto]))",
+          "legendFormat": "online",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              },
+              {
+                "color": "blue",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Pods godotserver",
+      "description": "Conteneurs godotserver vus par cAdvisor dans le namespace.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "count(container_memory_working_set_bytes{namespace=\"$namespace\", container=\"godotserver\"})",
+          "legendFormat": "pods",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "TPS min (actifs)",
+      "description": "Plus petit nombre de ticks physiques par seconde parmi les serveurs Running (cible 60).",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "gridPos": {
+        "x": 15,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "min(min_over_time({namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | label_format v=`{{ $d := fromJson .j }}{{ $v := -1 }}{{ range $d.servers }}{{ if eq .state \"Running\" }}{{ if or (lt $v 0) (lt (int .tps) $v) }}{{ $v = int .tps }}{{ end }}{{ end }}{{ end }}{{ $v }}` | keep v | v >= 0 | unwrap v [$__auto]))",
+          "legendFormat": "tps",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 30
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "green",
+                "value": 57
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "CPU godotserver",
+      "description": "Cœurs consommés par tous les pods godotserver sélectionnés.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"$namespace\", container=\"godotserver\", pod=~\"$pod\"}[$__rate_interval]))",
+          "legendFormat": "cores",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Mémoire godotserver",
+      "description": "Working set cumulé des pods godotserver sélectionnés.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "gridPos": {
+        "x": 21,
+        "y": 1,
+        "w": 3,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum(container_memory_working_set_bytes{namespace=\"$namespace\", container=\"godotserver\", pod=~\"$pod\"})",
+          "legendFormat": "mem",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Joueurs & server meshing",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Joueurs connectés",
+      "description": "Total des joueurs selon les serveurs Godot et selon Horizon.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "max(max_over_time({namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | label_format v=`{{ $d := fromJson .j }}{{ $v := 0 }}{{ range $d.servers }}{{ $v = add $v .players_godot }}{{ end }}{{ $v }}` | keep v | v >= 0 | unwrap v [$__auto]))",
+          "legendFormat": "Godot",
+          "refId": "A",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "max(max_over_time({namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | label_format v=`{{ $d := fromJson .j }}{{ $v := 0 }}{{ range $d.servers }}{{ $v = add $v .players_horizon }}{{ end }}{{ $v }}` | keep v | v >= 0 | unwrap v [$__auto]))",
+          "legendFormat": "Horizon",
+          "refId": "B",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Serveurs par état",
+      "description": "Répartition du pool de serveurs Godot connu de Horizon.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 6,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "max(max_over_time({namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | label_format v=`{{ $d := fromJson .j }}{{ $v := 0 }}{{ range $d.servers }}{{ if eq .state \"Running\" }}{{ $v = add $v 1 }}{{ end }}{{ end }}{{ $v }}` | keep v | v >= 0 | unwrap v [$__auto]))",
+          "legendFormat": "Running (actifs)",
+          "refId": "A",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "max(max_over_time({namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | label_format v=`{{ $d := fromJson .j }}{{ $v := 0 }}{{ range $d.servers }}{{ if eq .state \"Online\" }}{{ $v = add $v 1 }}{{ end }}{{ end }}{{ $v }}` | keep v | v >= 0 | unwrap v [$__auto]))",
+          "legendFormat": "Online (pool inactif)",
+          "refId": "B",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "max(max_over_time({namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | label_format v=`{{ $d := fromJson .j }}{{ $v := 0 }}{{ range $d.servers }}{{ if and (ne .state \"Running\") (ne .state \"Online\") }}{{ $v = add $v 1 }}{{ end }}{{ end }}{{ $v }}` | keep v | v >= 0 | unwrap v [$__auto]))",
+          "legendFormat": "Offline / Maintenance",
+          "refId": "C",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Running (actifs)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Online (pool inactif)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Offline / Maintenance"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "TPS des serveurs actifs",
+      "description": "Ticks physiques par seconde des serveurs Running. Sous ~50, la simulation décroche ; Horizon ne bascule des joueurs que vers un serveur qui atteint split_ready_tps.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "min(min_over_time({namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | label_format v=`{{ $d := fromJson .j }}{{ $v := -1 }}{{ range $d.servers }}{{ if eq .state \"Running\" }}{{ if or (lt $v 0) (lt (int .tps) $v) }}{{ $v = int .tps }}{{ end }}{{ end }}{{ end }}{{ $v }}` | keep v | v >= 0 | unwrap v [$__auto]))",
+          "legendFormat": "TPS min",
+          "refId": "A",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "max(max_over_time({namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | label_format v=`{{ $d := fromJson .j }}{{ $v := 0 }}{{ range $d.servers }}{{ if eq .state \"Running\" }}{{ if gt (int .tps) $v }}{{ $v = int .tps }}{{ end }}{{ end }}{{ end }}{{ $v }}` | keep v | v >= 0 | unwrap v [$__auto]))",
+          "legendFormat": "TPS max",
+          "refId": "B",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 30
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "green",
+                "value": 57
+              }
+            ]
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Backlog réseau Horizon → Godot",
+      "description": "Messages en attente d'écriture vers un serveur. Au-delà de 1000 (OUTBOX_BACKLOG), le serveur est considéré comme gelé et ne reçoit plus de nouveaux joueurs.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 14,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "max(max_over_time({namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | label_format v=`{{ $d := fromJson .j }}{{ $v := 0 }}{{ range $d.servers }}{{ if true }}{{ if gt (int .outbox) $v }}{{ $v = int .outbox }}{{ end }}{{ end }}{{ end }}{{ $v }}` | keep v | v >= 0 | unwrap v [$__auto]))",
+          "legendFormat": "outbox max",
+          "refId": "A",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "max(max_over_time({namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | label_format v=`{{ $d := fromJson .j }}{{ $v := 0 }}{{ range $d.servers }}{{ if true }}{{ if gt (int .pending) $v }}{{ $v = int .pending }}{{ end }}{{ end }}{{ end }}{{ $v }}` | keep v | v >= 0 | unwrap v [$__auto]))",
+          "legendFormat": "pending max",
+          "refId": "B",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 500
+              },
+              {
+                "color": "red",
+                "value": 1000
+              }
+            ]
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "Activité du meshing",
+      "description": "Opérations de meshing (grant / split / merge / reseed) en attente, pression vers un split, et serveurs Running qui n'envoient plus de serverinfo.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 14,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "max(max_over_time({namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | label_format v=`{{ $d := fromJson .j }}{{ add $d.queued (len $d.in_flight) }}` | keep v | v >= 0 | unwrap v [$__auto]))",
+          "legendFormat": "opérations en file + en cours",
+          "refId": "A",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "max(max_over_time({namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | label_format v=`{{ $d := fromJson .j }}{{ $v := 0 }}{{ range $d.servers }}{{ if true }}{{ if gt (int .split_hits) $v }}{{ $v = int .split_hits }}{{ end }}{{ end }}{{ end }}{{ $v }}` | keep v | v >= 0 | unwrap v [$__auto]))",
+          "legendFormat": "split_hits max",
+          "refId": "B",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "max(max_over_time({namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | label_format v=`{{ $d := fromJson .j }}{{ $v := 0 }}{{ range $d.servers }}{{ if and (eq .state \"Running\") (or (not .last_seen_ms) (gt (int .last_seen_ms) 60000)) }}{{ $v = add $v 1 }}{{ end }}{{ end }}{{ $v }}` | keep v | v >= 0 | unwrap v [$__auto]))",
+          "legendFormat": "actifs muets > 60 s",
+          "refId": "C",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Arrivées de joueurs (spawns)",
+      "description": "Lignes « Player X spawned … on server » des serveurs Godot : connexions et reconnexions.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 22,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum(count_over_time({namespace=\"$namespace\", container=\"godotserver\"} |~ \"^Player .* spawned at\" [$__auto]))",
+          "legendFormat": "spawns",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 17,
+      "type": "logs",
+      "title": "État du pool (dernier relevé Horizon)",
+      "description": "Dernière ligne `[mesh] state` mise en forme : un résumé, puis chaque serveur qui n'est pas en pool inactif.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 22,
+        "w": 16,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "{namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | line_format `{{ $d := fromJson .j }}{{ $r := 0 }}{{ $i := 0 }}{{ range $d.servers }}{{ if eq .state \"Running\" }}{{ $r = add $r 1 }}{{ end }}{{ if eq .state \"Online\" }}{{ $i = add $i 1 }}{{ end }}{{ end }}actifs={{ $r }}  pool inactif={{ $i }}  total={{ len $d.servers }}  ops en cours={{ len $d.in_flight }}  en file={{ $d.queued }}  splits={{ $d.splits }}{{ range $d.servers }}{{ if ne .state \"Online\" }}\n▶ {{ .name }} [{{ .state }}] tps={{ .tps }} joueurs godot={{ .players_godot }} horizon={{ .players_horizon }} zones={{ len .zones }} outbox={{ .outbox }} pending={{ .pending }} split_hits={{ .split_hits }} vu il y a {{ .last_seen_ms }} ms{{ if .loading }} (chargement){{ end }}{{ if .settling }} (stabilisation){{ end }}{{ end }}{{ end }}` | drop j",
+          "legendFormat": "",
+          "refId": "A",
+          "queryType": "range",
+          "maxLines": 1
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": false,
+        "dedupStrategy": "none",
+        "prettifyLogMessage": false
+      }
+    },
+    {
+      "id": 18,
+      "type": "row",
+      "title": "Ressources des pods",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 19,
+      "type": "timeseries",
+      "title": "CPU par pod",
+      "description": "Cœurs consommés par pod.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"$namespace\", container=\"godotserver\", pod=~\"$pod\"}[$__rate_interval]))",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "CPU en % de la limite",
+      "description": "Consommation rapportée à la limite CPU du conteneur.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 31,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"$namespace\", container=\"godotserver\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (container_spec_cpu_quota{namespace=\"$namespace\", container=\"godotserver\", pod=~\"$pod\"} / container_spec_cpu_period{namespace=\"$namespace\", container=\"godotserver\", pod=~\"$pod\"})",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.7
+              },
+              {
+                "color": "red",
+                "value": 0.9
+              }
+            ]
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "Throttling CPU",
+      "description": "Part des périodes CFS où le conteneur a été bridé par sa limite CPU. Pour un serveur de jeu, le throttling se traduit directement en ticks perdus.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 39,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum by (pod) (rate(container_cpu_cfs_throttled_periods_total{namespace=\"$namespace\", container=\"godotserver\", pod=~\"$pod\"}[$__rate_interval])) / sum by (pod) (rate(container_cpu_cfs_periods_total{namespace=\"$namespace\", container=\"godotserver\", pod=~\"$pod\"}[$__rate_interval]))",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.05
+              },
+              {
+                "color": "red",
+                "value": 0.25
+              }
+            ]
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "Mémoire par pod",
+      "description": "Working set (ce que l'OOM killer regarde) par pod, avec la limite.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 39,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"$namespace\", container=\"godotserver\", pod=~\"$pod\"})",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "max(container_spec_memory_limit_bytes{namespace=\"$namespace\", container=\"godotserver\", pod=~\"$pod\"} > 0)",
+          "legendFormat": "limite",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "limite"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 23,
+      "type": "timeseries",
+      "title": "Réseau par pod",
+      "description": "Émission (positif) et réception (négatif) par pod : bon indicateur du trafic de réplication vers les joueurs.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 47,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum by (pod) (rate(container_network_transmit_bytes_total{namespace=\"$namespace\", pod=~\"$pod\"}[$__rate_interval]))",
+          "legendFormat": "{{pod}} ↑",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "-sum by (pod) (rate(container_network_receive_bytes_total{namespace=\"$namespace\", pod=~\"$pod\"}[$__rate_interval]))",
+          "legendFormat": "{{pod}} ↓",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 24,
+      "type": "bargauge",
+      "title": "Pods les plus chargés (CPU, 5 min)",
+      "description": "Classement instantané : en meshing, un seul pod porte souvent toute la charge.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 47,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "topk(10, sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"$namespace\", container=\"godotserver\", pod=~\"$pod\"}[5m])))",
+          "legendFormat": "{{pod}}",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 2,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 2
+              },
+              {
+                "color": "red",
+                "value": 3.5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 25,
+      "type": "stat",
+      "title": "OOM kills (période)",
+      "description": "Conteneurs godotserver tués par manque de mémoire sur la période affichée.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 55,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum(increase(container_oom_events_total{namespace=\"$namespace\", container=\"godotserver\", pod=~\"$pod\"}[$__range])) or vector(0)",
+          "legendFormat": "oom",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 26,
+      "type": "stat",
+      "title": "Pression CPU (PSI)",
+      "description": "Part du temps où le pod le plus touché attendait un CPU (contention sur le nœud ou limite).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 55,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "max(rate(container_pressure_cpu_waiting_seconds_total{namespace=\"$namespace\", container=\"godotserver\", pod=~\"$pod\"}[$__rate_interval]))",
+          "legendFormat": "psi",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.1
+              },
+              {
+                "color": "red",
+                "value": 0.3
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 27,
+      "type": "stat",
+      "title": "Requests CPU réservées",
+      "description": "CPU réservé par les requests de tous les pods godotserver, consommé ou non.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 55,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum(container_spec_cpu_shares{namespace=\"$namespace\", container=\"godotserver\", pod=~\"$pod\"}) / 1024",
+          "legendFormat": "cores",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 28,
+      "type": "stat",
+      "title": "CPU hors pod le plus chargé",
+      "description": "CPU consommé par tous les pods sauf le plus chargé. Avec un seul serveur Running, c'est ce que brûle le pool inactif.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${ds_prom}"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 55,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${ds_prom}"
+          },
+          "expr": "sum(sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"$namespace\", container=\"godotserver\", pod=~\"$pod\"}[$__rate_interval]))) - max(sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"$namespace\", container=\"godotserver\", pod=~\"$pod\"}[$__rate_interval])))",
+          "legendFormat": "cores",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 2
+              },
+              {
+                "color": "red",
+                "value": 8
+              }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 29,
+      "type": "row",
+      "title": "Logs & erreurs Godot",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 59,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 30,
+      "type": "timeseries",
+      "title": "Erreurs par pod",
+      "description": "Lignes ERROR / SCRIPT ERROR émises par le moteur.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 60,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum by (pod) (count_over_time({namespace=\"$namespace\", container=\"godotserver\"} |~ \"^(SCRIPT )?ERROR:\" [$__auto]))",
+          "legendFormat": "{{pod}}",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "Dépendances injoignables",
+      "description": "Échecs de résolution DNS et appels vers les services (social, …) qui n'aboutissent pas.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 60,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum(count_over_time({namespace=\"$namespace\", container=\"godotserver\"} |= \"getaddrinfo failed\" [$__auto]))",
+          "legendFormat": "DNS (getaddrinfo failed)",
+          "refId": "A",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "sum(count_over_time({namespace=\"$namespace\", container=\"godotserver\"} |= \"UNREACHABLE\" [$__auto]))",
+          "legendFormat": "SocialHeartbeat UNREACHABLE",
+          "refId": "B",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 32,
+      "type": "timeseries",
+      "title": "Coût du streaming d'objets",
+      "description": "Temps passé à instancier les objets streamés, en ms par fenêtre de 5 s (log `[Stream]`). 1000 ms / 5 s = 20 % du temps du thread principal.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 68,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "max by (pod) (max_over_time({namespace=\"$namespace\", container=\"godotserver\"} |= \"[Stream] registry=\" | regexp `\\[Stream\\] registry=(?P<registry>\\d+) live=(?P<live>\\d+) queue=(?P<queue>\\d+).*\\| (?P<ms>[\\d.]+) ms/5s` | unwrap ms [$__auto]))",
+          "legendFormat": "{{pod}}",
+          "refId": "A",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 33,
+      "type": "timeseries",
+      "title": "Objets streamés",
+      "description": "Objets instanciés (live) et en attente d'instanciation (file) par pod.",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 68,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "max by (pod) (max_over_time({namespace=\"$namespace\", container=\"godotserver\"} |= \"[Stream] registry=\" | regexp `\\[Stream\\] registry=(?P<registry>\\d+) live=(?P<live>\\d+) queue=(?P<queue>\\d+).*\\| (?P<ms>[\\d.]+) ms/5s` | unwrap live [$__auto]))",
+          "legendFormat": "{{pod}} live",
+          "refId": "A",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "max by (pod) (max_over_time({namespace=\"$namespace\", container=\"godotserver\"} |= \"[Stream] registry=\" | regexp `\\[Stream\\] registry=(?P<registry>\\d+) live=(?P<live>\\d+) queue=(?P<queue>\\d+).*\\| (?P<ms>[\\d.]+) ms/5s` | unwrap queue [$__auto]))",
+          "legendFormat": "{{pod}} file",
+          "refId": "B",
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 34,
+      "type": "table",
+      "title": "Erreurs les plus fréquentes (période)",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 76,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "topk(15, sum by (msg) (count_over_time({namespace=\"$namespace\", container=\"godotserver\"} |~ \"^(SCRIPT )?ERROR:\" | regexp `^(SCRIPT )?ERROR: (?P<msg>.{0,140})` | label_format msg=`{{ regexReplaceAll \"#[0-9]+\" .msg \"#…\" }}` [$__range])))",
+          "legendFormat": "",
+          "refId": "A",
+          "queryType": "instant"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "lastNotNull"
+            ],
+            "labelsToFields": true
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Field": true
+            },
+            "renameByName": {
+              "msg": "Message",
+              "Last *": "Occurrences",
+              "Last": "Occurrences"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Occurrences",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Occurrences"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 35,
+      "type": "logs",
+      "title": "Erreurs récentes",
+      "datasource": {
+        "type": "loki",
+        "uid": "${ds_loki}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 76,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${ds_loki}"
+          },
+          "expr": "{namespace=\"$namespace\", container=\"godotserver\"} |~ \"^(SCRIPT )?ERROR:\"",
+          "legendFormat": "",
+          "refId": "A",
+          "queryType": "range",
+          "maxLines": 200
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "signature"
+      }
+    }
+  ]
+}
