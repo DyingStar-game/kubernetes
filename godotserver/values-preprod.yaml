@@ -22,7 +22,7 @@ env:
   - name: DEBUG_GDB
     value: "0"
   - name: DS_PERF
-    value: "0"
+    value: "1"
   - name: DS_AUTH_URL
     value: "https://auth-preprod.dyingstar-game.com"
   - name: DS_AUTH_REALM
