@@ -265,7 +265,7 @@ social:
   # missions). Empty disables corporation missions.
   apiUrl: ""
 inventory:
-  # Inventory internal API used to check `owns_items` / `deliver_items`
+  # Inventory internal API used to check `owns_items` / `deliver_material`
   # objectives. Empty disables those objective types.
   apiUrl: ""
   # Holder inventory credited with the items a mission pays out. Rendered only

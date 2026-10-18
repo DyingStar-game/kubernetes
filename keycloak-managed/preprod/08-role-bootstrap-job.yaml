@@ -150,7 +150,7 @@ spec:
               declare -A CLIENT_AUD=(
                 [svc-game]="economie-api social-api mission-api market-api inventory-api universesimulator-api"
                 [svc-market]="economie-api inventory-api social-api"
-                [svc-inventory]="economie-api social-api"
+                [svc-inventory]="economie-api social-api mission-api"
                 [svc-economie]="social-api"
                 [svc-mission]="economie-api social-api inventory-api"
                 [svc-admin]="economie-api social-api mission-api market-api inventory-api universesimulator-api"

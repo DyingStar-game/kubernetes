@@ -121,9 +121,10 @@ sync with each service's `src/middleware/auth.ts` `SERVICE_ROLES`.
 > the calling `svc-*` service account. The game server (`svc-game`) typically needs the write
 > roles: `social:corporation:write`, `social:politics:write`, `social:standing:write`,
 > `economie:wallet:*`, `economie:politics:*`, `inventory:*` (incl. `inventory:carried:write`),
-> `mission:*` and `market:*`. Add `social:notify:write` only if a future service starts
-> publishing to `notify/#` instead of going through `service-social` — today no `svc-*` holds it
-> (`svc-admin` is the sole exception, as the catch-all client).
+> `mission:*` (all but `mission:escrow:politics`, which belongs to
+> `svc-universesimulator`) and `market:*`. Add `social:notify:write` only if a future service
+> starts publishing to `notify/#` instead of going through `service-social` — today no `svc-*`
+> holds it (`svc-admin` is the sole exception, as the catch-all client).
 >
 > A new role must be declared in **three** places: this table (naming authority),
 > `spec.realm.roles` of `04-realm-import.yaml` (dev **and** preprod), and the inline
@@ -143,9 +144,9 @@ sync with each service's `src/middleware/auth.ts` `SERVICE_ROLES`.
 > `social:corporation:read`, `social:group:read`, `social:profile:read` (prereq `min_reputation`,
 > prereq `min_standing`) on `social-api` (plus `social:politics:read` for `escrowSource: issuer`
 > on political entities), `social:standing:write` (mission standing reward settlement) on
-> `social-api`, `economie:wallet:read` on `economie-api` (prereq/objective `has_credits`),
-> and `inventory:read` on `inventory-api` (objectives `owns_items` / `deliver_items` /
-> `transport`). The `inventory-api` audience must therefore be mapped on its client too.
+> `social-api`, and `inventory:read` on `inventory-api` (objectives `owns_items` /
+> `deliver_material` / `transport` / `transport_passenger`, zone POI resolution). The
+> `inventory-api` audience must therefore be mapped on its client too.
 >
 > The market service (`svc-market`) needs `economie:wallet:read/credit/debit` on
 > `economie-api` (settlement), `inventory:read` + `inventory:hold` + `inventory:transfer` on
@@ -155,8 +156,16 @@ sync with each service's `src/middleware/auth.ts` `SERVICE_ROLES`.
 >
 > The inventory service (`svc-inventory`) needs `economie:wallet:read/credit/debit` on
 > `economie-api` (stock movements) and `social:corporation:read` + `social:group:read` +
-> `social:profile:read` on `social-api` (corporation deposits/withdrawals). Its client
-> carries `economie-api` + `social-api` — and never `inventory-api`.
+> `social:profile:read` on `social-api` (corporation deposits/withdrawals), plus `mission:read`
+> on `mission-api` (`POST /api/internal/poi-usage`): before it may move a POI's geometry it asks
+> Mission which POIs are the destination of a mission someone has accepted. Its client
+> carries `economie-api` + `social-api` + `mission-api` — and never `inventory-api`. Mission
+> must list `svc-inventory` in its `INTERNAL_SERVICE_CLIENTS` for that call to be admitted.
+>
+> The chat auth adapter (`svc-chat`, chart `textchat`) is read-only on `social-api` and needs
+> exactly four roles: `social:profile:read` (friendship probe for DM topics),
+> `social:group:read`, `social:corporation:read` and `social:sanctions:read` (mutes/bans).
+> It holds no other capability and never any `write` role.
 >
 > The economy service (`svc-economie`) only calls `social-api`, for
 > `social:corporation:read` + `social:group:read` + `social:profile:read` (corporation and

@@ -305,15 +305,16 @@ in the APIs; never rename any of it.**
 
 | clientId | `aud` in the access token | realm roles on the service account |
 | --- | --- | --- |
-| `svc-game` | `economie-api`, `social-api`, `mission-api`, `market-api`, `inventory-api`, `universesimulator-api` | the 33 capacity roles of social / economie / inventory / mission / market (not `mission:escrow:politics`), plus `usim:read`, `usim:deliver` |
+| `svc-game` | `economie-api`, `social-api`, `mission-api`, `market-api`, `inventory-api`, `universesimulator-api` | the 35 capacity roles of social / economie / inventory / mission / market (everything but `mission:escrow:politics` and `social:notify:write`), plus `usim:read`, `usim:deliver` — 37 in total |
 | `svc-market` | `economie-api`, `inventory-api`, `social-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit`, `inventory:read`, `inventory:hold`, `inventory:transfer`, `social:corporation:read`, `social:group:read`, `social:profile:read` |
-| `svc-inventory` | `economie-api`, `social-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit`, `social:corporation:read`, `social:group:read`, `social:profile:read` |
-| `svc-mission` | `economie-api`, `social-api`, `inventory-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit`, `social:corporation:read`, `social:group:read`, `social:profile:read`, `inventory:read` |
+| `svc-inventory` | `economie-api`, `social-api`, `mission-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit`, `social:corporation:read`, `social:group:read`, `social:profile:read`, `mission:read` |
+| `svc-mission` | `economie-api`, `social-api`, `inventory-api` | `economie:wallet:read`, `economie:wallet:credit`, `economie:wallet:debit`, `economie:politics:manage`, `social:corporation:read`, `social:group:read`, `social:profile:read`, `social:politics:read`, `social:standing:write`, `inventory:read`, `inventory:transfer` |
 | `svc-economie` | `social-api` | `social:corporation:read`, `social:group:read`, `social:profile:read` |
 | `svc-universesimulator` | `mission-api`, `inventory-api`, `social-api`, `economie-api` | `mission:read`, `mission:write`, `mission:escrow:politics`, `inventory:read`, `inventory:hold`, `inventory:transfer`, `inventory:credit`, `social:politics:read`, `social:politics:write`, `economie:wallet:ensure`, `economie:politics:read`, `economie:politics:manage`, `economie:money:issue` |
-| `svc-admin` | `economie-api`, `social-api`, `mission-api`, `market-api`, `inventory-api`, `universesimulator-api` | the 37 capacity roles (console d'admin — client le plus privilégié) |
+| `svc-admin` | `economie-api`, `social-api`, `mission-api`, `market-api`, `inventory-api`, `universesimulator-api` | the 40 capacity roles (console d'admin — client le plus privilégié) |
+| `svc-chat` | `social-api` | exactly four, read-only: `social:profile:read` (DM friendship probe), `social:group:read`, `social:corporation:read`, `social:sanctions:read` (mutes/bans) |
 
-The 37 realm roles (no realm prefix). **Naming authority:
+The 40 capability realm roles (no realm prefix). **Naming authority:
 [`keycloak-managed/dev/import/README.md`](keycloak-managed/dev/import/README.md)** (the
 prod/preprod realm model). In prod these are **client roles** on each `*-api`
 client; dev-local declares them as **realm roles** because the Keycloak operator
@@ -323,12 +324,13 @@ are identical, so dev ↔ prod stay interchangeable:
 ```text
 social:profile:read  social:profile:write  social:player:write
 social:corporation:read  social:corporation:write  social:group:read
-social:politics:read  social:politics:write
-social:sanctions:read  social:reputation:write
+social:politics:read  social:politics:write  social:sanctions:read
+social:notify:write  social:reputation:write  social:standing:write  social:authorize
 economie:wallet:read  economie:wallet:ensure  economie:wallet:credit  economie:wallet:debit
 economie:corporation:read  economie:corporation:manage
 economie:politics:read  economie:politics:manage  economie:money:issue
-inventory:read  inventory:credit  inventory:transfer  inventory:hold  inventory:corporation:manage
+inventory:read  inventory:credit  inventory:transfer  inventory:hold
+inventory:carried:write  inventory:corporation:manage  inventory:poi:manage
 mission:read  mission:write  mission:progress  mission:complete  mission:escrow:politics
 market:read  market:manage  market:settle
 usim:read  usim:write  usim:deliver
@@ -336,9 +338,12 @@ usim:read  usim:write  usim:deliver
 
 Note the distinction: `svc-market` / `svc-inventory` / `svc-economie` are the
 identities those three **services** use to *call* the economy / inventory /
-social APIs. The `market` / `inventory` APIs themselves are called by `svc-game`
+social / mission APIs. The `market` / `inventory` APIs themselves are called by `svc-game`
 / `svc-admin` (audiences `market-api` / `inventory-api`), plus `svc-mission` and
-`svc-market` on `inventory-api`. Likewise `svc-universesimulator` is the identity
+`svc-market` on `inventory-api`. `svc-inventory` calls `mission-api` too —
+`POST /api/internal/poi-usage`, to learn which POIs an accepted mission already
+points at before it moves their geometry — so it carries `mission-api` as well and
+never `inventory-api`. Likewise `svc-universesimulator` is the identity
 the simulator uses to call mission / inventory / social / economie, while the
 universesimulator API itself is called by `svc-game` / `svc-admin` (audience
 `universesimulator-api`) and by the admin panel with user tokens.
@@ -444,9 +449,9 @@ other shared secret.
 | API (`OIDC_SERVICE_AUDIENCE`) | `INTERNAL_SERVICE_CLIENTS` |
 | --- | --- |
 | `economie-api` | `svc-game,svc-market,svc-inventory,svc-mission,svc-admin,svc-universesimulator` |
-| `social-api` | `svc-game,svc-market,svc-inventory,svc-economie,svc-mission,svc-admin,svc-universesimulator` |
+| `social-api` | `svc-game,svc-market,svc-inventory,svc-economie,svc-mission,svc-admin,svc-chat,svc-universesimulator` |
 | `inventory-api` | `svc-game,svc-admin,svc-mission,svc-market,svc-universesimulator` |
-| `mission-api` | `svc-game,svc-admin,svc-universesimulator` |
+| `mission-api` | `svc-game,svc-admin,svc-universesimulator,svc-inventory` |
 | `market-api` | `svc-game,svc-admin` |
 | `universesimulator-api` | `svc-game,svc-admin` |
 
@@ -903,11 +908,13 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
 - **Caller**: the game server (`svc-game`), the admin console (`svc-admin`)
   and the universe simulator (`svc-universesimulator`, supply missions escrowed
   on the federation treasury) are allow-listed on `/api/internal/*`
-  (`internalServiceClients`), with `OIDC_SERVICE_AUDIENCE=mission-api`
+  (`internalServiceClients`), with `OIDC_SERVICE_AUDIENCE=mission-api`; the
+  inventory service (`svc-inventory`) joins that list for
+  `POST /api/internal/poi-usage` (POIs an accepted mission already points at)
 - **Calls out** as the `svc-mission` Keycloak service account (client_credentials,
   audience `economie-api` + `social-api` + `inventory-api`): `ECONOMY_API_URL` to
   pay rewards, `SOCIAL_API_URL` to verify corporation/group membership and
-  reputation, and `INVENTORY_API_URL` to check `owns_items` / `deliver_items`
+  reputation, and `INVENTORY_API_URL` to check `owns_items` / `deliver_material`
   objectives. The client secret is read
   from the Secret `service-mission-mission-client` (key `secret`), created by the
   chart in dev from `serviceClient.clientSecret`; it must equal
@@ -960,22 +967,26 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
 - **Preprod hostname**: `services-preprod.dyingstar-game.space/inventory` (same
   path-prefix + URLRewrite model)
 - **Caller**: the game server (`svc-game`), the admin console (`svc-admin`),
-  the mission service (`svc-mission`, for `owns_items` / `deliver_items`
+  the mission service (`svc-mission`, for `owns_items` / `deliver_material`
   objectives), the market service (`svc-market`, order escrow) and the
   universe simulator (`svc-universesimulator`, warehouse stocks) are
   allow-listed on `/api/internal/*` (`internalServiceClients`), with
   `OIDC_SERVICE_AUDIENCE=inventory-api`
 - **Calls out** as the `svc-inventory` Keycloak service account
-  (client_credentials, audience `economie-api` + `social-api`): `ECONOMY_API_URL`
-  to debit/credit wallets, `SOCIAL_API_URL` to resolve corporation membership.
+  (client_credentials, audience `economie-api` + `social-api` + `mission-api`):
+  `ECONOMY_API_URL` to debit/credit wallets, `SOCIAL_API_URL` to resolve
+  corporation membership, and `MISSION_API_URL` for
+  `POST /api/internal/poi-usage` — asked before a POI's geometry moves, since a
+  destination an accepted mission points at is locked (`400 POI_IN_USE`).
   The client secret is read from the Secret
   `service-inventory-inventory-client` (key `secret`), created by the chart in dev
   from `serviceClient.clientSecret`; it must equal `svc-inventory-client-secret`
   in `keycloak-managed/dev/06-service-clients.yaml`
 - **Env**: `POSTGRES_*` / `DATABASE_URL`, `OIDC_*`, `INTERNAL_SERVICE_CLIENTS`,
-  `ECONOMY_*` and `SOCIAL_*` are rendered by the Deployment template;
-  `INTERNAL_API_KEY` / `ECONOMY_INTERNAL_API_KEY` / `SOCIAL_INTERNAL_API_KEY`
-  come from the Secret `service-inventory-internal-key`; the rest (`NODE_ENV`,
+  `ECONOMY_*`, `SOCIAL_*` and `MISSION_*` are rendered by the Deployment template;
+  `INTERNAL_API_KEY` / `ECONOMY_INTERNAL_API_KEY` / `SOCIAL_INTERNAL_API_KEY` /
+  `MISSION_INTERNAL_API_KEY` come from the Secret
+  `service-inventory-internal-key`; the rest (`NODE_ENV`,
   `CORS_ORIGIN`, `AUTH_DEV_BYPASS`) lives in `env` in `values.yaml`
 
 ### Service Universesimulator

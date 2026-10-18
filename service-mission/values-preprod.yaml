@@ -31,7 +31,8 @@ oidc:
   issuer: "https://auth-preprod.dyingstar-game.com/realms/dyingstar"
   serviceAudience: "mission-api"
 
-internalServiceClients: "svc-game,svc-admin,svc-universesimulator"
+# svc-inventory asks POST /api/internal/poi-usage before moving a POI's geometry.
+internalServiceClients: "svc-game,svc-admin,svc-universesimulator,svc-inventory"
 
 # The `svc-mission` client secret is created out of band as
 # `service-mission-mission-client` (key `secret`); it MUST equal

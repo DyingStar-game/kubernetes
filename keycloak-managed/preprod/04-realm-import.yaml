@@ -427,12 +427,14 @@ spec:
               included.custom.audience: social-api
               access.token.claim: "true"
               id.token.claim: "false"
-      # Service inventory -> economie-api + social-api : il débite/crédite les
-      # wallets pour les mouvements de stock et lit l'appartenance corporation /
-      # groupe pour les dépôts et retraits en corporation.
+      # Service inventory -> economie-api + social-api + mission-api : il
+      # débite/crédite les wallets pour les mouvements de stock, lit
+      # l'appartenance corporation / groupe pour les dépôts et retraits en
+      # corporation, et demande à mission quelles destinations de POI sont
+      # occupées (POST /api/internal/poi-usage) avant de déplacer un POI.
       - clientId: svc-inventory
         name: DyingStar inventory (client_credentials)
-        description: Inventaire -> economie-api + social-api.
+        description: Inventaire -> economie-api + social-api + mission-api.
         enabled: true
         protocol: openid-connect
         publicClient: false
@@ -453,6 +455,13 @@ spec:
             protocolMapper: oidc-audience-mapper
             config:
               included.custom.audience: social-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+          - name: mission-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: mission-api
               access.token.claim: "true"
               id.token.claim: "false"
       # Service economie -> social-api : résout l'appartenance corporation /
@@ -478,7 +487,8 @@ spec:
       # Service mission -> economie-api + social-api + inventory-api : règle les
       # récompenses économiques, vérifie l'appartenance à une corporation/un
       # groupe (missions corporation-scoped) et lit l'inventaire (objectifs
-      # owns_items / deliver_items).
+      # owns_items / deliver_material / transport / transport_passenger) et
+      # résout les POIs de zone (geometry).
       - clientId: svc-mission
         name: DyingStar mission (client_credentials)
         description: Service mission -> economie-api + social-api + inventory-api.
