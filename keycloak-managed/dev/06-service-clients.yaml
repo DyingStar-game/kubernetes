@@ -255,6 +255,10 @@ spec:
     # L'inventaire ne gère que les wallets côté économie (pas de
     # corporation:manage) ; côté social il ne fait que lire l'appartenance à
     # une corporation / un groupe (dépôts et retraits en corporation).
+    # `mission:read` lui ouvre POST /api/internal/poi-usage sur mission-api
+    # (avant de bouger la géométrie d'un POI il demande quelles destinations
+    # ont une mission acceptée). Le mapper d'audience `mission-api` est
+    # déclaré dans 04-realm-import.yaml (KeycloakOIDCClient ne l'expose pas).
     serviceAccountRoles:
       - economie:wallet:read
       - economie:wallet:credit
@@ -263,6 +267,7 @@ spec:
       - social:group:read
       - social:profile:read
       - social:authorize
+      - mission:read
 ---
 apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakOIDCClient
@@ -312,7 +317,8 @@ spec:
     # vérifie l'appartenance à une corporation/un groupe et la réputation
     # (prereq min_reputation / min_standing), règle le standing de personnage
     # (récompense de mission) et lit l'inventaire (objectifs owns_items /
-    # deliver_items / transport). Le mapper d'audience `inventory-api` est
+    # deliver_material / transport / transport_passenger, résolution des POIs
+    # de zone). Le mapper d'audience `inventory-api` est
     # déclaré dans 04-realm-import.yaml (KeycloakOIDCClient ne l'expose pas).
     serviceAccountRoles:
       - economie:wallet:read
@@ -331,7 +337,7 @@ spec:
       - social:standing:write
       - social:authorize
       - inventory:read
-      # deliver_items : déplace les biens du joueur vers le destinataire.
+      # deliver_material : déplace les biens du joueur vers le destinataire.
       - inventory:transfer
 ---
 apiVersion: k8s.keycloak.org/v2alpha1

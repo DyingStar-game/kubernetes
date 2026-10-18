@@ -47,6 +47,11 @@ economy:
 social:
   apiUrl: "http://service-social:3000"
 
+# Asked before a POI's geometry moves: POST /api/internal/poi-usage, where a
+# destination an accepted mission points at is locked (POI_IN_USE).
+mission:
+  apiUrl: "http://service-mission:3000"
+
 # Exposed through the preprod Traefik gateway on the shared
 # `services-preprod.dyingstar-game.space` host; the `/inventory` prefix is stripped
 # by a URLRewrite filter so the app keeps serving at root (`/api/*`).

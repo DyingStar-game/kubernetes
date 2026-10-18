@@ -206,15 +206,23 @@ env:
       secretKeyRef:
         name: service-inventory-internal-key
         key: INTERNAL_API_KEY
-  # Same shared X-Internal-Key, presented outbound when calling the economy and
-  # social APIs. They read the same Secret: the value is identical across
-  # services (see internalApiKey below), so one Secret per service is enough.
+  # Same shared X-Internal-Key, presented outbound when calling the economy,
+  # social and mission APIs. They read the same Secret: the value is identical
+  # across services (see internalApiKey below), so one Secret per service is
+  # enough.
   - name: ECONOMY_INTERNAL_API_KEY
     valueFrom:
       secretKeyRef:
         name: service-inventory-internal-key
         key: INTERNAL_API_KEY
   - name: SOCIAL_INTERNAL_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: service-inventory-internal-key
+        key: INTERNAL_API_KEY
+  # Fallback only: `authHeaders()` in the app prefers the service-account token
+  # (MISSION_SERVICE_CLIENT_SECRET) and uses this header when no secret is set.
+  - name: MISSION_INTERNAL_API_KEY
     valueFrom:
       secretKeyRef:
         name: service-inventory-internal-key
@@ -287,6 +295,12 @@ economy:
 social:
   # Social internal API used to resolve corporation/group membership. Empty
   # disables the integration.
+  apiUrl: ""
+
+mission:
+  # Mission internal API asked `POST /api/internal/poi-usage` before a POI's
+  # geometry may move: a destination an accepted mission points at is locked.
+  # Empty disables the guard (any POI may be moved).
   apiUrl: ""
 
 # Shared secret presented by the game server in the X-Internal-Key header.

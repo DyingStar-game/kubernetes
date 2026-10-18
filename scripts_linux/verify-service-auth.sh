@@ -245,12 +245,14 @@ ALL_ROLES=("${ECON_ROLES[@]}" "${SOCIAL_ROLES[@]}" "${MISSION_ROLES[@]}" "${MARK
 # inventory-api / economie-api de leur côté caller), mais bien celles des APIs
 # qu'ils appellent.
 MARKET_ROLES=(economie:wallet:read economie:wallet:credit economie:wallet:debit inventory:read inventory:hold inventory:transfer social:corporation:read social:group:read social:profile:read social:authorize)
-INVENTORY_SVC_ROLES=(economie:wallet:read economie:wallet:credit economie:wallet:debit social:corporation:read social:group:read social:profile:read social:authorize)
+# svc-inventory + mission-api/mission:read (POST /api/internal/poi-usage) : il
+# demande à mission quelles destinations sont occupées avant de bouger un POI.
+INVENTORY_SVC_ROLES=(economie:wallet:read economie:wallet:credit economie:wallet:debit social:corporation:read social:group:read social:profile:read mission:read social:authorize)
 ECONOMIE_SVC_ROLES=(social:corporation:read social:group:read social:profile:read social:authorize)
 # svc-mission est un caller (economie + social + inventory), pas un appelé : il
 # ne porte jamais d'audience mission-api ni de rôle mission:*. Il lit le profil
 # social (prereq min_reputation), l'appartenance corporation/groupe, et
-# l'inventaire (objectifs owns_items / deliver_items).
+# l'inventaire (objectifs owns_items / deliver_material / transport / transport_passenger).
 MISSION_SVC_ROLES=(economie:wallet:read economie:wallet:credit economie:wallet:debit social:corporation:read social:group:read social:profile:read inventory:read social:authorize)
 
 SVC_GAME_SECRET="$(fetch_secret svc-game-client-secret "${SVC_GAME_SECRET:-}")" || exit 1
@@ -266,7 +268,7 @@ GAME_TOKEN="$(get_token svc-game "$SVC_GAME_SECRET" 2>/dev/null || true)"
 AUD_EXPECT="economie-api inventory-api social-api" AUD_ABSENT="mission-api market-api" verify_token svc-market "$SVC_MARKET_SECRET" "${MARKET_ROLES[@]}"
 MARKET_TOKEN="$(get_token svc-market "$SVC_MARKET_SECRET" 2>/dev/null || true)"
 
-AUD_EXPECT="economie-api social-api" AUD_ABSENT="mission-api market-api inventory-api" verify_token svc-inventory "$SVC_INVENTORY_SECRET" "${INVENTORY_SVC_ROLES[@]}"
+AUD_EXPECT="economie-api social-api mission-api" AUD_ABSENT="market-api inventory-api" verify_token svc-inventory "$SVC_INVENTORY_SECRET" "${INVENTORY_SVC_ROLES[@]}"
 INVENTORY_TOKEN="$(get_token svc-inventory "$SVC_INVENTORY_SECRET" 2>/dev/null || true)"
 
 AUD_EXPECT="social-api" AUD_ABSENT="economie-api mission-api market-api inventory-api" verify_token svc-economie "$SVC_ECONOMIE_SECRET" "${ECONOMIE_SVC_ROLES[@]}"
@@ -329,6 +331,10 @@ if [ -n "${ECONOMIE_BASE_URL:-}" ] || [ -n "${SOCIAL_BASE_URL:-}" ] || [ -n "${M
     expect_code "svc-game GET $MISSION_PROBE_PATH" 200 GET "$MISSION_BASE_URL$MISSION_PROBE_PATH" "$GAME_TOKEN"
     # Console d'admin : authorisée sur mission -> lecture OK.
     expect_code "svc-admin GET $MISSION_PROBE_PATH" 200 GET "$MISSION_BASE_URL$MISSION_PROBE_PATH" "$ADMIN_TOKEN"
+    # svc-inventory porte désormais mission-api + mission:read (POI usage) et
+    # figure dans INTERNAL_SERVICE_CLIENTS : au-delà de l'authentification, un
+    # 400 (paramètre manquant) est acceptable.
+    expect_code_any "svc-inventory GET $MISSION_PROBE_PATH" "200 400 404" GET "$MISSION_BASE_URL$MISSION_PROBE_PATH" "$INVENTORY_TOKEN"
     # Sans token : jamais 200 (non-contournement).
     expect_code "mission sans token" 401 GET "$MISSION_BASE_URL$MISSION_PROBE_PATH"
     # svc-market n'a ni l'audience mission-api ni de rôle mission:* : rejeté.
