@@ -59,16 +59,8 @@ gateway:
       certificateRefs:
         - kind: Secret
           name: argocd-tls
-    harbor:
-      port: 443
-      protocol: HTTPS
-      hostname: "harbor.dyingstar-game.space"
-      namespacePolicy:
-        from: All
-      mode: Terminate
-      certificateRefs:
-        - kind: Secret
-          name: harbor-tls
+    # No `harbor` listener: Harbor runs on dyingstarnode2 behind traefik-node2
+    # (harbor/manifests/ingressroute.yaml).
     keycloak:
       port: 443
       protocol: HTTPS
