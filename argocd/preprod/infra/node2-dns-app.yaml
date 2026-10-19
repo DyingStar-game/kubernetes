@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: node2-dns
+  namespace: argocd
+spec:
+  project: infra
+  source:
+    repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
+    targetRevision: main
+    path: node2-dns
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: kube-system
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
