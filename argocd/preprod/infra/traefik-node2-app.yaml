@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: traefik-node2
+  namespace: argocd
+spec:
+  project: infra
+  sources:
+    - repoURL: 'https://traefik.github.io/charts'
+      chart: traefik
+      # Keep in sync with traefik-app.yaml: both instances share the CRDs.
+      targetRevision: 40.3.0
+      helm:
+        releaseName: traefik-node2
+        # CRDs are owned by the main `traefik` Application.
+        skipCrds: true
+        valueFiles:
+          - $values/traefik/values-node2.yaml
+    - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
+      targetRevision: main
+      ref: values
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: traefik-node2
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true

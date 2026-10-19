@@ -1,0 +1,134 @@
+# Second Traefik instance, dedicated to dyingstarnode2 (remote node behind the
+# WireGuard tunnel to the home LAN).
+#
+# It answers directly on the node's public IP (hostNetwork, 80/443) so that
+# services hosted there (Harbor) keep being reachable when the tunnel is down,
+# and gets its certificates itself through ACME instead of cert-manager, which
+# runs at home.
+#
+# Isolation from the main Traefik (traefik/values-preprod.yaml):
+#   - only the kubernetesCRD provider, restricted to IngressRoutes annotated
+#     `kubernetes.io/ingress.class: traefik-node2`. The main Traefik has no
+#     ingressClass set, so it ignores those (it only takes resources without
+#     the annotation, or with `traefik`).
+#   - no IngressClass, GatewayClass or Gateway: those would collide with the
+#     main instance.
+#   - CRDs are skipped in the Argo CD Application (owned by the main instance).
+
+deployment:
+  kind: Deployment
+  replicas: 1
+  # hostNetwork pods resolve through the cluster DNS (node-local CoreDNS).
+  dnsPolicy: ClusterFirstWithHostNet
+
+# A single hostNetwork pod: the new pod cannot bind 80/443 until the old one is
+# gone, so a surge rollout would hang forever.
+updateStrategy:
+  type: Recreate
+  rollingUpdate: null
+
+hostNetwork: true
+
+nodeSelector:
+  kubernetes.io/hostname: dyingstarnode2
+
+tolerations:
+  - key: dedicated
+    operator: Equal
+    value: infra
+    effect: NoSchedule
+  # No tolerationSeconds: never evicted while the tunnel to the control plane
+  # is down.
+  - key: node.kubernetes.io/unreachable
+    operator: Exists
+    effect: NoExecute
+  - key: node.kubernetes.io/not-ready
+    operator: Exists
+    effect: NoExecute
+
+ingressClass:
+  enabled: false
+
+gatewayClass:
+  enabled: false
+
+gateway:
+  enabled: false
+
+ingressRoute:
+  dashboard:
+    enabled: false
+
+providers:
+  kubernetesCRD:
+    enabled: true
+    ingressClass: traefik-node2
+    # The IngressRoutes live next to the services they expose.
+    allowCrossNamespace: false
+  kubernetesIngress:
+    enabled: false
+  kubernetesGateway:
+    enabled: false
+
+# hostNetwork: no Service is needed in front of the pod.
+service:
+  enabled: false
+
+ports:
+  # Internal entrypoints bind on every host address; the public interface is
+  # filtered by the node firewall (only 22, 80, 443 and 51820/udp are open).
+  # Non-default ports to avoid clashing with other hostNetwork listeners
+  # (node-exporter owns 9100).
+  traefik:
+    port: 18082
+  metrics:
+    port: 19100
+  web:
+    port: 80
+  websecure:
+    port: 443
+    transport:
+      respondingTimeouts:
+        # Registry pushes of large layers can take longer than the 60s default
+        # read timeout over a slow uplink.
+        readTimeout: 0
+        writeTimeout: 0
+        idleTimeout: 3600s
+
+# Binding 80/443 in the host network namespace needs NET_BIND_SERVICE, and file
+# capabilities do not apply under no_new_privs: run as root with every other
+# capability dropped.
+podSecurityContext:
+  runAsUser: 0
+  runAsGroup: 0
+  runAsNonRoot: false
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+    add: [NET_BIND_SERVICE]
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: admin@dyingstar.com
+      storage: /data/acme.json
+      httpChallenge:
+        entryPoint: web
+
+# ACME account and certificates (local-path volume on dyingstarnode2).
+persistence:
+  enabled: true
+  name: data
+  path: /data
+  size: 128Mi
+
+logs:
+  general:
+    level: INFO
+  access:
+    enabled: true
