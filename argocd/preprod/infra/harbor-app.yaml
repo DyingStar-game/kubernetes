@@ -16,6 +16,10 @@ spec:
     - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
       targetRevision: main
       ref: values
+    # IngressRoute for traefik-node2 (Harbor runs on dyingstarnode2).
+    - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
+      targetRevision: main
+      path: harbor/manifests
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: harbor

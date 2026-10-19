@@ -1,0 +1,61 @@
+# Public entry point for Harbor on dyingstarnode2, served by traefik-node2
+# (traefik/values-node2.yaml). The ingress.class annotation is what makes
+# traefik-node2 pick these up and the main Traefik ignore them.
+#
+# The certificate comes from traefik-node2's `letsencrypt` ACME resolver
+# (HTTP-01), so harbor.dyingstar-game.space must resolve to the node's public
+# IP (185.246.86.182) for issuance and renewal.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: harbor
+  namespace: harbor
+  annotations:
+    kubernetes.io/ingress.class: traefik-node2
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`harbor.dyingstar-game.space`)
+      kind: Rule
+      services:
+        # Harbor's nginx (expose.type: clusterIP), which fans out to
+        # core/portal/registry.
+        - name: harbor
+          port: 80
+  tls:
+    certResolver: letsencrypt
+---
+# Plain HTTP only redirects to HTTPS. The ACME HTTP-01 challenge on the same
+# entrypoint is answered by Traefik's own router, which takes precedence.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+  namespace: harbor
+  annotations:
+    kubernetes.io/ingress.class: traefik-node2
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: harbor-http
+  namespace: harbor
+  annotations:
+    kubernetes.io/ingress.class: traefik-node2
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`harbor.dyingstar-game.space`)
+      kind: Rule
+      middlewares:
+        - name: redirect-https
+      services:
+        # Never reached (the middleware answers), but a service is required.
+        - name: harbor
+          port: 80

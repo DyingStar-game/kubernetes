@@ -1,26 +1,25 @@
 # Harbor — container registry for dyingstar-game.space
 #
-# Exposed through the Traefik Gateway (Gateway API), not an Ingress.
-# The `harbor` listener on traefik-gateway terminates TLS for
-# harbor.dyingstar-game.space; its certificate is issued automatically by
-# cert-manager's gateway-shim via the `cert-manager.io/cluster-issuer`
-# annotation on the Gateway (see traefik/values-preprod.yaml).
-# Harbor therefore serves plain HTTP internally — do not enable expose.tls.
+# Runs entirely on dyingstarnode2, the remote node reached through an
+# unstable WireGuard tunnel to the home LAN, and answers directly on that
+# node's public IP so pulls/pushes keep working when the tunnel is down.
+#
+# Exposed through the dedicated `traefik-node2` instance (hostNetwork on the
+# node, see traefik/values-node2.yaml) by the IngressRoute in
+# harbor/manifests/. traefik-node2 terminates TLS with its own Let's Encrypt
+# resolver, so Harbor serves plain HTTP internally — do not enable expose.tls.
 
 expose:
-  type: route
+  # `clusterIP` deploys Harbor's nginx in front of core/portal/registry; the
+  # IngressRoute targets its `harbor` Service.
+  type: clusterIP
   tls:
-    # TLS terminates at the Gateway, not at Harbor.
+    # TLS terminates at traefik-node2, not at Harbor.
     enabled: false
-  route:
-    parentRefs:
-      - name: traefik-gateway
-        namespace: traefik
-        sectionName: harbor
-        kind: Gateway
-        group: gateway.networking.k8s.io
-    hosts:
-      - harbor.dyingstar-game.space
+  clusterIP:
+    name: harbor
+    ports:
+      httpPort: 80
 
 # Must match the public URL clients use, otherwise docker login / push break.
 externalURL: https://harbor.dyingstar-game.space
@@ -65,6 +64,20 @@ core:
   # Token-signing CA — keys `tls.crt` / `tls.key`. Mounted whole, so it needs
   # its own secret rather than sharing harbor-bootstrap.
   secretName: harbor-token-ca
+  # Anchors reused by every component, see "Scheduling" below.
+  nodeSelector: &node2Selector
+    kubernetes.io/hostname: dyingstarnode2
+  tolerations: &node2Tolerations
+    - key: dedicated
+      operator: Equal
+      value: infra
+      effect: NoSchedule
+    - key: node.kubernetes.io/unreachable
+      operator: Exists
+      effect: NoExecute
+    - key: node.kubernetes.io/not-ready
+      operator: Exists
+      effect: NoExecute
 
 registry:
   existingSecret: harbor-bootstrap
@@ -72,10 +85,14 @@ registry:
   credentials:
     # Keys must be named REGISTRY_PASSWD and REGISTRY_HTPASSWD.
     existingSecret: harbor-bootstrap
+  nodeSelector: *node2Selector
+  tolerations: *node2Tolerations
 
 jobservice:
   existingSecret: harbor-bootstrap
   existingSecretKey: JOBSERVICE_SECRET
+  nodeSelector: *node2Selector
+  tolerations: *node2Tolerations
 
 # ---------------------------------------------------------------------------
 # Storage — sizes mirror what is currently bound in the cluster.
@@ -96,3 +113,33 @@ persistence:
       size: 1Gi
     trivy:
       size: 5Gi
+
+# ---------------------------------------------------------------------------
+# Scheduling — every component on dyingstarnode2 (core, registry and
+# jobservice above, the rest here; anchors defined under `core`).
+#
+# The node is tainted dedicated=infra:NoSchedule. The unreachable/not-ready
+# tolerations have no tolerationSeconds: when the tunnel to the control plane
+# drops, the node goes NotReady but Harbor must keep running there instead of
+# being evicted (it could not be rescheduled anyway: its volumes are local).
+# ---------------------------------------------------------------------------
+nginx:
+  nodeSelector: *node2Selector
+  tolerations: *node2Tolerations
+portal:
+  nodeSelector: *node2Selector
+  tolerations: *node2Tolerations
+trivy:
+  nodeSelector: *node2Selector
+  tolerations: *node2Tolerations
+database:
+  internal:
+    nodeSelector: *node2Selector
+    tolerations: *node2Tolerations
+redis:
+  internal:
+    nodeSelector: *node2Selector
+    tolerations: *node2Tolerations
+exporter:
+  nodeSelector: *node2Selector
+  tolerations: *node2Tolerations
