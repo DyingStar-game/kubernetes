@@ -14,3 +14,6 @@ configMapGenerator:
   - name: grafana-dashboard-godot-servers
     files:
       - godot-servers.json
+  - name: grafana-dashboard-nodes
+    files:
+      - nodes.json

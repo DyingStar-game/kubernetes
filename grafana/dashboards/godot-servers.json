@@ -417,7 +417,7 @@
       "id": 7,
       "type": "stat",
       "title": "TPS min (actifs)",
-      "description": "Plus petit nombre de ticks physiques par seconde parmi les serveurs Running (cible 60).",
+      "description": "Plus petit nombre de ticks physiques par seconde parmi les serveurs Running (cible 60). Les serveurs encore en démarrage sont exclus : sans serverinfo depuis qu'ils ont reçu leurs zones, ou cible d'un split / adopt en cours (warm-up jusqu'à split_ready_tps).",
       "datasource": {
         "type": "loki",
         "uid": "${ds_loki}"
@@ -434,7 +434,7 @@
             "type": "loki",
             "uid": "${ds_loki}"
           },
-          "expr": "min(min_over_time({namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | label_format v=`{{ $d := fromJson .j }}{{ $v := -1 }}{{ range $d.servers }}{{ if eq .state \"Running\" }}{{ if or (lt $v 0) (lt (int .tps) $v) }}{{ $v = int .tps }}{{ end }}{{ end }}{{ end }}{{ $v }}` | keep v | v >= 0 | unwrap v [$__auto]))",
+          "expr": "min(min_over_time({namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | label_format v=`{{ $d := fromJson .j }}{{ $busy := \",\" }}{{ range $d.in_flight }}{{ $busy = printf \"%s%s,\" $busy (regexReplaceAll \"^split .* -> ([^ ]+).*$|^adopt .* on ([^ ]+)$|^.*$\" . \"${1}${2}\") }}{{ end }}{{ $v := -1 }}{{ range $d.servers }}{{ if and (eq .state \"Running\") .tps (not .loading) (eq (regexReplaceAll (printf \",%s,\" .name) $busy \"\") $busy) }}{{ if or (lt $v 0) (lt (int .tps) $v) }}{{ $v = int .tps }}{{ end }}{{ end }}{{ end }}{{ $v }}` | keep v | v >= 0 | unwrap v [$__auto]))",
           "legendFormat": "tps",
           "refId": "A",
           "queryType": "range"
@@ -797,7 +797,7 @@
       "id": 13,
       "type": "timeseries",
       "title": "TPS des serveurs actifs",
-      "description": "Ticks physiques par seconde des serveurs Running. Sous ~50, la simulation décroche ; Horizon ne bascule des joueurs que vers un serveur qui atteint split_ready_tps.",
+      "description": "Ticks physiques par seconde des serveurs Running. Sous ~50, la simulation décroche ; Horizon ne bascule des joueurs que vers un serveur qui atteint split_ready_tps. Les serveurs encore en démarrage sont exclus : sans serverinfo depuis qu'ils ont reçu leurs zones, ou cible d'un split / adopt en cours (warm-up jusqu'à split_ready_tps).",
       "datasource": {
         "type": "loki",
         "uid": "${ds_loki}"
@@ -814,7 +814,7 @@
             "type": "loki",
             "uid": "${ds_loki}"
           },
-          "expr": "min(min_over_time({namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | label_format v=`{{ $d := fromJson .j }}{{ $v := -1 }}{{ range $d.servers }}{{ if eq .state \"Running\" }}{{ if or (lt $v 0) (lt (int .tps) $v) }}{{ $v = int .tps }}{{ end }}{{ end }}{{ end }}{{ $v }}` | keep v | v >= 0 | unwrap v [$__auto]))",
+          "expr": "min(min_over_time({namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | label_format v=`{{ $d := fromJson .j }}{{ $busy := \",\" }}{{ range $d.in_flight }}{{ $busy = printf \"%s%s,\" $busy (regexReplaceAll \"^split .* -> ([^ ]+).*$|^adopt .* on ([^ ]+)$|^.*$\" . \"${1}${2}\") }}{{ end }}{{ $v := -1 }}{{ range $d.servers }}{{ if and (eq .state \"Running\") .tps (not .loading) (eq (regexReplaceAll (printf \",%s,\" .name) $busy \"\") $busy) }}{{ if or (lt $v 0) (lt (int .tps) $v) }}{{ $v = int .tps }}{{ end }}{{ end }}{{ end }}{{ $v }}` | keep v | v >= 0 | unwrap v [$__auto]))",
           "legendFormat": "TPS min",
           "refId": "A",
           "queryType": "range"
@@ -824,7 +824,7 @@
             "type": "loki",
             "uid": "${ds_loki}"
           },
-          "expr": "max(max_over_time({namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | label_format v=`{{ $d := fromJson .j }}{{ $v := 0 }}{{ range $d.servers }}{{ if eq .state \"Running\" }}{{ if gt (int .tps) $v }}{{ $v = int .tps }}{{ end }}{{ end }}{{ end }}{{ $v }}` | keep v | v >= 0 | unwrap v [$__auto]))",
+          "expr": "max(max_over_time({namespace=\"$namespace\", container=\"horizon\"} |= \"[mesh] state\" | regexp `\\[mesh\\] state (?P<j>\\{.*\\})` | label_format v=`{{ $d := fromJson .j }}{{ $busy := \",\" }}{{ range $d.in_flight }}{{ $busy = printf \"%s%s,\" $busy (regexReplaceAll \"^split .* -> ([^ ]+).*$|^adopt .* on ([^ ]+)$|^.*$\" . \"${1}${2}\") }}{{ end }}{{ $v := -1 }}{{ range $d.servers }}{{ if and (eq .state \"Running\") .tps (not .loading) (eq (regexReplaceAll (printf \",%s,\" .name) $busy \"\") $busy) }}{{ if gt (int .tps) $v }}{{ $v = int .tps }}{{ end }}{{ end }}{{ end }}{{ $v }}` | keep v | v >= 0 | unwrap v [$__auto]))",
           "legendFormat": "TPS max",
           "refId": "B",
           "queryType": "range"

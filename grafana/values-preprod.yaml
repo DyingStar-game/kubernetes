@@ -38,6 +38,11 @@ datasources:
         url: http://prometheus-server:80
         access: proxy
         isDefault: true
+        # Doit suivre le scrape_interval de Prometheus (1m) : sinon Grafana
+        # suppose 15s et $__rate_interval tombe à ~1m, fenêtre qui ne contient
+        # parfois qu'un seul point → rate() vide sur les plages courtes.
+        jsonData:
+          timeInterval: 1m
       - name: Loki
         type: loki
         url: http://loki:3100
