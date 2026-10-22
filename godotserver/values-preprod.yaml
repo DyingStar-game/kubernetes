@@ -36,6 +36,14 @@ env:
       secretKeyRef:
         name: svc-game-client-secret
         key: secret
+  # Internal service routes reached with the svc-game token. The game's built-in
+  # default (http://service.dyingstar.local/...) does not resolve in this cluster.
+  - name: SOCIAL_API_URL
+    value: "http://service-social:3000"
+  - name: MISSION_API_URL
+    value: "http://service-mission:3000"
+  - name: INVENTORY_API_URL
+    value: "http://service-inventory:3000"
 
 # Crash dumps survive the crash. The image sets DOTNET_DbgEnableMiniDump=1 with
 # DOTNET_DbgMiniDumpName=/tmp/coredump.%d.%t, but a container's /tmp dies with the
