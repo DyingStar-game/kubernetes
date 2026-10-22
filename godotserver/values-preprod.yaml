@@ -21,8 +21,20 @@ resources:
 env:
   - name: DEBUG_GDB
     value: "0"
+  # Server debug switches, one per `[debug]` key of server.ini (DS_ + the key in
+  # capitals). "1" turns one on in the pods without a new image, "0" keeps it off.
+  # DS_PERF: the [Perf] report every 2 s. DS_PERF_CENSUS: its [Perf/nodes] tree
+  # walk every 10 s, which freezes the server ~150 ms each time. DS_PERF_BANDS:
+  # per-script physics attribution (reorders _physics_process). DS_MOVEMENT:
+  # [Move] / [StepUp] traces of the players' movement.
   - name: DS_PERF
     value: "1"
+  - name: DS_PERF_CENSUS
+    value: "0"
+  - name: DS_PERF_BANDS
+    value: "0"
+  - name: DS_MOVEMENT
+    value: "0"
   - name: DS_AUTH_URL
     value: "https://auth-preprod.dyingstar-game.com"
   - name: DS_AUTH_REALM
