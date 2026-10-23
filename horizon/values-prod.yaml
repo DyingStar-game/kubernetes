@@ -29,6 +29,12 @@ httpRoute:
             value: /
 
 extraEnv:
+  # Issuer of the player tokens: Horizon checks their signature against its keys
+  # (<issuer>/protocol/openid-connect/certs), their expiry and this exact "iss".
+  # Without it every player login is refused (VERIFY_JWT_SIGNATURE=false turns
+  # the check off, for a local dev only). Same value as textchat / service-economie.
+  - name: OIDC_ISSUER
+    value: "https://auth.dyingstar-game.com/realms/dyingstar"
   - name: LIVEKIT_URL
     value: "ws://vocal.dyingstar-game.space"
   - name: LIVEKIT_API_URL
