@@ -18,6 +18,8 @@ extraEnv:
   #   value: "host.minikube.internal"
   # - name: BYPASS_AUTH
   #  value: "true"
+  - name: VERIFY_JWT_SIGNATURE
+    value: "false"
   - name: LIVEKIT_URL
     value: "ws://vocal.dyingstar.local"
   - name: LIVEKIT_API_URL
