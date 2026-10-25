@@ -15,7 +15,7 @@ resources:
     memory: 128Mi
   limits:
     cpu: 1
-    memory: 512Mi
+    memory: 20Gi
 
 # Pinned on dyingstarnode2, like its database
 # (service-npc/database-preprod/00-cnpg-cluster.yaml). Same tolerations as
