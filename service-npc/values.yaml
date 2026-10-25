@@ -131,7 +131,8 @@ env:
     value: "500"
 
 # Horizon game server WebSocket. In-cluster Service `horizon` (chart horizon,
-# port 7040), identical in every namespace, hence no override in the overlays.
+# port 7040), identical in every namespace. Preprod overrides it with the
+# public hostname (values-preprod.yaml).
 horizon:
   url: "ws://horizon:7040"
 

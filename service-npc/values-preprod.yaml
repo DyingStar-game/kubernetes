@@ -44,6 +44,12 @@ database:
   host: npc-db-rw
   existingSecret: npc-db-auth
 
+# NPCs reach Horizon from outside, like players: public hostname, through the
+# Traefik gateway (HTTPRoute of horizon/values-preprod.yaml), not the in-cluster
+# Service `horizon:7040`.
+horizon:
+  url: "ws://server-preprod.dyingstar-game.space:80"
+
 # The Keycloak CR (keycloak-managed/preprod/) lives in this same namespace:
 # Service `keycloak`, inherited from values.yaml.
 oidc:
