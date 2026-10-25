@@ -1,0 +1,53 @@
+# Production overrides for service-npc
+# Usage: helm upgrade --install -n dyingstar-prod service-npc ./service-npc -f service-npc/values-prod.yaml
+#
+# ⚠ Not deployed yet: prod has no Keycloak operator instance (the svc-npc /
+# npc-login clients, the `npcs` group and the FGAP permission do not exist on
+# the prod realm) and no `npc-db` CloudNativePG Cluster. Both must exist before
+# this overlay is used.
+
+replicaCount: 1
+
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/npc
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 1
+    memory: 512Mi
+
+# Same cluster as preprod (`dyingstar`): pinned on dyingstarnode2, see
+# values-preprod.yaml.
+nodeSelector:
+  kubernetes.io/hostname: dyingstarnode2
+tolerations:
+  - key: dedicated
+    operator: Equal
+    value: infra
+    effect: NoSchedule
+  - key: node.kubernetes.io/unreachable
+    operator: Exists
+    effect: NoExecute
+  - key: node.kubernetes.io/not-ready
+    operator: Exists
+    effect: NoExecute
+
+oidc:
+  issuer: "https://auth.dyingstar-game.com/realms/dyingstar"
+
+# Secrets created out of band. Never put a real secret in this file.
+serviceClient:
+  clientId: "svc-npc"
+  existingSecret: "svc-npc-client-secret"
+  create: false
+npcLogin:
+  clientId: "npc-login"
+  existingSecret: "npc-login-client-secret"
+  create: false
+passwordKey:
+  secretName: "service-npc-password-key"
+  create: false

@@ -231,8 +231,9 @@ oidc:
 # Comma-separated allowlist of Keycloak clientIds allowed to call /api/internal/*
 # (checked against the token's `azp`). Rendered as INTERNAL_SERVICE_CLIENTS.
 # The game server calls the simulator (deliveries, reads); svc-admin is the
-# admin console. The admin panel itself calls /api/admin/* with user tokens.
-internalServiceClients: "svc-game,svc-admin"
+# admin console; svc-npc is the NPC service (reads only, `usim:read`). The admin
+# panel itself calls /api/admin/* with user tokens.
+internalServiceClients: "svc-game,svc-admin,svc-npc"
 
 # `live`: real calls to social, inventory, mission, economie and persistence.
 # `dry_run`: in-memory stand-in for every service (local development only).

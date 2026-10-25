@@ -95,6 +95,8 @@ services:
   economieUrl: ""
   # universesimulator base URL (the BFF adds `/api`).
   universesimulatorUrl: ""
+  # npc service admin API (chart service-npc, internal only, port 9400).
+  npcUrl: ""
 
 # Keycloak sign-in: the BFF is the OIDC client `dyingstar-admin`
 # (confidential, standard flow). The BFF does not start without it.

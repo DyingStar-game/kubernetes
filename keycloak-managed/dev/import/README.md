@@ -178,7 +178,89 @@ sync with each service's `src/middleware/auth.ts` `SERVICE_ROLES`.
 > `social-api` (political hierarchy) and `economie:wallet:ensure` + `economie:politics:read` +
 > `economie:politics:manage` + `economie:money:issue` on `economie-api` (treasury, minting).
 > Its client carries those four audiences — and never `universesimulator-api`, which
-> `svc-game` (`usim:read`, `usim:deliver`) and `svc-admin` carry.
+> `svc-game` (`usim:read`, `usim:deliver`), `svc-admin` and `svc-npc` (`usim:read`) carry.
+>
+> The NPC service (`svc-npc`) needs `usim:read` on `universesimulator-api` (its client carries
+> that audience only) and is allow-listed in the simulator's `internalServiceClients`. Its
+> Keycloak admin rights are described in [NPC accounts](#npc-accounts) below.
+
+## NPC accounts
+
+The game's NPCs (bots) are **real Keycloak users** of the realm `dyingstar`, logging in with a
+login + password. They are created and driven by the `npc` service
+([services/npc](../../../../services/npc), chart [`service-npc`](../../../service-npc)), which
+runs on node 2 with its own PostgreSQL (the sealed NPC passwords live there).
+
+| Object | Kind | Purpose |
+|---|---|---|
+| `npc` | realm role | "Bot account driven by the npc service". Never assigned directly: it comes from the group `npcs`. |
+| `npcs` | group | Every NPC account, and nothing else. Realm role `npc` is mapped onto the group. |
+| `svc-npc` | client, `SERVICE_ACCOUNT` | Identity of the `npc` service: `usim:read` (audience `universesimulator-api`) and management of the members of `npcs` (below). Secret `svc-npc-client-secret` (key `secret`). |
+| `npc-login` | client, confidential, `DIRECT_GRANT` only | `svc-npc` logs each NPC in with `grant_type=password`. Client sessions idle 24 h / max 7 days. Secret `npc-login-client-secret` (key `secret`). |
+
+**Rule: NPC users are only managed by `svc-npc`.** Do not create, edit or delete members of
+`npcs` by hand (the service keeps their passwords sealed in its own database and would lose
+track of them), and never put a player in `npcs`.
+
+Token of an NPC (client `npc-login`): the scopes `profile` and `openid` are removed from the
+client (in this realm `openid` carries the `preferred_username` = username mapper), `sub` is
+re-added by the client mapper `npc-sub`, and the mapper `npc-display-name` writes the user
+attribute `display_name` into **`preferred_username`** — the name the Horizon game server
+displays (Keycloak usernames are lowercase logins such as `npc-3f2a9c`). `realm_access.roles`
+(scope `roles`) carries `npc`. Keycloak 26 drops undeclared user attributes: the realm user
+profile is set to `unmanagedAttributePolicy: ADMIN_EDIT` so `display_name` is kept (writable
+through the admin API only, invisible to the user).
+
+All of this is created by the realm import (fresh realm) **and** re-applied by the PostSync job
+(`07-role-bootstrap-job.yaml` dev / `08-role-bootstrap-job.yaml` preprod, sections 6 to 9),
+because the import is create-only.
+
+### `svc-npc` admin rights: fine-grained admin permissions (v2)
+
+Goal: `svc-npc` can create users **into** `/npcs` (`POST /admin/realms/dyingstar/users` with
+`"groups": ["/npcs"]`), reset their password, update and delete them — and nothing else (no
+player account, no other group, no role mapping). Section 9 of the job sets it up through
+Fine-Grained Admin Permissions **v2** (Keycloak 26.2+, feature `admin-fine-grained-authz:v2`,
+on by default):
+
+1. Realm › *Realm settings* › **Admin Permissions** on (`adminPermissionsEnabled=true`); this
+   creates the client `admin-permissions` that holds the policies and permissions.
+2. Policy **`svc-npc-policy`**, type **User**, user `service-account-svc-npc`. Not a *Client*
+   policy: view scopes go through partial evaluation, which only accepts User / Group / Role /
+   Aggregated policies (a Client policy always evaluates to DENY there, so searches would come
+   back empty).
+3. Permission **`npc-group-members`**, resource type **Groups**, specific group `npcs`, scopes
+   `view`, `view-members`, `manage-members`, `manage-membership`, policy `svc-npc-policy`.
+   `view-members` / `manage-members` grant `view` / `manage` (and `reset-password`, which falls
+   back to `manage`) on the members; `POST /users` with `groups` requires **both**
+   `manage-members` and `manage-membership` on each group.
+4. Client role **`realm-management` › `query-users`** on `service-account-svc-npc`: required by
+   `GET /users` (search); it grants no view by itself, results are filtered by the permission.
+
+> ⚠ **To validate on dev** — the FGAP v2 representations were written from the Keycloak 26.x
+> documentation ("Managing permissions using the Admin REST API") and never replayed on a cluster.
+> The job does not fail when this section fails: it logs `FGAP: FAILED`. Check with *Permissions ›
+> Evaluation* (user `service-account-svc-npc`, resource type Groups, group `npcs`), then with a
+> `client_credentials` token of `svc-npc`: create a user with `"groups":["/npcs"]` (201), create one
+> without `groups` (403), `GET /users/{id}` of a player (403).
+
+**Manual fallback (Admin Console)** if the scripted step fails:
+
+1. *Realm settings* › *General* › **Admin Permissions** → On › Save.
+2. *Permissions* › *Policies* › **Create policy** › *User* › name `svc-npc-policy`, user
+   `service-account-svc-npc`, logic Positive › Save.
+3. *Permissions* › **Create permission** › *Groups* › name `npc-group-members`, scopes `view`,
+   `view-members`, `manage-members`, `manage-membership`, *Specific groups* › `npcs`, policy
+   `svc-npc-policy` › Save.
+4. *Clients* › `svc-npc` › *Service accounts roles* › **Assign role** › filter by clients ›
+   `realm-management` `query-users`.
+
+**Last-resort fallback (broad — avoid)**: if FGAP v2 cannot be used at all, give
+`service-account-svc-npc` the `realm-management` client roles **`manage-users`** and
+**`query-groups`**. `svc-npc` then works, but it can view, edit and delete **every** user of the
+realm (players included) and change their group memberships: the "only NPC users" boundary is no
+longer enforced by Keycloak, only by the service's code. Remove those roles as soon as the
+permission works.
 
 ## Admin panel (`dyingstar-admin`)
 

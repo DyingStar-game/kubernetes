@@ -68,6 +68,11 @@ spec:
           description: Administration (modération étendue)
         - name: supervisor
           description: Supervision (tous les droits de modération)
+        # Compte bot piloté par le service `npc` (client `svc-npc`). Jamais
+        # assigné directement : il vient du groupe `npcs` ci-dessous. Miroir
+        # dans `ROLES` du job de bootstrap.
+        - name: npc
+          description: Bot account driven by the npc service
         # Rôles de capacité des services machine-to-machine (client_credentials).
         # ⚠ Autorité de nommage : keycloak-managed/dev/import/README.md (section
         # « Service capability roles »), qui décrit le modèle prod/preprod. En
@@ -139,6 +144,13 @@ spec:
     groups:
       - name: players
       - name: staff
+      # Comptes des PNJ : créés, mis à jour et supprimés UNIQUEMENT par
+      # `svc-npc` (permission FGAP v2 bornée à ce groupe, posée par le job de
+      # bootstrap — elle référence l'id du groupe, inconnu à l'import). Miroir
+      # dans la section 6 de 07-role-bootstrap-job.yaml.
+      - name: npcs
+        realmRoles:
+          - npc
     users:
       - username: devplayer
         email: devplayer@dyingstar.local
@@ -679,6 +691,73 @@ spec:
               included.custom.audience: universesimulator-api
               access.token.claim: "true"
               id.token.claim: "false"
+      # Service npc -> universesimulator-api (lectures internes, `usim:read`).
+      # Son droit de gérer les comptes PNJ (membres de `npcs`) n'est PAS décrit
+      # ici : permission FGAP v2 + `realm-management/query-users` posées par la
+      # section 9 de 07-role-bootstrap-job.yaml (ids connus seulement à l'exécution).
+      # Mapper d'audience répliqué dans CLIENT_AUD du même job.
+      - clientId: svc-npc
+        name: DyingStar npc service (client_credentials)
+        description: Service npc -> universesimulator-api + gestion des comptes du groupe npcs.
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: true
+        protocolMappers:
+          - name: universesimulator-api-audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: universesimulator-api
+              access.token.claim: "true"
+              id.token.claim: "false"
+      # Connexion des PNJ (direct grant login + mot de passe, opéré par
+      # svc-npc). Le secret est porté par la CR `npc-login` de
+      # 06-service-clients.yaml. Miroir de la section 8 du job de bootstrap :
+      # pas de scope `profile` ni `openid` (ce dernier porte, dans ce realm, le
+      # mapper `preferred_username` = username), `sub` remis par `npc-sub`, et
+      # `preferred_username` = attribut `display_name` (nom affiché par Horizon).
+      - clientId: npc-login
+        name: DyingStar NPC login (direct grant)
+        description: Client confidentiel de connexion des PNJ, direct grant seul.
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        standardFlowEnabled: false
+        implicitFlowEnabled: false
+        directAccessGrantsEnabled: true
+        serviceAccountsEnabled: false
+        fullScopeAllowed: true
+        attributes:
+          client.session.idle.timeout: "86400"
+          client.session.max.lifespan: "604800"
+        defaultClientScopes:
+          - email
+          - roles
+          - web-origins
+        protocolMappers:
+          - name: npc-sub
+            protocol: openid-connect
+            protocolMapper: oidc-sub-mapper
+            config:
+              access.token.claim: "true"
+              id.token.claim: "true"
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
+          - name: npc-display-name
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-attribute-mapper
+            config:
+              user.attribute: display_name
+              claim.name: preferred_username
+              jsonType.label: String
+              access.token.claim: "true"
+              id.token.claim: "true"
+              introspection.token.claim: "true"
+              userinfo.token.claim: "true"
       # Panneau d'admin : client confidentiel du BFF, flow standard + PKCE.
       # Le secret, les redirect URIs et les client roles sont portés par la CR
       # KeycloakOIDCClient `dyingstar-admin` (06-service-clients.yaml) ; ce

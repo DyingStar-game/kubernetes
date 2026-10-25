@@ -1,0 +1,6 @@
+service-npc is internal only (no Ingress / HTTPRoute). In-cluster URL of its admin API:
+  http://{{ include "service-npc.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}
+
+To reach it from your machine:
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "service-npc.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }}
+  curl http://127.0.0.1:{{ .Values.service.port }}/healthz

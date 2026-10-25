@@ -69,6 +69,10 @@ spec:
             - name: UNIVERSESIMULATOR_URL
               value: {{ . | quote }}
             {{- end }}
+            {{- with .Values.services.npcUrl }}
+            - name: NPC_URL
+              value: {{ . | quote }}
+            {{- end }}
             {{- with .Values.oidc.issuer }}
             - name: OIDC_ISSUER
               value: {{ . | quote }}

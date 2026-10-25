@@ -16,9 +16,11 @@
     #
     # Clients déclarés : svc-game, svc-market, svc-inventory, svc-mission,
     # svc-admin, svc-economie, svc-social (publisher MQTT de social), svc-chat
-    # (chatauth), svc-universesimulator, et le client de connexion du panneau
-    # d'admin `dyingstar-admin` (flow standard, en fin de fichier ; son Secret
-    # `dyingstar-admin-client-secret` est aussi lu par le pod du panneau).
+    # (chatauth), svc-universesimulator, svc-npc et npc-login (service `npc` :
+    # comptes PNJ ; leurs Secrets sont lus tels quels par le pod service-npc),
+    # et le client de connexion du panneau d'admin `dyingstar-admin` (flow
+    # standard, en fin de fichier ; son Secret `dyingstar-admin-client-secret`
+    # est aussi lu par le pod du panneau).
 #
 # ⚠ Les Secrets référencés par `auth.secretRef` (`<clientId>-client-secret`,
 # clé `secret`) ne sont PAS commités : ils sont créés hors-bande dans le
@@ -394,6 +396,68 @@ spec:
       - social:group:read
       - social:corporation:read
       - social:sanctions:read
+---
+# Service `npc` (services/npc, chart service-npc) : pilote les PNJ du jeu, qui
+# sont de vrais utilisateurs Keycloak du groupe `npcs`. Ce client sert à deux
+# choses :
+#   - lire le simulateur d'univers (`usim:read`, audience
+#     `universesimulator-api` posée par le job PostSync, miroir CLIENT_AUD) ;
+#   - gérer les comptes PNJ via l'API admin Keycloak : créer dans /npcs,
+#     réinitialiser le mot de passe, mettre à jour, supprimer — et RIEN d'autre.
+#     Ce droit ne passe PAS par un rôle `realm-management` (trop large) mais par
+#     une permission fine (FGAP v2) bornée au groupe `npcs`, posée par
+#     08-role-bootstrap-job.yaml (section 9), qui ajoute aussi `realm-management/query-users`
+#     (recherche seule).
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: KeycloakOIDCClient
+metadata:
+  name: svc-npc
+  namespace: dyingstar-preprod
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  keycloakCRName: keycloak
+  realm: dyingstar
+  client:
+    enabled: true
+    loginFlows:
+      - SERVICE_ACCOUNT
+    auth:
+      method: client-secret
+      secretRef:
+        name: svc-npc-client-secret
+        key: secret
+    serviceAccountRoles:
+      - usim:read
+---
+# Connexion des PNJ : svc-npc obtient le jeton de chaque PNJ par direct grant
+# (grant_type=password, login + mot de passe du compte Keycloak du PNJ), puis
+# le présente au serveur Horizon comme un joueur. Client CONFIDENTIEL, DIRECT_GRANT
+# seul : ni flow navigateur, ni service account. Le CRD n'expose ni attributs
+# ni scopes ni mappers : sessions longues, retrait des scopes `profile` /
+# `openid`, mappers `npc-sub` et `npc-display-name` (`display_name` ->
+# `preferred_username`, affiché par Horizon) sont posés par 08-role-bootstrap-job.yaml
+# (section 8).
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: KeycloakOIDCClient
+metadata:
+  name: npc-login
+  namespace: dyingstar-preprod
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  keycloakCRName: keycloak
+  realm: dyingstar
+  client:
+    enabled: true
+    displayName: DyingStar NPC login (direct grant)
+    loginFlows:
+      - DIRECT_GRANT
+    auth:
+      method: client-secret
+      secretRef:
+        name: npc-login-client-secret
+        key: secret
 ---
 # Panneau d'admin (https://github.com/DyingStar-game/adminpanel, chart
 # dyingstar-admin) : client CONFIDENTIEL de son BFF, flow standard (code +

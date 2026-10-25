@@ -16,14 +16,20 @@
 # `06-service-clients.yaml` (`serviceAccountRoles`), cf. la répartition des
 # responsabilités décrite en tête de ce fichier. Il pose aussi les attributs
 # du client `dyingstar-admin` (panneau d'admin) que KeycloakOIDCClient
-# n'expose pas (PKCE, `post.logout.redirect.uris`). Ce job ne supprime RIEN.
+# n'expose pas (PKCE, `post.logout.redirect.uris`), et tout le socle des
+# comptes PNJ (sections 6 à 9) : groupe `npcs` + rôle `npc`, politique des
+# attributs non déclarés du user profile, attributs / scopes / mappers du client
+# `npc-login`, et la permission fine (FGAP v2) qui borne `svc-npc` aux membres
+# de `npcs`. Ce job ne supprime RIEN, sauf deux default client scopes du seul
+# client `npc-login` (`profile`, `openid`, cf. section 8).
 #
 # ⠠ Miroirs de 04-realm-import.yaml : `ROLES` = `spec.realm.roles`,
 # `CLIENT_AUD` = `protocolMappers[].config.included.custom.audience` par
 # client, `PANEL_POST_LOGOUT_URIS` = `post.logout.redirect.uris` de
-# `dyingstar-admin`. L'autorité de nommage reste `import/README.md` (sections « Service
-# capability roles » et la note sur les audiences) : toute ajout dans un de ces
-# miroirs doit l'être dans les trois.
+# `dyingstar-admin`, section 6 = `spec.realm.groups` (`npcs`), section 8 = le
+# client `npc-login`. L'autorité de nommage reste `import/README.md` (sections
+# « Service capability roles », « NPC accounts » et la note sur les audiences) :
+# toute ajout dans un de ces miroirs doit l'être dans les trois.
 #
 # Le script est en bash (disponible dans l'image Keycloak) et n'utilise ni
 # `jq` ni `openssl`.
@@ -75,6 +81,7 @@ spec:
               ROLES=$(cat <<'EOF'
               admin
               supervisor
+              npc
               social:profile:read
               social:profile:write
               social:player:write
@@ -156,6 +163,7 @@ spec:
                 [svc-admin]="economie-api social-api mission-api market-api inventory-api universesimulator-api"
                 [svc-chat]="social-api"
                 [svc-universesimulator]="mission-api inventory-api social-api economie-api"
+                [svc-npc]="universesimulator-api"
               )
 
               mpresent=0
@@ -312,6 +320,223 @@ spec:
                 "${KC}" get "clients/${pid}/roles" -r "${KC_REALM}" --fields id,name \
                   | "${KC}" create "clients/${pid}/scope-mappings/clients/${pid}" -r "${KC_REALM}" -f -
                 echo "dyingstar-admin: own client roles in scope"
+              fi
+
+              # ------------------------------------------------------------------
+              # 6. Groupe `npcs` et son rôle realm `npc`
+              # ------------------------------------------------------------------
+              # Les PNJ sont de vrais utilisateurs Keycloak (login + mot de passe),
+              # créés par le service `npc` (client `svc-npc`) DANS ce groupe
+              # (`groups: ["/npcs"]` dans le payload de création) : ils héritent du
+              # rôle `npc` par le groupe, et la permission FGAP de la section 9
+              # borne svc-npc aux seuls membres du groupe. Miroir de
+              # `spec.realm.groups` de 04-realm-import.yaml. `add-roles` est
+              # idempotent (un mapping existant est ignoré).
+              if ! "${KC}" get "group-by-path/npcs" -r "${KC_REALM}" --fields id >/dev/null 2>&1; then
+                "${KC}" create groups -r "${KC_REALM}" -s name=npcs >/dev/null
+                echo "group npcs: created"
+              fi
+              NPC_GID=$("${KC}" get "group-by-path/npcs" -r "${KC_REALM}" --fields id \
+                    | { grep -o '"id" *: *"[^"]*"' || true; } | head -1 | sed 's/.*: *"//; s/"$//')
+              if [ -z "${NPC_GID}" ]; then
+                echo "group npcs: introuvable après création"
+                exit 1
+              fi
+              "${KC}" add-roles -r "${KC_REALM}" --gid "${NPC_GID}" --rolename npc
+              echo "group npcs (${NPC_GID}) -> role npc"
+
+              # ------------------------------------------------------------------
+              # 7. Profil utilisateur : attributs non déclarés éditables par l'admin
+              # ------------------------------------------------------------------
+              # Keycloak 26 jette silencieusement tout attribut utilisateur absent
+              # du user profile. svc-npc pose `display_name` (nom affiché du PNJ,
+              # lu par le mapper de la section 8) : on passe
+              # `unmanagedAttributePolicy` à ADMIN_EDIT (lecture/écriture par l'API
+              # admin uniquement, invisible et non éditable par l'utilisateur
+              # lui-même). Choix plus robuste sans jq que de déclarer l'attribut :
+              # on n'insère qu'une clé de premier niveau, juste après la première
+              # accolade du JSON renvoyé par kcadm. ENABLED (plus large) ou
+              # ADMIN_EDIT déjà posés : rien à faire. ADMIN_VIEW : remplacé.
+              UP_JSON="$("${KC}" get users/profile -r "${KC_REALM}")"
+              UP_CMP="$(printf '%s' "${UP_JSON}" | tr -d '[:space:]')"
+              if [[ "${UP_CMP}" == *'"unmanagedAttributePolicy":"ADMIN_EDIT"'* \
+                 || "${UP_CMP}" == *'"unmanagedAttributePolicy":"ENABLED"'* ]]; then
+                echo "user profile: unmanagedAttributePolicy present"
+              elif [[ "${UP_CMP}" == *'"unmanagedAttributePolicy":'* ]]; then
+                printf '%s' "${UP_JSON}" \
+                  | sed -E 's/"unmanagedAttributePolicy"[[:space:]]*:[[:space:]]*"[A-Z_]*"/"unmanagedAttributePolicy" : "ADMIN_EDIT"/' \
+                  | "${KC}" update users/profile -r "${KC_REALM}" -f -
+                echo "user profile: unmanagedAttributePolicy -> ADMIN_EDIT"
+              else
+                printf '%s' "${UP_JSON}" \
+                  | sed '0,/{/s//{"unmanagedAttributePolicy":"ADMIN_EDIT",/' \
+                  | "${KC}" update users/profile -r "${KC_REALM}" -f -
+                echo "user profile: unmanagedAttributePolicy=ADMIN_EDIT set"
+              fi
+
+              # ------------------------------------------------------------------
+              # 8. Client `npc-login` : attributs, scopes et mappers hors CRD
+              # ------------------------------------------------------------------
+              # Client confidentiel, DIRECT_GRANT seul (06-service-clients.yaml) :
+              # svc-npc y connecte chaque PNJ par login + mot de passe. Le CRD
+              # n'expose ni attributs, ni scopes, ni mappers :
+              #   - sessions client longues (idle 24 h, max 7 j) : un PNJ reste
+              #     connecté au serveur Horizon sans se reloguer en boucle ;
+              #   - fullScopeAllowed=true (client créé par sa CR -> false) : sans
+              #     lui `realm_access.roles` ne porte pas `npc` ;
+              #   - Horizon affiche `preferred_username`, or les usernames Keycloak
+              #     sont des logins minuscules (`npc-3f2a9c`) : le mapper
+              #     `npc-display-name` y écrit l'attribut `display_name`. Il faut
+              #     donc retirer les scopes qui écrivent AUSSI ce claim : `profile`
+              #     et, dans CE realm, `openid` (il porte le mapper
+              #     `preferred_username`, cf. 04-realm-import.yaml) — deux mappers
+              #     sur le même claim = résultat non déterministe ;
+              #   - `openid` portait aussi `sub` : le mapper `npc-sub` le remet au
+              #     niveau du client. `roles` (realm_access.roles) et `basic` (s'il
+              #     existe) restent.
+              # Tout est rejouable : clés d'attributs écrasées à l'identique,
+              # scopes retirés seulement s'ils sont présents, mappers créés
+              # seulement s'ils manquent.
+              nlid=$("${KC}" get clients -r "${KC_REALM}" -q "clientId=npc-login" \
+                    | { grep -o '"id" *: *"[^"]*"' || true; } | head -1 | sed 's/.*: *"//; s/"$//')
+              if [ -z "${nlid}" ]; then
+                echo "npc-login absent, ignoré"
+              else
+                "${KC}" update "clients/${nlid}" -r "${KC_REALM}" \
+                  -s fullScopeAllowed=true \
+                  -s 'attributes."client.session.idle.timeout"=86400' \
+                  -s 'attributes."client.session.max.lifespan"=604800'
+                echo "npc-login: attributes set"
+                NL_SCOPES=$("${KC}" get "clients/${nlid}/default-client-scopes" -r "${KC_REALM}" --fields id,name \
+                      | tr -d '[:space:]')
+                for scope in profile openid; do
+                  nlsid=$(printf '%s' "${NL_SCOPES}" | { grep -o '"id":"[^"]*","name":"'"${scope}"'"' || true; } \
+                        | sed 's/"id":"//; s/".*//')
+                  if [ -n "${nlsid}" ]; then
+                    "${KC}" delete "clients/${nlid}/default-client-scopes/${nlsid}" -r "${KC_REALM}"
+                    echo "npc-login: default scope ${scope} removed"
+                  fi
+                done
+                if [[ "${NL_SCOPES}" != *'"name":"roles"'* ]]; then
+                  echo "npc-login: ⚠ default scope roles absent (realm_access.roles manquera), à rattacher à la main"
+                fi
+                NL_MAPPERS=$("${KC}" get "clients/${nlid}/protocol-mappers/models" -r "${KC_REALM}" | tr -d '[:space:]')
+                if [[ "${NL_MAPPERS}" == *'"name":"npc-sub"'* ]]; then
+                  echo "npc-login: mapper npc-sub present"
+                else
+                  "${KC}" create "clients/${nlid}/protocol-mappers/models" -r "${KC_REALM}" -f - <<'JSON'
+              {"name":"npc-sub","protocol":"openid-connect","protocolMapper":"oidc-sub-mapper","config":{"access.token.claim":"true","id.token.claim":"true","introspection.token.claim":"true","userinfo.token.claim":"true"}}
+              JSON
+                  echo "npc-login: mapper npc-sub created"
+                fi
+                if [[ "${NL_MAPPERS}" == *'"name":"npc-display-name"'* ]]; then
+                  echo "npc-login: mapper npc-display-name present"
+                else
+                  "${KC}" create "clients/${nlid}/protocol-mappers/models" -r "${KC_REALM}" -f - <<'JSON'
+              {"name":"npc-display-name","protocol":"openid-connect","protocolMapper":"oidc-usermodel-attribute-mapper","config":{"user.attribute":"display_name","claim.name":"preferred_username","jsonType.label":"String","access.token.claim":"true","id.token.claim":"true","introspection.token.claim":"true","userinfo.token.claim":"true"}}
+              JSON
+                  echo "npc-login: mapper npc-display-name created"
+                fi
+              fi
+
+              # ------------------------------------------------------------------
+              # 9. svc-npc : gestion des seuls membres du groupe `npcs` (FGAP v2)
+              # ------------------------------------------------------------------
+              # Objectif : svc-npc crée des utilisateurs DANS /npcs, réinitialise
+              # leur mot de passe, les met à jour et les supprime — et rien
+              # d'autre (surtout pas les comptes joueurs). Mécanisme : Fine-Grained
+              # Admin Permissions v2 (Keycloak 26.2+, feature
+              # `admin-fine-grained-authz:v2` active par défaut) :
+              #   - `adminPermissionsEnabled=true` sur le realm, ce qui crée le
+              #     client `admin-permissions` qui porte policies et permissions ;
+              #   - policy `svc-npc-policy` de type USER (le service account
+              #     `service-account-svc-npc`) et non CLIENT : les scopes de lecture
+              #     (view-members) passent par l'évaluation partielle, qui n'accepte
+              #     que les policies user / group / role / aggregated et répond DENY
+              #     pour une policy client (doc « Defining permissions for viewing
+              #     realm resources ») ;
+              #   - permission `npc-group-members` (resourceType Groups, ressource =
+              #     id du groupe npcs) : view (lire le groupe, ex. group-by-path),
+              #     view-members / manage-members (=> view / manage / reset-password
+              #     sur les utilisateurs membres) et manage-membership (exigé avec
+              #     manage-members par POST /users quand le payload porte
+              #     `groups`, cf. UsersResource#canCreateGroupMembers).
+              #   - rôle `realm-management/query-users` : requis par GET /users
+              #     (recherche) ; ne donne la vue d'AUCUN utilisateur, les
+              #     résultats sont filtrés par les permissions ci-dessus.
+              # ⚠ À VALIDER SUR DEV (représentations FGAP v2 écrites d'après la doc
+              # 26.x « Managing permissions using the Admin REST API », jamais
+              # rejouées sur un cluster) : en cas d'échec cette section ne fait
+              # PAS échouer le job (les sections précédentes restent acquises) ;
+              # elle l'annonce en « FGAP: FAILED » et le fallback manuel est dans
+              # import/README.md (§ « NPC accounts »).
+              fgap_npc() {
+                local snid snuid apid az pols polid perms permid
+                snid=$("${KC}" get clients -r "${KC_REALM}" -q "clientId=svc-npc" \
+                      | { grep -o '"id" *: *"[^"]*"' || true; } | head -1 | sed 's/.*: *"//; s/"$//')
+                if [ -z "${snid}" ]; then
+                  echo "FGAP: svc-npc absent, ignoré (prochaine sync)"
+                  return 0
+                fi
+                snuid=$("${KC}" get "clients/${snid}/service-account-user" -r "${KC_REALM}" --fields id \
+                      | { grep -o '"id" *: *"[^"]*"' || true; } | head -1 | sed 's/.*: *"//; s/"$//')
+                [ -n "${snuid}" ] || { echo "FGAP: service account de svc-npc introuvable"; return 1; }
+                "${KC}" add-roles -r "${KC_REALM}" --uid "${snuid}" \
+                  --cclientid realm-management --rolename query-users || return 1
+                echo "svc-npc -> realm-management/query-users"
+                "${KC}" update "realms/${KC_REALM}" -s adminPermissionsEnabled=true || return 1
+                apid=$("${KC}" get clients -r "${KC_REALM}" -q "clientId=admin-permissions" \
+                      | { grep -o '"id" *: *"[^"]*"' || true; } | head -1 | sed 's/.*: *"//; s/"$//')
+                [ -n "${apid}" ] || { echo "FGAP: client admin-permissions absent (feature v2 désactivée ?)"; return 1; }
+                az="clients/${apid}/authz/resource-server"
+
+                # Policy : créée si absente, sinon réécrite (le service account
+                # change si svc-npc est recréé ; Keycloak retire alors l'ancien
+                # utilisateur des policies user).
+                pols=$("${KC}" get "${az}/policy" -r "${KC_REALM}" -q name=svc-npc-policy --fields id,name \
+                      | tr -d '[:space:]') || return 1
+                polid=$(printf '%s' "${pols}" | { grep -o '"id":"[^"]*","name":"svc-npc-policy"' || true; } \
+                      | sed 's/"id":"//; s/".*//')
+                if [ -z "${polid}" ]; then
+                  "${KC}" create "${az}/policy/user" -r "${KC_REALM}" -f - <<JSON || return 1
+              {"name":"svc-npc-policy","description":"Service account of svc-npc (npc service)","logic":"POSITIVE","users":["${snuid}"]}
+              JSON
+                  echo "FGAP: policy svc-npc-policy created"
+                  polid=$("${KC}" get "${az}/policy" -r "${KC_REALM}" -q name=svc-npc-policy --fields id,name \
+                        | tr -d '[:space:]' | { grep -o '"id":"[^"]*","name":"svc-npc-policy"' || true; } \
+                        | sed 's/"id":"//; s/".*//')
+                  [ -n "${polid}" ] || { echo "FGAP: policy svc-npc-policy introuvable après création"; return 1; }
+                else
+                  "${KC}" update "${az}/policy/user/${polid}" -r "${KC_REALM}" -f - <<JSON || return 1
+              {"id":"${polid}","name":"svc-npc-policy","description":"Service account of svc-npc (npc service)","type":"user","logic":"POSITIVE","decisionStrategy":"UNANIMOUS","users":["${snuid}"]}
+              JSON
+                  echo "FGAP: policy svc-npc-policy updated"
+                fi
+
+                # Permission : créée si absente, sinon réécrite à l'identique
+                # (reconverge l'id du groupe et le lien vers la policy).
+                perms=$("${KC}" get "${az}/permission" -r "${KC_REALM}" -q name=npc-group-members --fields id,name \
+                      | tr -d '[:space:]') || return 1
+                permid=$(printf '%s' "${perms}" | { grep -o '"id":"[^"]*","name":"npc-group-members"' || true; } \
+                      | sed 's/"id":"//; s/".*//')
+                if [ -z "${permid}" ]; then
+                  "${KC}" create "${az}/permission/scope" -r "${KC_REALM}" -f - <<JSON || return 1
+              {"name":"npc-group-members","description":"svc-npc manages the members of /npcs, and nothing else","resourceType":"Groups","resources":["${NPC_GID}"],"scopes":["view","view-members","manage-members","manage-membership"],"policies":["${polid}"],"decisionStrategy":"UNANIMOUS"}
+              JSON
+                  echo "FGAP: permission npc-group-members created"
+                else
+                  "${KC}" update "${az}/permission/scope/${permid}" -r "${KC_REALM}" -f - <<JSON || return 1
+              {"id":"${permid}","name":"npc-group-members","description":"svc-npc manages the members of /npcs, and nothing else","type":"scope","resourceType":"Groups","resources":["${NPC_GID}"],"scopes":["view","view-members","manage-members","manage-membership"],"policies":["${polid}"],"decisionStrategy":"UNANIMOUS"}
+              JSON
+                  echo "FGAP: permission npc-group-members updated"
+                fi
+              }
+              # `set -e` est neutralisé dans une fonction appelée en condition :
+              # chaque appel critique de fgap_npc porte donc son `|| return 1`.
+              if fgap_npc; then
+                echo "FGAP: ok"
+              else
+                echo "FGAP: FAILED — svc-npc ne peut pas gérer les PNJ ; fallback manuel : import/README.md § NPC accounts"
               fi
           env:
             # kcadm écrit sa config dans ${HOME}/.keycloak ; HOME de l'image

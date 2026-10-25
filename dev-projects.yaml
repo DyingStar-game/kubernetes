@@ -95,6 +95,12 @@ projects:
     dockerfile: docker/Dockerfile
     deployment: service-universesimulator
 
+  # Service des PNJ (chart service-npc) : comptes Keycloak du groupe `npcs`.
+  - name: npc
+    path: ../services/npc
+    dockerfile: docker/Dockerfile
+    deployment: service-npc
+
   # Panneau d'admin : image unique (BFF + SPA), contexte = racine du dépôt.
   - name: dyingstar-admin
     path: ../adminpanel
@@ -114,4 +120,4 @@ projects:
 #   livekit    livekit/values-dev.yaml utilise l'image upstream livekit/livekit-server,
 #              pas l'image custom de ../services/livekit — un rebuild serait sans effet
 #   mosquitto  broker du chart textchat (image upstream eclipse-mosquitto ou go-auth)
-#   npc, orchestrator, reverseproxy   pas d'Application ArgoCD en dev
+#   orchestrator, reverseproxy   pas d'Application ArgoCD en dev
