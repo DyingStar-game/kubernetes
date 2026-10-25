@@ -28,7 +28,7 @@ env:
   # per-script physics attribution (reorders _physics_process). DS_MOVEMENT:
   # [Move] / [StepUp] traces of the players' movement.
   - name: DS_PERF
-    value: "1"
+    value: "0"
   - name: DS_PERF_CENSUS
     value: "0"
   - name: DS_PERF_BANDS
