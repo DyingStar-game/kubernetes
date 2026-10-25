@@ -1,0 +1,219 @@
+# Default values for service-npc.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
+# Always 1, never autoscaled: each pod logs the whole active roster into
+# Horizon, so two pods would log the same NPCs in twice (no HPA in this chart).
+replicaCount: 1
+
+# Recreate, not RollingUpdate: during a rolling update the new pod would start
+# logging the NPCs in while the old one still holds their sessions. Never two
+# pods logging the same NPCs in, even for a few seconds.
+strategy:
+  type: Recreate
+
+# This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/npc
+  # This sets the pull policy for images.
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+# This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+imagePullSecrets: []
+# This is to override the chart name.
+nameOverride: ""
+fullnameOverride: ""
+
+# This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # The service never calls the Kubernetes API.
+  automount: false
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+# This is for setting Kubernetes Annotations to a Pod.
+# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+podAnnotations: {}
+# This is for setting Kubernetes Labels to a Pod.
+# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+podLabels: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+# Internal only: no Ingress / HTTPRoute. The admin panel BFF (dyingstar-admin,
+# `services.npcUrl`) calls the admin REST API in-cluster at
+# http://<fullname>:<port> (http://service-npc:9400).
+service:
+  type: ClusterIP
+  # Admin REST API port (axum). The chart injects ADMIN_BIND=0.0.0.0:<port>, so
+  # this single value drives the container port and the Service port.
+  port: 9400
+
+resources: {}
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+# `GET /healthz` is public (no token). Migrations run at startup, before the
+# admin API binds, hence the initial delay of the liveness probe.
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 30
+  timeoutSeconds: 10
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+
+# Additional volumes on the output Deployment definition.
+volumes: []
+# Additional volumeMounts on the output Deployment definition.
+volumeMounts: []
+
+# Scheduling. Empty by default (dev-local: single minikube node). The
+# dyingstar cluster (preprod/prod overlays) pins the pod on dyingstarnode2,
+# like its database (database-preprod/00-cnpg-cluster.yaml).
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Environment variables for the container.
+# POSTGRES_* / DATABASE_URL, ADMIN_BIND, HORIZON_URL, KEYCLOAK_*, OIDC_*,
+# SERVICE_CLIENT_*, NPC_LOGIN_CLIENT_*, NPC_PASSWORD_KEY, UNIVERSESIMULATOR_URL,
+# RESOURCES_DYNAMIC_HTTP and PLANET_INTERNAL_NAME are rendered by
+# templates/deployment.yaml from the blocks below — do NOT redeclare them here.
+# Note: Helm REPLACES lists, it does not merge them. An overlay that redefines
+# `env` must therefore repeat the whole list.
+env:
+  # Refuses the dev bypass below at startup when set to "production".
+  - name: APP_ENV
+    value: "production"
+  - name: RUST_LOG
+    value: "info,npc=info"
+  # Dev escape hatch on the admin API (no JWT). Refused with APP_ENV=production.
+  - name: AUTH_DEV_BYPASS
+    value: "false"
+  - name: NPC_EVENTS_RETENTION_DAYS
+    value: "7"
+  # Lines of log kept in memory per NPC (admin API).
+  - name: NPC_LOG_BUFFER_LINES
+    value: "500"
+  # Delay between two roster spawns (Horizon logins).
+  - name: SPAWN_STAGGER_MS
+    value: "500"
+
+# Horizon game server WebSocket. In-cluster Service `horizon` (chart horizon,
+# port 7040), identical in every namespace, hence no override in the overlays.
+horizon:
+  url: "ws://horizon:7040"
+
+# Keycloak, reached in-cluster for the admin REST API (svc-npc) and the NPC
+# logins (npc-login, direct grant). The Service is named `keycloak`
+# (`spec.http.serviceName` of keycloak-managed/*/03-keycloak.yaml): same
+# namespace in preprod (`dyingstar-preprod`), namespace `keycloak` in dev-local.
+# Tokens minted through this URL still carry the public issuer (static
+# `hostname` + `backchannelDynamic`, cf. 03-keycloak.yaml).
+keycloak:
+  url: "http://keycloak:8080"
+  realm: "dyingstar"
+
+# Validation of the tokens presented to the admin API (admin panel users).
+oidc:
+  # dev: http://auth.dyingstar.local/realms/dyingstar (keycloak-managed/dev/03-keycloak.yaml)
+  # preprod: https://auth-preprod.dyingstar-game.com/realms/dyingstar
+  # prod: https://auth.dyingstar-game.com/realms/dyingstar
+  # Empty = the service derives it from keycloak.url, which matches no
+  # environment's `iss`: every overlay MUST set it.
+  issuer: ""
+  # Empty = <keycloak.url>/realms/<realm>/protocol/openid-connect/certs (the
+  # in-cluster Keycloak, derived by the service).
+  jwksUrl: ""
+  # Expected `aud` claim; empty skips the audience check.
+  audience: ""
+
+# Keycloak client `svc-npc` (client_credentials): reads the universe simulator
+# (`usim:read`) and manages the NPC accounts (members of group `npcs`, FGAP v2
+# permission set up by the keycloak-managed bootstrap job).
+#   - clientId        : SERVICE_CLIENT_ID.
+#   - existingSecret  : Secret (app namespace) holding the client secret under
+#                       key `secret`. Empty => chart-created <fullname>-svc-client.
+#   - create          : create that Secret from `clientSecret` (dev only).
+#   - clientSecret    : only used when `create` is true.
+serviceClient:
+  clientId: "svc-npc"
+  existingSecret: ""
+  create: false
+  clientSecret: ""
+
+# Keycloak client `npc-login` (confidential, direct grant only): the NPCs log in
+# with their own login + password through it. Same keys as `serviceClient`;
+# chart-created Secret: <fullname>-npc-login-client.
+npcLogin:
+  clientId: "npc-login"
+  existingSecret: ""
+  create: false
+  clientSecret: ""
+
+# AES-256-GCM key sealing the NPC passwords at rest (NPC_PASSWORD_KEY): base64
+# of 32 random bytes (`openssl rand -base64 32`). Losing or changing it makes
+# the stored passwords unreadable (svc-npc must then reset them).
+#   - secretName : Secret (app namespace) holding it under key `key`.
+#   - create     : create that Secret from `value` (dev only).
+passwordKey:
+  secretName: "service-npc-password-key"
+  create: false
+  value: ""
+
+# Internal URLs of the services the NPCs use. In-cluster Service names,
+# identical in every namespace, hence no override in the overlays.
+universesimulator:
+  # Base URL, without `/api`.
+  url: "http://service-universesimulator:9600"
+resourcesDynamic:
+  # HTTP API of service-resourcesdynamic (`GET /api/planets`, rotation source).
+  httpUrl: "http://service-resourcesdynamic:3001"
+# Planet the NPCs live on (internal name in resourcesDynamic).
+planetInternalName: "tarsis_3"
+
+# PostgreSQL connection settings: a CloudNativePG Cluster `npc-db` declared in
+# service-npc/database/ (dev) or database-preprod/ (preprod), applied as a
+# second source by the ArgoCD app. No bundled PostgreSQL in this chart.
+database:
+  # `<cluster>-rw` Service created by CloudNativePG.
+  host: "npc-db-rw"
+  # Secret holding the `password` key (the one the Cluster's initdb used).
+  existingSecret: "npc-db-auth"
+  port: 5432
+  name: npc
+  user: npc
+
+# Environment variables from secrets or configmaps
+envFrom: []

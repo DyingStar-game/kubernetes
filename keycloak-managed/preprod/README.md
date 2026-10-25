@@ -24,11 +24,11 @@ l'opérateur.
 | --- | --- |
 | `00-cnpg-cluster.yaml` | Cluster CloudNativePG `keycloak-db` |
 | `03-keycloak.yaml` | CR `Keycloak` (image custom, issuer `https://auth-preprod.dyingstar-game.com`, DB CNPG) |
-| `04-realm-import.yaml` | `KeycloakRealmImport` du realm `dyingstar` (37 rôles + launcher + clients `svc-*`) |
+| `04-realm-import.yaml` | `KeycloakRealmImport` du realm `dyingstar` (37 rôles + `npc`, groupe `npcs`, launcher, clients `svc-*` et `npc-login`) |
 | `05-httproute.yaml` | `HTTPRoute` `auth-preprod.dyingstar-game.com` (listener Traefik `keycloak`, HTTPS) |
-| `06-service-clients.yaml` | `KeycloakOIDCClient` `svc-*` (`svc-game`, `svc-market`, `svc-inventory`, `svc-mission`, `svc-admin`, `svc-economie`, `svc-social`, `svc-chat`, `svc-universesimulator` — secrets hors-bande) |
+| `06-service-clients.yaml` | `KeycloakOIDCClient` `svc-*` (`svc-game`, `svc-market`, `svc-inventory`, `svc-mission`, `svc-admin`, `svc-economie`, `svc-social`, `svc-chat`, `svc-universesimulator`, `svc-npc`) + `npc-login` (direct grant des PNJ) — secrets hors-bande |
 | `07-discord-bootstrap-job.yaml` | Job PostSync : provider Discord via `bootstrap-discord-idp.sh` |
-| `08-role-bootstrap-job.yaml` | Job PostSync idempotent : (re)crée les rôles de capacité du realm, **les mappers d'audience** des clients `svc-*` **et réassigne les rôles de `svc-chat`** à son service account (voir § Wipe) |
+| `08-role-bootstrap-job.yaml` | Job PostSync idempotent : (re)crée les rôles de capacité du realm, **les mappers d'audience** des clients `svc-*` **et réassigne les rôles de `svc-chat`** à son service account ; socle des comptes PNJ : groupe `npcs`, user profile, client `npc-login`, permission FGAP v2 de `svc-npc` (voir § Wipe et `../dev/import/README.md` § NPC accounts) |
 
 ## Pré-requis : Secrets hors-bande
 
@@ -71,7 +71,8 @@ kubectl --context "$CTX" -n "$NS" create secret generic keycloak-discord \
 
 # 4. Secrets des clients de service (clé `secret`), un par `svc-*`
 # + `dyingstar-admin` : client de connexion du panneau d'admin (flow standard)
-for c in svc-game svc-market svc-inventory svc-mission svc-admin svc-economie svc-social svc-chat svc-universesimulator dyingstar-admin; do
+# + `npc-login` : connexion des PNJ (direct grant), lu aussi par service-npc
+for c in svc-game svc-market svc-inventory svc-mission svc-admin svc-economie svc-social svc-chat svc-universesimulator svc-npc dyingstar-admin npc-login; do
   kubectl --context "$CTX" -n "$NS" create secret generic "${c}-client-secret" \
     --from-literal=secret="$(openssl rand -hex 32)"
 done
@@ -91,9 +92,29 @@ depuis le déménagement de l'instance, mais noms différents :
 | `svc-chat` | `textchat-social-client` (clé `secret`) — client d'appel de l'API social par chatauth |
 | `svc-universesimulator` | `service-universesimulator-universesimulator-client` (clé `secret`) |
 
-Exception : le chart `dyingstar-admin` (panneau d'admin) lit directement
+Exceptions : le chart `dyingstar-admin` (panneau d'admin) lit directement
 `dyingstar-admin-client-secret` et `svc-admin-client-secret`
-(`dyingstar-admin/values-preprod.yaml`) : rien à dupliquer.
+(`dyingstar-admin/values-preprod.yaml`), et le chart `service-npc` lit
+directement `svc-npc-client-secret` et `npc-login-client-secret`
+(`service-npc/values-preprod.yaml`) : rien à dupliquer.
+
+### Secrets propres à `service-npc`
+
+Hors Keycloak, le service `npc` attend aussi (namespace `dyingstar-preprod`) :
+
+```bash
+# Base CNPG `npc-db` (service-npc/database-preprod/) : clé `password`
+kubectl --context "$CTX" -n "$NS" create secret generic npc-db-auth \
+  --from-literal=username=npc \
+  --from-literal=password="$(openssl rand -hex 32)"
+
+# Clé AES-256-GCM qui scelle en base les mots de passe des comptes PNJ
+# (services/npc/src/crypto.rs) : base64 de 32 octets aléatoires. ⚠ La perdre
+# ou la changer rend les mots de passe stockés illisibles : svc-npc devra les
+# réinitialiser.
+kubectl --context "$CTX" -n "$NS" create secret generic service-npc-password-key \
+  --from-literal=key="$(openssl rand -base64 32)"
+```
 
 ### Secret `X-Internal-Key` par service applicatif
 

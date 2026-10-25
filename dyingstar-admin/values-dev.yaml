@@ -26,6 +26,7 @@ services:
   socialUrl: "http://service-social:3000"
   economieUrl: "http://service-economie:3000"
   universesimulatorUrl: "http://service-universesimulator:9600"
+  npcUrl: "http://service-npc:9400"
 
 # Issuer of the dev-local Keycloak (`hostname` in
 # keycloak-managed/dev/03-keycloak.yaml). The pod reaches it by that name, like

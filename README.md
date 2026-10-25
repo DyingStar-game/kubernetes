@@ -24,6 +24,7 @@ Helm charts for the **DyingStar** gaming platform microservices.
 | `service-market` | Market service API + WebSocket (listings, orders, trades), with PostgreSQL | `../services/market` |
 | `service-inventory` | Inventory service API + WebSocket (items, stacks, stock), with PostgreSQL | `../services/inventory` |
 | `service-universesimulator` | Universe simulator API (Rust): warehouse stocks, production/consumption, supply missions, prices, federation treasury, with PostgreSQL | `../services/universesimulator` |
+| `service-npc` | NPC service (Rust): drives the game's NPCs — real Keycloak users of group `npcs` logged into Horizon — with an internal admin API (port 9400) and PostgreSQL; pinned on `dyingstarnode2` in preprod | `../services/npc` |
 | `keycloak` | Keycloak identity provider (prod only; preprod + dev-local now use the Keycloak Operator) | `../services/keycloak` |
 | `livekit` | LiveKit Server (WebRTC SFU + TURN) for voice/video rooms | `../services/livekit` |
 | `service-persistence` | Persistence service — ScyllaDB-backed data layer (Rust) | `../services/persistence` |
@@ -49,6 +50,7 @@ Helm charts for the **DyingStar** gaming platform microservices.
 ├── service-market/                # Helm chart (+ database/ dev, database-preprod/)
 ├── service-inventory/             # Helm chart (+ database/ dev, database-preprod/)
 ├── service-universesimulator/     # Helm chart (+ database/ dev, database-preprod/)
+├── service-npc/                   # Helm chart (+ database/ dev, database-preprod/), internal only
 ├── keycloak/                      # Helm chart (prod only)
 ├── livekit/                       # Helm chart
 ├── service-persistence/           # Helm chart
@@ -119,7 +121,7 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod livekit ./l
 helm upgrade --install --kube-context=dyingstar -n dyingstar-preprod service-persistence ./service-persistence -f service-persistence/values-preprod.yaml --set image.tag=<tag>
 
 # Preprod game APIs (ArgoCD-managed, multi-source chart + CNPG cluster)
-#   argocd/preprod/game/service-{economie,social,mission,market,inventory,universesimulator}-app.yaml
+#   argocd/preprod/game/service-{economie,social,mission,market,inventory,universesimulator,npc}-app.yaml
 #   keycloak is operator-managed (argocd/preprod/infra/keycloak-app.yaml) — no Helm.
 ```
 
@@ -230,8 +232,8 @@ Both the operator and our CRs are declared by a single infra Application,
 | `03-keycloak.yaml` | La CR Keycloak (base, hostname, proxy, ressources) + feature `client-admin-api:v2` requise par les CRs clients |
 | `04-realm-import.yaml` | Realm `dyingstar`, rôles de capacité, clients OIDC (dont `svc-*` + mappers d'audience), importé par le job `kcadm` de l'opérateur |
 | `05-httproute.yaml` | Exposition via la Gateway Traefik |
-| `06-service-clients.yaml` | Clients de service `KeycloakOIDCClient` (`svc-game`, `svc-market`, `svc-inventory`, `svc-mission`, `svc-admin`, `svc-economie`, `svc-universesimulator`) : `secretRef` + rôles du service account, et leurs Secrets dev (`svc-*-client-secret`) |
-| `07-role-bootstrap-job.yaml` | Job PostSync idempotent : (re)crée les rôles de capacité du realm, **les mappers d'audience** des clients `svc-*` **et réassigne les rôles de `svc-chat`** à son service account — indispensable car l'import est create-only (`--override=false`), un objet ajouté après le 1er import n'existerait jamais |
+| `06-service-clients.yaml` | Clients de service `KeycloakOIDCClient` (`svc-game`, `svc-market`, `svc-inventory`, `svc-mission`, `svc-admin`, `svc-economie`, `svc-universesimulator`, `svc-npc`) + `npc-login` (direct grant des PNJ) : `secretRef` + rôles du service account, et leurs Secrets dev (`*-client-secret`) |
+| `07-role-bootstrap-job.yaml` | Job PostSync idempotent : (re)crée les rôles de capacité du realm, **les mappers d'audience** des clients `svc-*` **et réassigne les rôles de `svc-chat`** à son service account, plus le socle des comptes PNJ (groupe `npcs`, user profile, client `npc-login`, permission FGAP v2 de `svc-npc`) — indispensable car l'import est create-only (`--override=false`), un objet ajouté après le 1er import n'existerait jamais |
 
 Key points:
 
@@ -313,6 +315,11 @@ in the APIs; never rename any of it.**
 | `svc-universesimulator` | `mission-api`, `inventory-api`, `social-api`, `economie-api` | `mission:read`, `mission:write`, `mission:escrow:politics`, `inventory:read`, `inventory:hold`, `inventory:transfer`, `inventory:credit`, `social:politics:read`, `social:politics:write`, `economie:wallet:ensure`, `economie:politics:read`, `economie:politics:manage`, `economie:money:issue` |
 | `svc-admin` | `economie-api`, `social-api`, `mission-api`, `market-api`, `inventory-api`, `universesimulator-api` | the 40 capacity roles (console d'admin — client le plus privilégié) |
 | `svc-chat` | `social-api` | exactly four, read-only: `social:profile:read` (DM friendship probe), `social:group:read`, `social:corporation:read`, `social:sanctions:read` (mutes/bans) |
+| `svc-npc` | `universesimulator-api` | `usim:read`, plus Keycloak admin rights on the members of group `npcs` only (FGAP v2 permission + `realm-management/query-users`, see [NPC accounts](keycloak-managed/dev/import/README.md#npc-accounts)) |
+
+The NPCs themselves are real users of the group `npcs` (realm role `npc`), logged in
+by `svc-npc` through the confidential client `npc-login` (`DIRECT_GRANT` only). NPC
+users are only managed by `svc-npc`.
 
 The 40 capability realm roles (no realm prefix). **Naming authority:
 [`keycloak-managed/dev/import/README.md`](keycloak-managed/dev/import/README.md)** (the
@@ -453,7 +460,7 @@ other shared secret.
 | `inventory-api` | `svc-game,svc-admin,svc-mission,svc-market,svc-universesimulator` |
 | `mission-api` | `svc-game,svc-admin,svc-universesimulator,svc-inventory` |
 | `market-api` | `svc-game,svc-admin` |
-| `universesimulator-api` | `svc-game,svc-admin` |
+| `universesimulator-api` | `svc-game,svc-admin,svc-npc` |
 
 **A clientId absent from `INTERNAL_SERVICE_CLIENTS`
 is rejected with `403 SERVICE_FORBIDDEN`**, and a token whose `aud` does not match
@@ -492,6 +499,7 @@ Each database belongs to the Application that needs it, so it travels with it:
 | `market-db` | `dyingstar` | `market` | [`service-market/database/`](service-market/database) | `service-market` (game) | `service-market` (`database.host`) |
 | `inventory-db` | `dyingstar` | `inventory` | [`service-inventory/database/`](service-inventory/database) | `service-inventory` (game) | `service-inventory` (`database.host`) |
 | `universesimulator-db` | `dyingstar` | `universesimulator` | [`service-universesimulator/database/`](service-universesimulator/database) | `service-universesimulator` (game) | `service-universesimulator` (`database.host`) |
+| `npc-db` | `dyingstar` | `npc` | [`service-npc/database/`](service-npc/database) | `service-npc` (game) | `service-npc` (`database.host`) |
 
 `service-resourcesdynamic/database/` is a **second source** of the game
 Application, not a Helm template: the chart and its database are reconciled in
@@ -1020,6 +1028,35 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
   `SIM_*`, `HTTP_TIMEOUT_MS`) lives in `env` in `values.yaml`. No
   `X-Internal-Key` Secret: the dev bypasses are refused with `APP_ENV=production`
 
+### Service Npc
+- **Port**: 9400 (admin REST API, Rust/axum), internal only — no Ingress /
+  HTTPRoute; the chart injects `ADMIN_BIND=0.0.0.0:{{ .Values.service.port }}`.
+  Probes on `GET /healthz`. The admin panel reaches it at
+  `http://service-npc:9400` (`NPC_URL`, `dyingstar-admin` `services.npcUrl`)
+- **Single pod**: `replicas: 1`, `strategy: Recreate`, no HPA — two pods would
+  log the same NPCs into Horizon
+- **Scheduling (preprod/prod)**: pinned on `dyingstarnode2` (`nodeSelector` +
+  Harbor's tolerations, overridable in values), like its database
+- **Database**: CloudNativePG `npc-db` in dev-local and preprod
+  (`service-npc/database/` / `database-preprod/`, the latter pinned on node 2
+  through `spec.affinity`). `DATABASE_URL` is built from the `npc-db-auth`
+  Secret (keep its password URL-safe)
+- **Keycloak**: the NPCs are real users of group `npcs`. `svc-npc`
+  (`SERVICE_CLIENT_*`) manages them through the admin API and reads the
+  universe simulator (`usim:read`); `npc-login` (`NPC_LOGIN_CLIENT_*`) logs each
+  NPC in by direct grant. `KEYCLOAK_URL` is the in-cluster Service (`keycloak`
+  in preprod, `keycloak.keycloak.svc` in dev-local). See
+  [NPC accounts](keycloak-managed/dev/import/README.md#npc-accounts)
+- **Secrets**: dev — created by the chart (`serviceClient` / `npcLogin` /
+  `passwordKey` in `values-dev.yaml`, matching `keycloak-managed/dev/06-service-clients.yaml`);
+  preprod — `svc-npc-client-secret` and `npc-login-client-secret` are read as is
+  (same namespace as the Keycloak CR), `service-npc-password-key` (key `key`,
+  `openssl rand -base64 32`) and `npc-db-auth` are created out of band
+  ([`keycloak-managed/preprod/README.md`](keycloak-managed/preprod/README.md))
+- **Calls out**: `HORIZON_URL=ws://horizon:7040`,
+  `UNIVERSESIMULATOR_URL=http://service-universesimulator:9600`,
+  `RESOURCES_DYNAMIC_HTTP=http://service-resourcesdynamic:3001`
+
 ### Service Persistence
 - **Port**: 9100 (WebSocket, Rust)
 - **Database**: Bundled ScyllaDB 6.2 (CQL port 9042) with `PasswordAuthenticator`
@@ -1049,7 +1086,8 @@ helm upgrade --install --kube-context=dyingstar -n dyingstar-dev-shared \
   - `keycloak-discord` — keys `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`
 - **Required Secrets** in **preprod** (operator, out-of-band in namespace `dyingstar-preprod`):
   `keycloak-bootstrap-user`, `keycloak-admin`, `keycloak-db-secret`,
-  `keycloak-discord`, `svc-*-client-secret` ×7. See
+  `keycloak-discord`, `svc-*-client-secret` (one per `svc-*`, `svc-npc` included),
+  `dyingstar-admin-client-secret`, `npc-login-client-secret`. See
   [`keycloak-managed/preprod/README.md`](keycloak-managed/preprod/README.md).
 - **Required Secrets** in **preprod**, namespace `dyingstar-preprod` (out-of-band,
   the charts never create them because `serviceClient.create` /

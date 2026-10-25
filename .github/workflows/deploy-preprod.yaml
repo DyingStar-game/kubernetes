@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       chart:
-        description: "Chart to restart (godotserver, horizon, service-resourcesdynamic, keycloak, livekit, service-persistence, dyingstar-admin, service-universesimulator)"
+        description: "Chart to restart (godotserver, horizon, service-resourcesdynamic, keycloak, livekit, service-persistence, dyingstar-admin, service-universesimulator, service-npc)"
         required: true
         type: choice
         options:
@@ -18,6 +18,7 @@ on:
           - service-persistence
           - dyingstar-admin
           - service-universesimulator
+          - service-npc
 
 # repository_dispatch payload (sent by service repo after pushing image:develop):
 #   {
@@ -44,7 +45,7 @@ jobs:
       - name: Validate chart name
         run: |
           CHART="${{ steps.inputs.outputs.chart }}"
-          if [[ ! "$CHART" =~ ^(godotserver|horizon|service-resourcesdynamic|keycloak|livekit|service-persistence|dyingstar-admin|service-universesimulator)$ ]]; then
+          if [[ ! "$CHART" =~ ^(godotserver|horizon|service-resourcesdynamic|keycloak|livekit|service-persistence|dyingstar-admin|service-universesimulator|service-npc)$ ]]; then
             echo "::error::Invalid chart name: $CHART"
             exit 1
           fi

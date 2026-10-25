@@ -1,0 +1,27 @@
+# Database of service-npc (dev-local).
+#
+# Applied by the game Application `service-npc` as a second source
+# (argocd/dev/game/service-npc-app.yaml), so the application and its database
+# are reconciled together. The operator comes from the infra app
+# argocd/dev/infra/cnpg-op-app.yaml (namespace cnpg-system).
+#
+# CloudNativePG creates the Service `npc-db-rw`, which is what
+# service-npc/values.yaml points at via `database.host`. No node pinning in
+# dev-local (single minikube node).
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: npc-db
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  instances: 1
+  # minikube's default StorageClass (hostpath) is enough for a dev database.
+  storage:
+    size: 1Gi
+  bootstrap:
+    initdb:
+      database: npc
+      owner: npc
+      secret:
+        name: npc-db-auth

@@ -1,0 +1,66 @@
+# Preprod overrides for service-npc (dyingstar-preprod, deployed by ArgoCD).
+# Usage: helm upgrade --install -n dyingstar-preprod service-npc ./service-npc \
+#          -f service-npc/values-preprod.yaml
+
+replicaCount: 1
+
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/npc
+  pullPolicy: Always
+  tag: "develop"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 1
+    memory: 512Mi
+
+# Pinned on dyingstarnode2, like its database
+# (service-npc/database-preprod/00-cnpg-cluster.yaml). Same tolerations as
+# Harbor (harbor/values-preprod.yaml): the node is tainted
+# dedicated=infra:NoSchedule, and the unreachable / not-ready tolerations have
+# no tolerationSeconds, so the pod is not evicted when the WireGuard tunnel to
+# the control plane drops (it could not move anyway: its database is local).
+nodeSelector:
+  kubernetes.io/hostname: dyingstarnode2
+tolerations:
+  - key: dedicated
+    operator: Equal
+    value: infra
+    effect: NoSchedule
+  - key: node.kubernetes.io/unreachable
+    operator: Exists
+    effect: NoExecute
+  - key: node.kubernetes.io/not-ready
+    operator: Exists
+    effect: NoExecute
+
+# The database is a CloudNativePG Cluster (service-npc/database-preprod/)
+# applied as a second source by the same ArgoCD app. The `npc-db-auth` Secret
+# is created out of band — never committed (keycloak-managed/preprod/README.md).
+database:
+  host: npc-db-rw
+  existingSecret: npc-db-auth
+
+# The Keycloak CR (keycloak-managed/preprod/) lives in this same namespace:
+# Service `keycloak`, inherited from values.yaml.
+oidc:
+  issuer: "https://auth-preprod.dyingstar-game.com/realms/dyingstar"
+
+# Created out of band (keycloak-managed/preprod/README.md): the same Secrets
+# feed the `svc-npc` / `npc-login` KeycloakOIDCClients and this pod.
+serviceClient:
+  clientId: "svc-npc"
+  existingSecret: "svc-npc-client-secret"
+  create: false
+npcLogin:
+  clientId: "npc-login"
+  existingSecret: "npc-login-client-secret"
+  create: false
+
+# Created out of band (key `key`, `openssl rand -base64 32`), never committed.
+passwordKey:
+  secretName: "service-npc-password-key"
+  create: false

@@ -1,0 +1,55 @@
+# Dev overrides for service-npc (minikube, deployed by ArgoCD in namespace dyingstar)
+# Usage: helm upgrade --install -n dyingstar service-npc ./service-npc -f service-npc/values-dev.yaml
+
+replicaCount: 1
+
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/npc
+  pullPolicy: Always
+  tag: "develop"
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# The database is a CloudNativePG Cluster (service-npc/database/) applied as a
+# second source by the same ArgoCD app; host / Secret are inherited from
+# values.yaml (npc-db-rw / npc-db-auth).
+
+# No node pinning in dev-local (single minikube node): nodeSelector /
+# tolerations stay empty (values.yaml).
+
+# The dev-local Keycloak CR lives in namespace `keycloak` (keycloak-managed/dev),
+# not `dyingstar`: fully qualified Service name.
+keycloak:
+  url: "http://keycloak.keycloak.svc:8080"
+
+# Issuer of the dev-local Keycloak (`hostname` in
+# keycloak-managed/dev/03-keycloak.yaml); JWKS is fetched in-cluster through
+# keycloak.url (derived by the service).
+oidc:
+  issuer: "http://auth.dyingstar.local/realms/dyingstar"
+
+# DEV ONLY: the chart creates service-npc-svc-client and
+# service-npc-npc-login-client. The values MUST match `svc-npc-client-secret` /
+# `npc-login-client-secret` (key `secret`) in
+# keycloak-managed/dev/06-service-clients.yaml — same Keycloak clients.
+serviceClient:
+  clientId: "svc-npc"
+  create: true
+  clientSecret: "svc-npc-dev-secret"
+npcLogin:
+  clientId: "npc-login"
+  create: true
+  clientSecret: "npc-login-dev-secret"
+
+# DEV ONLY: the chart creates service-npc-password-key from this value,
+# generated with `openssl rand -base64 32`. Never reuse it outside the local
+# minikube stack (preprod creates its own out of band).
+passwordKey:
+  create: true
+  value: "DpHlrgMU9LD61DWUC5jfLHC7gce5sTx5P5ffm6tflGs="

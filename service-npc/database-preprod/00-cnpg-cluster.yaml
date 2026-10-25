@@ -1,0 +1,50 @@
+# Database of service-npc (preprod).
+#
+# Applied by the game Application `service-npc` as a second source
+# (argocd/preprod/game/service-npc-app.yaml). The CloudNativePG operator comes
+# from argocd/preprod/infra/cnpg-op-app.yaml (namespace cnpg-system).
+#
+# CloudNativePG creates the Service `npc-db-rw`, which is what
+# service-npc/values-preprod.yaml points at via `database.host`.
+#
+# Pinned on dyingstarnode2 next to the service (service-npc/values-preprod.yaml),
+# with the same tolerations as Harbor (harbor/values-preprod.yaml): the node is
+# tainted dedicated=infra:NoSchedule, and the instance must stay there when the
+# WireGuard tunnel to the control plane drops (its local volume cannot move).
+#
+# ⚠ The `npc-db-auth` Secret is NOT committed: it is created out of band in
+# `dyingstar-preprod` (keys `username` / `password`, matching
+# `database.existingSecret`; hex password, it is interpolated into
+# DATABASE_URL). It MUST exist before the Cluster is reconciled, otherwise its
+# `initdb` fails. The dev-local credentials (service-npc/database/01-db-secret.yaml)
+# must never be reused here.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: npc-db
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  instances: 1
+  storage:
+    size: 5Gi
+  affinity:
+    nodeSelector:
+      kubernetes.io/hostname: dyingstarnode2
+    tolerations:
+      - key: dedicated
+        operator: Equal
+        value: infra
+        effect: NoSchedule
+      - key: node.kubernetes.io/unreachable
+        operator: Exists
+        effect: NoExecute
+      - key: node.kubernetes.io/not-ready
+        operator: Exists
+        effect: NoExecute
+  bootstrap:
+    initdb:
+      database: npc
+      owner: npc
+      secret:
+        name: npc-db-auth
