@@ -31,7 +31,14 @@ httpRoute:
             type: PathPrefix
             value: /
 
+gameServerAutoscale:
+  enabled: true
+
 extraEnv:
+  # Horizon sizes the godotserver pool (see gameServerAutoscale): "1", or "dry-run"
+  # to only log its decisions, "0" to leave the replicas alone.
+  - name: GAME_SERVER_AUTOSCALE
+    value: "dry-run"
   # Issuer of the player tokens: Horizon checks their signature against its keys
   # (<issuer>/protocol/openid-connect/certs), their expiry and this exact "iss".
   # Without it every player login is refused (VERIFY_JWT_SIGNATURE=false turns

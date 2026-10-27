@@ -139,6 +139,13 @@ resources: {}
 #    path: /
 #    port: http
 
+# The replicas are set by someone else (Horizon sizes the pool: horizon chart,
+# gameServerAutoscale): the Deployment is rendered without `replicas`, so an
+# upgrade does not reset them. The first upgrade that drops the field may bring the
+# Deployment down to 1 replica (the field is removed): do it with no test running,
+# Horizon raises the pool back within 15 s.
+externalScaling: false
+
 # This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
 autoscaling:
   enabled: false
