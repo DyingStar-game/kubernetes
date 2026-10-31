@@ -546,9 +546,10 @@ spec:
               # Miroir des utilisateurs de adminpanel/docker/keycloak/
               # k8s-partial-import.json (mot de passe = nom d'utilisateur), qu'il
               # fallait jusqu'ici réimporter à la main après chaque recréation du
-              # realm. Les ids fixes (`ynotna`, `player-*`) sont ceux que
-              # `make seed-social` de l'adminpanel et la persistance attendent :
-              # seul `partialImport` les respecte (POST /users en tire un neuf).
+              # realm, sauf `ynotna`, compte d'une personne réelle. Les ids fixes
+              # des `player-*` sont ceux que `make seed-social` de l'adminpanel
+              # attend : seul `partialImport` les respecte (POST /users en tire
+              # un neuf).
               # Un compte absent est créé (partialImport) avec son mot de passe,
               # son groupe et ses realm roles ; un compte présent garde les siens.
               # Seuls les client roles de `dyingstar-admin`, qui suivent le
@@ -562,7 +563,6 @@ spec:
               dev-editor||Dev|Editor|staff|player|persistence:read persistence:write
               dev-moderator||Dev|Moderator|staff|player moderator|
               dev-admin||Dev|Admin|staff|player admin|persistence:read persistence:write persistence:delete social:corporation:write social:politics:write economie:wallet:read economie:politics:read economie:corporation:manage economie:politics:manage economie:wallet:credit economie:wallet:debit economie:money:issue mission:read mission:write inventory:read
-              ynotna|19dd218f-9cbd-484f-9a3b-cff5285eaa93|Ynot|Na|staff|player admin|persistence:read persistence:write persistence:delete social:corporation:write social:politics:write economie:wallet:read economie:politics:read economie:corporation:manage economie:politics:manage economie:wallet:credit economie:wallet:debit economie:money:issue mission:read mission:write inventory:read
               player-kira|4aa97da7-6ae4-44ef-9727-b0c993c268ea|Kira|Vance|players|player|
               player-orin|b91c2854-3ae4-45b8-b465-9d8cbe89c12a|Orin|Takeda|players|player|
               player-mara|c947996d-702d-480a-a08e-5f2bd48a888d|Mara|Ostrowski|players|player|

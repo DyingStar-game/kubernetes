@@ -278,8 +278,9 @@ Key points:
 - Test accounts of the realm `dyingstar` (password = user name): `devplayer`
   (realm import) and, recreated on every sync by section 10 of
   `07-role-bootstrap-job.yaml`, the admin panel's `dev-reader`, `dev-editor`,
-  `dev-moderator`, `dev-admin`, `ynotna` and the `player-*` of its `social`
-  seed (mirror of `adminpanel/docker/keycloak/k8s-partial-import.json`).
+  `dev-moderator`, `dev-admin` and the `player-*` of its `social` seed
+  (mirror of `adminpanel/docker/keycloak/k8s-partial-import.json`, without
+  `ynotna`).
   Admin panel <http://admin.dyingstar.local>: sign in as `dev-admin` / `dev-admin`.
 - DEV ONLY credentials everywhere (`admin` / `devpass`, `keycloak` / `keycloak`,
   `devplayer` / `devplayer`, the test accounts above, `dyingstar-service`). Same
