@@ -1,0 +1,38 @@
+{{- if .Values.gameServerAutoscale.enabled }}
+# Lets Horizon size the Godot server pool (ds_game_server autoscale.rs): read the
+# godotserver Deployment, change its replicas, list its pods and mark the idle one
+# to delete first (controller.kubernetes.io/pod-deletion-cost).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "horizon.fullname" . }}-gameserver-autoscale
+  labels:
+    {{- include "horizon.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: [{{ .Values.gameServerAutoscale.deployment | quote }}]
+    verbs: ["get"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    resourceNames: [{{ .Values.gameServerAutoscale.deployment | quote }}]
+    verbs: ["get", "patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list", "get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "horizon.fullname" . }}-gameserver-autoscale
+  labels:
+    {{- include "horizon.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "horizon.fullname" . }}-gameserver-autoscale
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "horizon.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

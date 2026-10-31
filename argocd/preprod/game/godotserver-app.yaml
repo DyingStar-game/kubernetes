@@ -15,9 +15,17 @@ spec:
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: dyingstar-preprod
+  # Horizon sizes the pool (horizon chart, gameServerAutoscale): selfHeal must not
+  # put the replicas back.
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
     - CreateNamespace=true
+    - RespectIgnoreDifferences=true
