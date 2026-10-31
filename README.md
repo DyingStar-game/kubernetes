@@ -603,6 +603,17 @@ The second line will be the server, define:
 - *Launch arguments*: `--headless`
 - *Feature Flags*: `dedicated_server`
 
+Before running, connect Telepresence to the minikube so your local Godot server
+reaches the cluster services, and intercept the `godotserver` traffic to it:
+
+```bash
+telepresence connect --namespace dyingstar
+telepresence intercept godotserver --port 8980
+```
+
+When finished, run `telepresence leave godotserver` then `telepresence quit`
+(details and caveats in [Develop godot server with cluster APIs (Telepresence)](#develop-godot-server-with-cluster-apis-telepresence)).
+
 You can run with *F5* key.
 
 In *Launch arguments*, you can append `--log-file /tmp/godot/player.log` and
