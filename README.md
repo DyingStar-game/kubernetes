@@ -275,9 +275,15 @@ Key points:
   has any effect.
 - **Three places must stay in sync** when changing the hostname:
   `spec.hostname.hostname` (03), `hostnames` (05) and `hosts_config.txt`.
+- Test accounts of the realm `dyingstar` (password = user name): `devplayer`
+  (realm import) and, recreated on every sync by section 10 of
+  `07-role-bootstrap-job.yaml`, the admin panel's `dev-reader`, `dev-editor`,
+  `dev-moderator`, `dev-admin`, `ynotna` and the `player-*` of its `social`
+  seed (mirror of `adminpanel/docker/keycloak/k8s-partial-import.json`).
+  Admin panel <http://admin.dyingstar.local>: sign in as `dev-admin` / `dev-admin`.
 - DEV ONLY credentials everywhere (`admin` / `devpass`, `keycloak` / `keycloak`,
-  `devplayer` / `devplayer`, `dyingstar-service`). Same rule as
-  `keycloak/values-dev.yaml`: never reuse them anywhere else.
+  `devplayer` / `devplayer`, the test accounts above, `dyingstar-service`). Same
+  rule as `keycloak/values-dev.yaml`: never reuse them anywhere else.
 
 Health check:
 

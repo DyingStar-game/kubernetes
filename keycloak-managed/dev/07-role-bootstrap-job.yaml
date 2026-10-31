@@ -20,8 +20,9 @@
 # comptes PNJ (sections 6 à 9) : groupe `npcs` + rôle `npc`, politique des
 # attributs non déclarés du user profile, attributs / scopes / mappers du client
 # `npc-login`, et la permission fine (FGAP v2) qui borne `svc-npc` aux membres
-# de `npcs`. Ce job ne supprime RIEN, sauf deux default client scopes du seul
-# client `npc-login` (`profile`, `openid`, cf. section 8).
+# de `npcs`, ainsi que les comptes de test du panneau d'admin et du seed
+# `social` (section 10). Ce job ne supprime RIEN, sauf deux default client
+# scopes du seul client `npc-login` (`profile`, `openid`, cf. section 8).
 #
 # ⠠ Miroirs de 04-realm-import.yaml : `ROLES` = `spec.realm.roles`,
 # `CLIENT_AUD` = `protocolMappers[].config.included.custom.audience` par
@@ -29,7 +30,8 @@
 # `dyingstar-admin`, section 6 = `spec.realm.groups` (`npcs`), section 8 = le
 # client `npc-login`. L'autorité de nommage reste `import/README.md` (sections
 # « Service capability roles », « NPC accounts » et la note sur les audiences) :
-# toute ajout dans un de ces miroirs doit l'être dans les trois.
+# toute ajout dans un de ces miroirs doit l'être dans les trois. Section 10 =
+# miroir des utilisateurs de adminpanel/docker/keycloak/k8s-partial-import.json.
 #
 # Le script est en bash (disponible dans l'image Keycloak) et n'utilise ni
 # `jq` ni `openssl`.
@@ -537,6 +539,77 @@ spec:
               else
                 echo "FGAP: FAILED — svc-npc ne peut pas gérer les PNJ ; fallback manuel : import/README.md § NPC accounts"
               fi
+
+              # ------------------------------------------------------------------
+              # 10. Comptes de test du panneau d'admin et du seed `social`
+              # ------------------------------------------------------------------
+              # Miroir des utilisateurs de adminpanel/docker/keycloak/
+              # k8s-partial-import.json (mot de passe = nom d'utilisateur), qu'il
+              # fallait jusqu'ici réimporter à la main après chaque recréation du
+              # realm. Les ids fixes (`ynotna`, `player-*`) sont ceux que
+              # `make seed-social` de l'adminpanel et la persistance attendent :
+              # seul `partialImport` les respecte (POST /users en tire un neuf).
+              # Un compte absent est créé avec son mot de passe ; un compte présent
+              # garde le sien. Groupe, realm roles et client roles de
+              # `dyingstar-admin` sont réaffirmés à chaque sync (ajout seul, rien
+              # n'est retiré). Un client role pas encore créé par la CR
+              # `dyingstar-admin` est signalé et repris à la sync suivante.
+              # Format : username|id fixe|prénom|nom|groupe|realm roles|client roles
+              TEST_USERS=$(cat <<'EOF'
+              dev-reader||Dev|Reader|staff|player|persistence:read
+              dev-editor||Dev|Editor|staff|player|persistence:read persistence:write
+              dev-moderator||Dev|Moderator|staff|player moderator|
+              dev-admin||Dev|Admin|staff|player admin|persistence:read persistence:write persistence:delete social:corporation:write social:politics:write economie:wallet:read economie:politics:read economie:corporation:manage economie:politics:manage economie:wallet:credit economie:wallet:debit economie:money:issue mission:read mission:write inventory:read
+              ynotna|19dd218f-9cbd-484f-9a3b-cff5285eaa93|Ynot|Na|staff|player admin|persistence:read persistence:write persistence:delete social:corporation:write social:politics:write economie:wallet:read economie:politics:read economie:corporation:manage economie:politics:manage economie:wallet:credit economie:wallet:debit economie:money:issue mission:read mission:write inventory:read
+              player-kira|4aa97da7-6ae4-44ef-9727-b0c993c268ea|Kira|Vance|players|player|
+              player-orin|b91c2854-3ae4-45b8-b465-9d8cbe89c12a|Orin|Takeda|players|player|
+              player-mara|c947996d-702d-480a-a08e-5f2bd48a888d|Mara|Ostrowski|players|player|
+              player-silas|cc5b9471-e0be-443c-ae22-2df9f6e9c158|Silas|Ferro|players|player|
+              player-juno|8ac4ffca-7b3d-49ac-960b-1a705846b73f|Juno|Okafor|players|player|
+              player-tess|83a418bc-e342-4bd7-b097-4918c68da3a2|Tess|Lindqvist|players|player|
+              player-dax|618dcf6e-7ced-4d6b-aa90-ae8e4e8561ec|Dax|Moreau|players|player|
+              player-pell|e5e9ed80-d100-42b4-bb7c-9dc2864df269|Pell|Huxley|players|player|
+              EOF
+              )
+              user_id() {
+                "${KC}" get users -r "${KC_REALM}" -q "username=$1" -q exact=true --fields id \
+                  | { grep -o '"id" *: *"[^"]*"' || true; } | head -1 | sed 's/.*: *"//; s/"$//'
+              }
+              for group in players staff; do
+                if ! "${KC}" get "group-by-path/${group}" -r "${KC_REALM}" --fields id >/dev/null 2>&1; then
+                  "${KC}" create groups -r "${KC_REALM}" -s "name=${group}" >/dev/null
+                  echo "group ${group}: created"
+                fi
+              done
+              while IFS='|' read -r uname fixed_id first last group rroles croles; do
+                [ -z "${uname}" ] && continue
+                uid=$(user_id "${uname}")
+                if [ -z "${uid}" ]; then
+                  id_field=""
+                  [ -n "${fixed_id}" ] && id_field="\"id\":\"${fixed_id}\","
+                  "${KC}" create partialImport -r "${KC_REALM}" -f - >/dev/null <<JSON
+              {"ifResourceExists":"SKIP","users":[{${id_field}"username":"${uname}","email":"${uname}@dyingstar.local","emailVerified":true,"enabled":true,"firstName":"${first}","lastName":"${last}","credentials":[{"type":"password","value":"${uname}","temporary":false}]}]}
+              JSON
+                  uid=$(user_id "${uname}")
+                  [ -n "${uid}" ] || { echo "user ${uname}: introuvable après import"; exit 1; }
+                  echo "user ${uname}: created (${uid})"
+                fi
+                gid=$("${KC}" get "group-by-path/${group}" -r "${KC_REALM}" --fields id \
+                      | { grep -o '"id" *: *"[^"]*"' || true; } | head -1 | sed 's/.*: *"//; s/"$//')
+                "${KC}" update "users/${uid}/groups/${gid}" -r "${KC_REALM}" \
+                  -s "realm=${KC_REALM}" -s "userId=${uid}" -s "groupId=${gid}" -n
+                rargs=()
+                for role in ${rroles}; do rargs+=(--rolename "${role}"); done
+                "${KC}" add-roles -r "${KC_REALM}" --uid "${uid}" "${rargs[@]}"
+                missing=""
+                for role in ${croles}; do
+                  "${KC}" add-roles -r "${KC_REALM}" --uid "${uid}" \
+                    --cclientid dyingstar-admin --rolename "${role}" >/dev/null 2>&1 \
+                    || missing="${missing} ${role}"
+                done
+                echo "user ${uname}: /${group}, ${rroles}${croles:+, dyingstar-admin: ${croles}}"
+                [ -z "${missing}" ] || echo "user ${uname}: ⚠ client roles absents (prochaine sync) :${missing}"
+              done <<< "${TEST_USERS}"
           env:
             # kcadm écrit sa config dans ${HOME}/.keycloak ; HOME de l'image
             # (/opt/keycloak) n'est pas forcément inscriptible selon l'image.
