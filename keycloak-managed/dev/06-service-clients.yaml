@@ -638,3 +638,6 @@ spec:
       - economie:wallet:credit
       - economie:wallet:debit
       - economie:money:issue
+      - mission:read
+      - mission:write
+      - inventory:read
