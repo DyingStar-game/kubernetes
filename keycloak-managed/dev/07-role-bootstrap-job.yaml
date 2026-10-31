@@ -549,11 +549,13 @@ spec:
               # realm. Les ids fixes (`ynotna`, `player-*`) sont ceux que
               # `make seed-social` de l'adminpanel et la persistance attendent :
               # seul `partialImport` les respecte (POST /users en tire un neuf).
-              # Un compte absent est créé avec son mot de passe ; un compte présent
-              # garde le sien. Groupe, realm roles et client roles de
-              # `dyingstar-admin` sont réaffirmés à chaque sync (ajout seul, rien
-              # n'est retiré). Un client role pas encore créé par la CR
-              # `dyingstar-admin` est signalé et repris à la sync suivante.
+              # Un compte absent est créé (partialImport) avec son mot de passe,
+              # son groupe et ses realm roles ; un compte présent garde les siens.
+              # Seuls les client roles de `dyingstar-admin`, qui suivent le
+              # panneau, sont réaffirmés à chaque sync (ajout seul, rien n'est
+              # retiré) ; un rôle pas encore créé par la CR `dyingstar-admin` est
+              # signalé et repris à la sync suivante. Chaque appel kcadm démarrant
+              # une JVM, les ids sont lus en un appel et les rôles posés en un.
               # Format : username|id fixe|prénom|nom|groupe|realm roles|client roles
               TEST_USERS=$(cat <<'EOF'
               dev-reader||Dev|Reader|staff|player|persistence:read
@@ -571,45 +573,56 @@ spec:
               player-pell|e5e9ed80-d100-42b4-bb7c-9dc2864df269|Pell|Huxley|players|player|
               EOF
               )
-              user_id() {
-                "${KC}" get users -r "${KC_REALM}" -q "username=$1" -q exact=true --fields id \
-                  | { grep -o '"id" *: *"[^"]*"' || true; } | head -1 | sed 's/.*: *"//; s/"$//'
-              }
               for group in players staff; do
                 if ! "${KC}" get "group-by-path/${group}" -r "${KC_REALM}" --fields id >/dev/null 2>&1; then
                   "${KC}" create groups -r "${KC_REALM}" -s "name=${group}" >/dev/null
                   echo "group ${group}: created"
                 fi
               done
+              # Un objet `{"id":…,"username":…}` par ligne.
+              list_users() {
+                "${KC}" get users -r "${KC_REALM}" -q briefRepresentation=true --limit 100000 \
+                    --fields id,username | tr -d '[:space:]' | { grep -o '{[^}]*}' || true; }
+              }
+              user_id() {
+                { grep -F "\"username\":\"$1\"" || true; } | { grep -o '"id":"[^"]*"' || true; } \
+                  | head -1 | sed 's/"id":"//; s/"$//'
+              }
+              USERS=$(list_users)
+              created=0
               while IFS='|' read -r uname fixed_id first last group rroles croles; do
                 [ -z "${uname}" ] && continue
-                uid=$(user_id "${uname}")
-                if [ -z "${uid}" ]; then
-                  id_field=""
-                  [ -n "${fixed_id}" ] && id_field="\"id\":\"${fixed_id}\","
-                  "${KC}" create partialImport -r "${KC_REALM}" -f - >/dev/null <<JSON
-              {"ifResourceExists":"SKIP","users":[{${id_field}"username":"${uname}","email":"${uname}@dyingstar.local","emailVerified":true,"enabled":true,"firstName":"${first}","lastName":"${last}","credentials":[{"type":"password","value":"${uname}","temporary":false}]}]}
+                [ -n "$(user_id "${uname}" <<< "${USERS}")" ] && continue
+                id_field=""
+                [ -n "${fixed_id}" ] && id_field="\"id\":\"${fixed_id}\","
+                realm_roles=$(printf '"%s",' ${rroles}); realm_roles="${realm_roles%,}"
+                "${KC}" create partialImport -r "${KC_REALM}" -f - >/dev/null <<JSON
+              {"ifResourceExists":"SKIP","users":[{${id_field}"username":"${uname}","email":"${uname}@dyingstar.local","emailVerified":true,"enabled":true,"firstName":"${first}","lastName":"${last}","credentials":[{"type":"password","value":"${uname}","temporary":false}],"realmRoles":[${realm_roles}],"groups":["/${group}"]}]}
               JSON
-                  uid=$(user_id "${uname}")
-                  [ -n "${uid}" ] || { echo "user ${uname}: introuvable après import"; exit 1; }
-                  echo "user ${uname}: created (${uid})"
+                echo "user ${uname}: created (/${group}, ${rroles})"
+                created=$((created + 1))
+              done <<< "${TEST_USERS}"
+              [ "${created}" -eq 0 ] || USERS=$(list_users)
+              while IFS='|' read -r uname fixed_id first last group rroles croles; do
+                [ -z "${uname}" ] || [ -z "${croles}" ] && continue
+                uid=$(user_id "${uname}" <<< "${USERS}")
+                [ -n "${uid}" ] || { echo "user ${uname}: introuvable"; exit 1; }
+                cargs=()
+                for role in ${croles}; do cargs+=(--rolename "${role}"); done
+                if "${KC}" add-roles -r "${KC_REALM}" --uid "${uid}" \
+                      --cclientid dyingstar-admin "${cargs[@]}" >/dev/null 2>&1; then
+                  echo "user ${uname}: dyingstar-admin ${croles}"
+                  continue
                 fi
-                gid=$("${KC}" get "group-by-path/${group}" -r "${KC_REALM}" --fields id \
-                      | { grep -o '"id" *: *"[^"]*"' || true; } | head -1 | sed 's/.*: *"//; s/"$//')
-                "${KC}" update "users/${uid}/groups/${gid}" -r "${KC_REALM}" \
-                  -s "realm=${KC_REALM}" -s "userId=${uid}" -s "groupId=${gid}" -n
-                rargs=()
-                for role in ${rroles}; do rargs+=(--rolename "${role}"); done
-                "${KC}" add-roles -r "${KC_REALM}" --uid "${uid}" "${rargs[@]}"
                 missing=""
                 for role in ${croles}; do
                   "${KC}" add-roles -r "${KC_REALM}" --uid "${uid}" \
                     --cclientid dyingstar-admin --rolename "${role}" >/dev/null 2>&1 \
                     || missing="${missing} ${role}"
                 done
-                echo "user ${uname}: /${group}, ${rroles}${croles:+, dyingstar-admin: ${croles}}"
-                [ -z "${missing}" ] || echo "user ${uname}: ⚠ client roles absents (prochaine sync) :${missing}"
+                echo "user ${uname}: dyingstar-admin ${croles} — ⚠ absents (prochaine sync) :${missing}"
               done <<< "${TEST_USERS}"
+              echo "test users: created=${created}"
           env:
             # kcadm écrit sa config dans ${HOME}/.keycloak ; HOME de l'image
             # (/opt/keycloak) n'est pas forcément inscriptible selon l'image.
