@@ -146,6 +146,26 @@ autoscaling:
   targetCPUUtilizationPercentage: 80
   # targetMemoryUtilizationPercentage: 80
 
+# WebTransport listener (Horizon Client Transport v2): HTTP/3 over QUIC, on one UDP
+# port, for clients in bitcode. `port` must match [server.webtransport] bind_address
+# in the image's config.toml (.docker/production_config.toml in horizonserver). TLS
+# is required and terminated by Horizon itself (Traefik cannot relay QUIC): the
+# secret is mounted at /app/tls (tls.crt, tls.key), and Horizon reloads it when
+# cert-manager renews it. The WebSocket listener (service.port) stays as it is.
+webTransport:
+  enabled: false
+  port: 7043
+  # UDP NodePort to expose on each node — set in env overlay
+  nodePort:
+  # Secret with tls.crt and tls.key. Default: <fullname>-webtransport-tls.
+  tlsSecretName: ""
+  # cert-manager Certificate creating that secret.
+  certificate:
+    enabled: true
+    issuerName: letsencrypt
+    issuerKind: ClusterIssuer
+    dnsNames: []
+
 # Additional volumes on the output Deployment definition.
 volumes: []
 # - name: foo

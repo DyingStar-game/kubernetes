@@ -15,6 +15,16 @@ pluginsImage:
 service:
   nodePort: 30000
 
+# WebTransport + bitcode listener (UDP). Off until the prod issuer is confirmed
+# (keycloak uses letsencrypt-prod) and 30001/udp is open on the nodes.
+webTransport:
+  enabled: false
+  nodePort: 30001
+  certificate:
+    issuerName: letsencrypt-prod
+    dnsNames:
+      - server.dyingstar-game.space
+
 httpRoute:
   enabled: true
   hostnames:

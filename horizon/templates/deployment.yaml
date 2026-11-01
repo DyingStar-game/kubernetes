@@ -74,6 +74,11 @@ spec:
             - name: http
               containerPort: {{ .Values.service.port }}
               protocol: TCP
+            {{- if .Values.webTransport.enabled }}
+            - name: webtransport
+              containerPort: {{ .Values.webTransport.port }}
+              protocol: UDP
+            {{- end }}
           {{- with .Values.livenessProbe }}
           livenessProbe:
             {{- toYaml . | nindent 12 }}
@@ -86,7 +91,7 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if or .Values.pluginsImage.enabled .Values.dataImage.enabled .Values.volumeMounts }}
+          {{- if or .Values.pluginsImage.enabled .Values.dataImage.enabled .Values.webTransport.enabled .Values.volumeMounts }}
           volumeMounts:
             {{- if .Values.pluginsImage.enabled }}
             - name: plugins
@@ -109,11 +114,18 @@ spec:
               mountPath: /app/data
               readOnly: true
             {{- end }}
+            {{- if .Values.webTransport.enabled }}
+            # Whole directory, never a single file: a secret update swaps the
+            # ..data symlink, which Horizon sees through the files' mtime.
+            - name: webtransport-tls
+              mountPath: /app/tls
+              readOnly: true
+            {{- end }}
             {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-      {{- if or .Values.pluginsImage.enabled .Values.dataImage.enabled .Values.volumes }}
+      {{- if or .Values.pluginsImage.enabled .Values.dataImage.enabled .Values.webTransport.enabled .Values.volumes }}
       volumes:
         {{- if .Values.pluginsImage.enabled }}
         - name: plugins
@@ -122,6 +134,13 @@ spec:
         {{- if .Values.dataImage.enabled }}
         - name: genericprops
           emptyDir: {}
+        {{- end }}
+        {{- if .Values.webTransport.enabled }}
+        - name: webtransport-tls
+          secret:
+            secretName: {{ include "horizon.webTransportSecret" . }}
+            # Horizon still serves WebSocket while the certificate is being issued.
+            optional: true
         {{- end }}
         {{- with .Values.volumes }}
         {{- toYaml . | nindent 8 }}

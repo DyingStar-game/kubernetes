@@ -31,6 +31,13 @@ Create chart name and version as used by the chart label.
 {{- end }}
 
 {{/*
+Secret holding the WebTransport certificate.
+*/}}
+{{- define "horizon.webTransportSecret" -}}
+{{- default (printf "%s-webtransport-tls" (include "horizon.fullname" .)) .Values.webTransport.tlsSecretName }}
+{{- end }}
+
+{{/*
 Common labels
 */}}
 {{- define "horizon.labels" -}}

@@ -17,5 +17,14 @@ spec:
       {{- if and (eq .Values.service.type "NodePort") .Values.service.nodePort }}
       nodePort: {{ .Values.service.nodePort }}
       {{- end }}
+    {{- if .Values.webTransport.enabled }}
+    - port: {{ .Values.webTransport.port }}
+      targetPort: webtransport
+      protocol: UDP
+      name: webtransport
+      {{- if and (eq .Values.service.type "NodePort") .Values.webTransport.nodePort }}
+      nodePort: {{ .Values.webTransport.nodePort }}
+      {{- end }}
+    {{- end }}
   selector:
     {{- include "horizon.selectorLabels" . | nindent 4 }}
