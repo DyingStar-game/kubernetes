@@ -35,9 +35,23 @@ extraEnv:
         name: livekit-keys
         key: LIVEKIT_API_SECRET
 
+# NodePort for the WebTransport UDP port (Traefik cannot relay QUIC); the WebSocket
+# keeps going through the HTTPRoute below.
 service:
-  type: ClusterIP
+  type: NodePort
   externalTrafficPolicy: ""
+
+# The client reaches it at https://<minikube ip>:30101 (client.ini horizon_url, with
+# tls_verify=false: the certificate is self-signed, which an editor run accepts).
+webTransport:
+  enabled: true
+  nodePort: 30101
+  certificate:
+    enabled: true
+    issuerName: local-selfsigned-issuer
+    issuerKind: ClusterIssuer
+    dnsNames:
+      - horizon.dyingstar.local
 
 pluginsImage:
   enabled: true
