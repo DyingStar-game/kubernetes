@@ -17,6 +17,15 @@ pluginsImage:
 service:
   nodePort: 30100
 
+# WebTransport + bitcode listener (UDP), next to the WebSocket one above.
+webTransport:
+  enabled: true
+  nodePort: 30101
+  certificate:
+    issuerName: letsencrypt
+    dnsNames:
+      - server-preprod.dyingstar-game.space
+
 httpRoute:
   enabled: true
   hostnames:

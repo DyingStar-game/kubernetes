@@ -1,0 +1,18 @@
+{{- if and .Values.webTransport.enabled .Values.webTransport.certificate.enabled }}
+# Certificate of the WebTransport listener, terminated by Horizon (QUIC cannot go
+# through Traefik). The ACME HTTP-01 challenge goes through the gateway on the same
+# hostname as the WebSocket route.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "horizon.fullname" . }}-webtransport
+  labels:
+    {{- include "horizon.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "horizon.webTransportSecret" . }}
+  dnsNames:
+    {{- required "webTransport.certificate.dnsNames is required" .Values.webTransport.certificate.dnsNames | toYaml | nindent 4 }}
+  issuerRef:
+    name: {{ .Values.webTransport.certificate.issuerName }}
+    kind: {{ .Values.webTransport.certificate.issuerKind }}
+{{- end }}
