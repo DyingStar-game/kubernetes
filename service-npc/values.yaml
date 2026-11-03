@@ -135,6 +135,17 @@ env:
 # public hostname (values-preprod.yaml).
 horizon:
   url: "ws://horizon:7040"
+  # How the NPCs reach Horizon: "ws" = WebSocket + JSON to `url`; "wt" =
+  # WebTransport + bitcode to `webTransportUrl` (the horizon chart's webTransport
+  # listener, UDP), like the game client.
+  transport: "ws"
+  # https://host:port of Horizon's WebTransport listener; its certificate must
+  # name that host unless `webTransportInsecure`.
+  webTransportUrl: ""
+  # Compression of that listener ([server.webtransport] compression): zstd, lz4, none.
+  compression: "zstd"
+  # Accept any certificate (self-signed, local dev only).
+  webTransportInsecure: false
 
 # Keycloak, reached in-cluster for the admin REST API (svc-npc) and the NPC
 # logins (npc-login, direct grant). The Service is named `keycloak`
