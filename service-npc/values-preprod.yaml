@@ -49,6 +49,10 @@ database:
 # Service `horizon:7040`.
 horizon:
   url: "ws://server-preprod.dyingstar-game.space:80"
+  # WebTransport + bitcode, like the game client: the UDP NodePort of
+  # horizon/values-preprod.yaml, whose certificate names this host.
+  transport: "wt"
+  webTransportUrl: "https://server-preprod.dyingstar-game.space:30101"
 
 # The Keycloak CR (keycloak-managed/preprod/) lives in this same namespace:
 # Service `keycloak`, inherited from values.yaml.
