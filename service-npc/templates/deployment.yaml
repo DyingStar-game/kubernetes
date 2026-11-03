@@ -73,6 +73,16 @@ spec:
               value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)"
             - name: HORIZON_URL
               value: {{ .Values.horizon.url | quote }}
+            - name: HORIZON_TRANSPORT
+              value: {{ .Values.horizon.transport | default "ws" | quote }}
+            {{- if eq (.Values.horizon.transport | default "ws") "wt" }}
+            - name: HORIZON_WT_URL
+              value: {{ required "horizon.webTransportUrl is required with transport wt" .Values.horizon.webTransportUrl | quote }}
+            - name: HORIZON_COMPRESSION
+              value: {{ .Values.horizon.compression | default "zstd" | quote }}
+            - name: HORIZON_WT_INSECURE
+              value: {{ .Values.horizon.webTransportInsecure | default false | quote }}
+            {{- end }}
             - name: KEYCLOAK_URL
               value: {{ .Values.keycloak.url | quote }}
             - name: KEYCLOAK_REALM

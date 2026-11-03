@@ -28,6 +28,14 @@ resources:
 keycloak:
   url: "http://keycloak.keycloak.svc:8080"
 
+# WebTransport + bitcode to the in-cluster Service `horizon` (UDP 7043,
+# horizon/values-dev.yaml). Its certificate is self-signed for
+# horizon.dyingstar.local, hence insecure.
+horizon:
+  transport: "wt"
+  webTransportUrl: "https://horizon:7043"
+  webTransportInsecure: true
+
 # Issuer of the dev-local Keycloak (`hostname` in
 # keycloak-managed/dev/03-keycloak.yaml); JWKS is fetched in-cluster through
 # keycloak.url (derived by the service).
