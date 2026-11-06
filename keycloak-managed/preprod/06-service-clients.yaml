@@ -183,11 +183,14 @@ spec:
         name: svc-economie-client-secret
         key: secret
     # L'économie appelle l'API social pour résoudre l'appartenance corporation /
-    # groupe (comptes en corporation, opérations politique). Lecture seule.
+    # groupe (comptes en corporation, opérations politique), en lecture seule, et
+    # pour notifier le joueur qui reçoit un virement (POST
+    # /internal/players/:playerId/notifications).
     serviceAccountRoles:
       - social:corporation:read
       - social:group:read
       - social:profile:read
+      - social:notify:write
       - social:authorize
 ---
 apiVersion: k8s.keycloak.org/v2alpha1
@@ -231,6 +234,9 @@ spec:
       # Récompense de standing de mission (PATCH
       # /internal/players/:playerId/standing).
       - social:standing:write
+      # Notifications joueur (mission terminée, expirée...) : POST
+      # /internal/players/:playerId/notifications.
+      - social:notify:write
       - social:authorize
       - inventory:read
       # deliver_material : déplace les biens du joueur vers le destinataire.

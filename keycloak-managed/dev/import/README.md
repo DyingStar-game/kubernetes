@@ -122,9 +122,9 @@ sync with each service's `src/middleware/auth.ts` `SERVICE_ROLES`.
 > roles: `social:corporation:write`, `social:politics:write`, `social:standing:write`,
 > `economie:wallet:*`, `economie:politics:*`, `inventory:*` (incl. `inventory:carried:write`),
 > `mission:*` (all but `mission:escrow:politics`, which belongs to
-> `svc-universesimulator`) and `market:*`. Add `social:notify:write` only if a future service
-> starts publishing to `notify/#` instead of going through `service-social` — today no `svc-*`
-> holds it (`svc-admin` is the sole exception, as the catch-all client).
+> `svc-universesimulator`) and `market:*`. `social:notify:write` guards the route through which
+> a service asks `service-social` to push a player notification: grant it to each service that
+> calls it — today `svc-mission` and `svc-economie`, plus `svc-admin` as the catch-all client.
 >
 > A new role must be declared in **three** places: this table (naming authority),
 > `spec.realm.roles` of `04-realm-import.yaml` (dev **and** preprod), and the inline
@@ -143,7 +143,8 @@ sync with each service's `src/middleware/auth.ts` `SERVICE_ROLES`.
 > The mission service (`svc-mission`) needs, on top of the write roles it already uses:
 > `social:corporation:read`, `social:group:read`, `social:profile:read` (prereq `min_reputation`,
 > prereq `min_standing`) on `social-api` (plus `social:politics:read` for `escrowSource: issuer`
-> on political entities), `social:standing:write` (mission standing reward settlement) on
+> on political entities), `social:standing:write` (mission standing reward settlement) and
+> `social:notify:write` (player notifications: mission completed, expired...) on
 > `social-api`, and `inventory:read` on `inventory-api` (objectives `owns_items` /
 > `deliver_material` / `transport` / `transport_passenger`, zone POI resolution). The
 > `inventory-api` audience must therefore be mapped on its client too.
@@ -169,7 +170,8 @@ sync with each service's `src/middleware/auth.ts` `SERVICE_ROLES`.
 >
 > The economy service (`svc-economie`) only calls `social-api`, for
 > `social:corporation:read` + `social:group:read` + `social:profile:read` (corporation and
-> political treasuries). Its client carries `social-api` only.
+> political treasuries) and `social:notify:write` (telling a player they received a transfer).
+> Its client carries `social-api` only.
 >
 > The universe simulator (`svc-universesimulator`) needs `mission:read` + `mission:write` +
 > `mission:escrow:politics` on `mission-api` (supply missions escrowed on the federation
