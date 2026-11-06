@@ -403,6 +403,9 @@ spec:
       - inventory:hold
       - inventory:transfer
       - inventory:credit
+      # POI d'un entrepôt, créé quand une mission le vise pour la première fois
+      # (POST /internal/pois).
+      - inventory:poi:manage
       - social:politics:read
       - social:politics:write
       - economie:wallet:ensure

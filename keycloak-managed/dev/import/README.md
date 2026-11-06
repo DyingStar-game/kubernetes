@@ -176,7 +176,8 @@ sync with each service's `src/middleware/auth.ts` `SERVICE_ROLES`.
 > The universe simulator (`svc-universesimulator`) needs `mission:read` + `mission:write` +
 > `mission:escrow:politics` on `mission-api` (supply missions escrowed on the federation
 > treasury), `inventory:read` + `inventory:hold` + `inventory:transfer` + `inventory:credit`
-> on `inventory-api` (warehouse stocks), `social:politics:read` + `social:politics:write` on
+> (warehouse stocks) and `inventory:poi:manage` (warehouse POIs, created the first time a
+> mission points at them) on `inventory-api`, `social:politics:read` + `social:politics:write` on
 > `social-api` (political hierarchy) and `economie:wallet:ensure` + `economie:politics:read` +
 > `economie:politics:manage` + `economie:money:issue` on `economie-api` (treasury, minting).
 > Its client carries those four audiences — and never `universesimulator-api`, which
