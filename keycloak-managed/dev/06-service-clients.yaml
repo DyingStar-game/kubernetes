@@ -408,7 +408,12 @@ spec:
       - inventory:poi:manage
       - social:politics:read
       - social:politics:write
+      # Notifier le joueur payé par le simulateur (POST
+      # /internal/players/:playerId/notifications).
+      - social:notify:write
       - economie:wallet:ensure
+      # Payer un joueur (POST /internal/players/:playerId/wallet/credit).
+      - economie:wallet:credit
       - economie:politics:read
       - economie:politics:manage
       - economie:money:issue

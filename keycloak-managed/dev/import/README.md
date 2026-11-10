@@ -124,7 +124,7 @@ sync with each service's `src/middleware/auth.ts` `SERVICE_ROLES`.
 > `mission:*` (all but `mission:escrow:politics`, which belongs to
 > `svc-universesimulator`) and `market:*`. `social:notify:write` guards the route through which
 > a service asks `service-social` to push a player notification: grant it to each service that
-> calls it — today `svc-mission` and `svc-economie`, plus `svc-admin` as the catch-all client.
+> calls it — today `svc-mission`, `svc-economie` and `svc-universesimulator`, plus `svc-admin` as the catch-all client.
 >
 > A new role must be declared in **three** places: this table (naming authority),
 > `spec.realm.roles` of `04-realm-import.yaml` (dev **and** preprod), and the inline
@@ -177,9 +177,11 @@ sync with each service's `src/middleware/auth.ts` `SERVICE_ROLES`.
 > `mission:escrow:politics` on `mission-api` (supply missions escrowed on the federation
 > treasury), `inventory:read` + `inventory:hold` + `inventory:transfer` + `inventory:credit`
 > (warehouse stocks) and `inventory:poi:manage` (warehouse POIs, created the first time a
-> mission points at them) on `inventory-api`, `social:politics:read` + `social:politics:write` on
-> `social-api` (political hierarchy) and `economie:wallet:ensure` + `economie:politics:read` +
-> `economie:politics:manage` + `economie:money:issue` on `economie-api` (treasury, minting).
+> mission points at them) on `inventory-api`, `social:politics:read` + `social:politics:write`
+> (political hierarchy) and `social:notify:write` (notifying the players it pays) on
+> `social-api`, and `economie:wallet:ensure` + `economie:politics:read` +
+> `economie:politics:manage` + `economie:money:issue` (treasury, minting) and
+> `economie:wallet:credit` (paying a player) on `economie-api`.
 > Its client carries those four audiences — and never `universesimulator-api`, which
 > `svc-game` (`usim:read`, `usim:deliver`), `svc-admin` and `svc-npc` (`usim:read`) carry.
 >
