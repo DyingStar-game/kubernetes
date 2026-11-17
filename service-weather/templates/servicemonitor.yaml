@@ -1,0 +1,20 @@
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: weather.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "service-weather.fullname" . }}
+  labels:
+    {{- include "service-weather.labels" . | nindent 4 }}
+    dyingstar-monitored: "true"
+spec:
+  selector:
+    matchLabels:
+      {{- include "service-weather.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.serviceMonitor.interval }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+{{- end }}

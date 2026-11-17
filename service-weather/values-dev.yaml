@@ -1,0 +1,16 @@
+# Dev-local overrides for service-weather (minikube local build via build-and-deploy.ps1 weather).
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/weather
+  pullPolicy: Always
+  tag: "develop"
+
+serviceMonitor:
+  enabled: false
+
+extraEnv:
+  - name: RUST_LOG
+    value: "weather=debug"
+  - name: CELESTIAL_HTTP
+    value: "http://service-resourcesdynamic:3001"
+  - name: TICK_S
+    value: "30"

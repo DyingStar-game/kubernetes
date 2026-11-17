@@ -121,3 +121,8 @@ projects:
 #              pas l'image custom de ../services/livekit — un rebuild serait sans effet
 #   mosquitto  broker du chart textchat (image upstream eclipse-mosquitto ou go-auth)
 #   orchestrator, reverseproxy   pas d'Application ArgoCD en dev
+
+  - name: weather
+    path: ../services
+    dockerfile: weather/docker/Dockerfile
+    deployment: service-weather

@@ -1,0 +1,18 @@
+# Preprod overrides for service-weather.
+image:
+  repository: harbor.dyingstar-game.space/dyingstar/weather
+  pullPolicy: Always
+  tag: "develop"
+
+serviceMonitor:
+  enabled: true
+
+podAnnotations: 
+  k8s.grafana.com/scrape: "true"
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 128Mi
