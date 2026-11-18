@@ -69,3 +69,11 @@ httpRoute:
             path:
               type: ReplacePrefixMatch
               replacePrefixMatch: /
+
+# In-game bug reports, relayed to the QA channel. The `social-bug-report` Secret
+# (key DISCORD_BUG_WEBHOOK_URL) is created out of band -- never committed. Until it
+# exists the feature is off (the Secret is optional).
+bugReport:
+  environment: "preprod"
+  webhook:
+    existingSecret: social-bug-report
