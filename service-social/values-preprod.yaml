@@ -75,5 +75,7 @@ httpRoute:
 # exists the feature is off (the Secret is optional).
 bugReport:
   environment: "preprod"
+  # The QA channel is a forum: Discord refuses a plain message there (error 220001).
+  forum: true
   webhook:
     existingSecret: social-bug-report
