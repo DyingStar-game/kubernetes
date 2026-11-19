@@ -238,6 +238,11 @@ env:
   # Default mission lifetime in hours (0 = never expires).
   - name: MISSION_DEFAULT_TTL_HOURS
     value: "0"
+  # Seconds between two sweeps that expire overdue missions and assignments
+  # (0 = no sweep). Without it an assignment past its deadline stays active
+  # for ever and keeps its seat: nobody else can take the mission.
+  - name: MISSION_EXPIRE_INTERVAL_SECONDS
+    value: "60"
 
 # Downstream APIs this service calls with its own Keycloak service account
 # (client_credentials). Rendered by templates/deployment.yaml because the client
