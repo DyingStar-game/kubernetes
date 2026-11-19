@@ -108,3 +108,9 @@ httpRoute:
             path:
               type: ReplacePrefixMatch
               replacePrefixMatch: /
+
+# In-game bug reports: off in dev-local (no webhook Secret). To try the relay, create
+# `social-bug-report` in the namespace with a TEST webhook (see values.yaml) and set
+# `bugReport.webhook.existingSecret: social-bug-report` on your local branch.
+bugReport:
+  environment: "dev"

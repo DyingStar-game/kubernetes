@@ -325,6 +325,26 @@ mqtt:
     # Only used when `create` is true. Never put a real secret in values-preprod.yaml.
     secret: ""
 
+# In-game bug reports relayed to Discord (POST /api/bug-reports, see the service's
+# Readme). The webhook URL is a SECRET -- whoever holds it can post in the channel --
+# so it only ever comes from a Secret created out of band, one per environment:
+#   kubectl -n <namespace> create secret generic social-bug-report \
+#     --from-literal=DISCORD_BUG_WEBHOOK_URL='https://discord.com/api/webhooks/...'
+# Off by default: without `webhook.existingSecret` the API answers
+# 503 BUG_REPORT_DISABLED and the game says so. The Secret is read as OPTIONAL, so
+# an environment that names it before it exists starts all the same, feature off.
+bugReport:
+  # Label of the environment in a report's title: [BUG][PREPROD][<build>] ...
+  environment: ""
+  # The webhook's channel is a forum: each report opens a post named after its title.
+  forum: false
+  # Forum tag ids applied to each post (CSV), for a forum that requires a tag.
+  forumTagIds: ""
+  webhook:
+    # Secret holding the webhook URL under `secretKey`. Empty = feature off.
+    existingSecret: ""
+    secretKey: "DISCORD_BUG_WEBHOOK_URL"
+
 # Shared secret presented by the game server in the X-Internal-Key header.
 # Same pattern as livekit's keys Secret: the chart only creates one when
 # `create` is true and no `existingSecret` is given, so preprod/prod point at a
