@@ -4,6 +4,17 @@
 # vit dans scripts_linux/ : on se replace donc a la racine.
 cd "$(dirname "$0")/.."
 
+# --no-tunnel : s'arreter une fois le cluster et ArgoCD en place, sans lancer
+# `minikube tunnel` ni toucher a /etc/hosts. Rien ne demande alors sudo. Pour qui
+# joint le cluster autrement (relais, port-forward) ou veut seulement l'installer.
+NO_TUNNEL=0
+for arg in "$@"; do
+    case "$arg" in
+        --no-tunnel) NO_TUNNEL=1 ;;
+        *) echo "Option inconnue : $arg (seule --no-tunnel existe)" >&2; exit 2 ;;
+    esac
+done
+
 # Configuration
 DOMAINS_FILE="hosts_config.txt"
 TRAEFIK_NS="traefik"
@@ -103,6 +114,12 @@ if [ "$SYNC_STATUS" != "Synced" ]; then
     kubectl wait --for=jsonpath='{.status.sync.status}=Synced' application/$ROOT_APP_NAME -n $ROOT_APP_NS --timeout=120s
 else
     echo "--- Root App is already Synced ---"
+fi
+
+if [ "$NO_TUNNEL" = "1" ]; then
+    echo "--- --no-tunnel : ni tunnel ni /etc/hosts ---"
+    echo "--- Cluster and ArgoCD ready. ---"
+    exit 0
 fi
 
 # 4. Launch tunnel

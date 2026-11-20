@@ -1,0 +1,51 @@
+{
+  "_about": [
+    "The repositories of the project, and the folder each must have for dev-projects.yaml (in the",
+    "kubernetes repository) to find it: they sit side by side in one workspace folder.",
+    "`neededBy` lists the panel's modules that cannot work without the repository; `always` is for",
+    "the one everything else is found around. `sizeMb` is only there to warn before a long clone."
+  ],
+  "repos": [
+    {
+      "id": "kubernetes",
+      "url": "https://github.com/DyingStar-game/kubernetes.git",
+      "folder": "kubernetes",
+      "always": true,
+      "neededBy": ["cluster"],
+      "sizeMb": 1
+    },
+    {
+      "id": "game",
+      "url": "https://github.com/DyingStar-game/DyingStar.git",
+      "folder": "DyingStar",
+      "neededBy": ["editor", "clients", "gameServer"],
+      "marker": "project.godot",
+      "sizeMb": 2400
+    },
+    {
+      "id": "horizonserver",
+      "url": "https://github.com/DyingStar-game/horizonserver.git",
+      "folder": "horizonserver",
+      "submodules": true,
+      "neededBy": ["build"],
+      "sizeMb": 1
+    },
+    {
+      "id": "services",
+      "url": "https://github.com/DyingStar-game/services.git",
+      "folder": "services",
+      "neededBy": ["build"],
+      "sizeMb": 2
+    }
+  ],
+  "godot": {
+    "repository": "DyingStar-game/godotandaddons",
+    "folder": "Godot",
+    "assets": {
+      "win32-x64": "mono_win64.zip",
+      "win32-arm64": "mono_windows_arm64.zip",
+      "linux-x64": "mono_linux_x86_64.zip",
+      "linux-arm64": "mono_linux_arm64.zip"
+    }
+  }
+}

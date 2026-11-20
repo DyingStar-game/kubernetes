@@ -1,0 +1,27 @@
+{
+  "id": "level-designer",
+  "version": 1,
+  "name": {
+    "en": "Level designer",
+    "fr": "Level designer"
+  },
+  "description": {
+    "en": "Only the editor and the game clients: no cluster to run on this machine. An example to adapt.",
+    "fr": "Seulement l'éditeur et les clients du jeu : aucun cluster à faire tourner sur cette machine. Un exemple à adapter."
+  },
+  "modules": {
+    "docker": false,
+    "cluster": false,
+    "network": false,
+    "horizon": false,
+    "gameServer": false,
+    "telepresence": false,
+    "relink": false,
+    "clients": true,
+    "editor": true,
+    "npc": false,
+    "build": false,
+    "danger": false
+  },
+  "settings": {}
+}

@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- DyingStar dev panel mark: a collapsing star.
+       An amber core bitten by a crescent of shadow, ringed by the shell of material
+       it has already shed. Palette taken from the project itself (#ffba08 amber on
+       #151413 warm black). Three shapes only, so it still reads at 16 px.
+
+       The star sits on an explicit dark disc rather than on transparency: the bite
+       then reads as real shadow on any background, light or dark. -->
+  <defs>
+    <radialGradient id="core" cx="38%" cy="33%" r="72%">
+      <stop offset="0%"   stop-color="#fff6da"/>
+      <stop offset="28%"  stop-color="#ffd057"/>
+      <stop offset="62%"  stop-color="#ffba08"/>
+      <stop offset="100%" stop-color="#a87a00"/>
+    </radialGradient>
+
+    <!-- A ring of glow AROUND the star, not a filled disc: a glow that reached the
+         centre would light up the bite and destroy the crescent. -->
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="40%"  stop-color="#ffba08" stop-opacity="0"/>
+      <stop offset="57%"  stop-color="#ffba08" stop-opacity="0.34"/>
+      <stop offset="72%"  stop-color="#ff9d2f" stop-opacity="0.13"/>
+      <stop offset="100%" stop-color="#ff8a3c" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- The "dying" part: a dark disc eats into the star from the lower right. -->
+    <mask id="collapse">
+      <rect width="64" height="64" fill="#fff"/>
+      <!-- Centre distance (~17.9) is kept just above the bite radius so the shadow
+           stops short of the star's centre: more than half the disc survives, which
+           is what keeps the crescent visible once scaled down to 16 px. -->
+      <circle cx="46.5" cy="42.5" r="17.5" fill="#000"/>
+    </mask>
+  </defs>
+
+  <!-- space -->
+  <circle cx="32" cy="32" r="31.5" fill="#141312"/>
+  <circle cx="32" cy="32" r="31.5" fill="url(#halo)"/>
+
+  <!-- shed shell: thin arcs of ejected material, fading as they travel out -->
+  <path d="M 31 4.6 A 27.4 27.4 0 0 1 58.6 30"
+        fill="none" stroke="#ffba08" stroke-opacity="0.55"
+        stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M 7.4 21 A 26.4 26.4 0 0 0 5.9 35"
+        fill="none" stroke="#ffba08" stroke-opacity="0.3"
+        stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- the star itself, collapsing -->
+  <g mask="url(#collapse)">
+    <circle cx="32" cy="32" r="17.5" fill="url(#core)"/>
+    <circle cx="32" cy="32" r="17.5" fill="none"
+            stroke="#fff0c4" stroke-opacity="0.9" stroke-width="1.1"/>
+  </g>
+</svg>
