@@ -344,6 +344,13 @@ bugReport:
     # Secret holding the webhook URL under `secretKey`. Empty = feature off.
     existingSecret: ""
     secretKey: "DISCORD_BUG_WEBHOOK_URL"
+    # Optional key of the SAME Secret: the token of the Discord bot that reads the
+    # forum, so the game can list the bugs still open and add a report to one
+    # (GET /api/bug-reports/open). The bot needs "View Channel" and "Read Message
+    # History" on the forum, nothing else. Without the key: no list.
+    #   kubectl -n <namespace> patch secret social-bug-report --type merge \
+    #     -p '{"stringData":{"DISCORD_BUG_BOT_TOKEN":"<token>"}}'
+    botTokenKey: "DISCORD_BUG_BOT_TOKEN"
 
 # Shared secret presented by the game server in the X-Internal-Key header.
 # Same pattern as livekit's keys Secret: the chart only creates one when
