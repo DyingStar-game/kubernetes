@@ -1,4 +1,21 @@
-#Requires -RunAsAdministrator
+param(
+    # S'arreter une fois le cluster et ArgoCD en place, sans lancer `minikube tunnel`
+    # ni toucher au fichier hosts. Rien ne demande alors les droits administrateur.
+    # Pour qui joint le cluster autrement (relais, port-forward) ou veut seulement l'installer.
+    [switch]$NoTunnel
+)
+
+# Le tunnel et le fichier hosts exigent les droits administrateur ; le reste, non.
+# (Avant, `#Requires -RunAsAdministrator` les imposait a tout le script.)
+if (-not $NoTunnel) {
+    $principal = New-Object Security.Principal.WindowsPrincipal(
+        [Security.Principal.WindowsIdentity]::GetCurrent())
+    if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        Write-Error ("start-dev.ps1 doit etre lance dans une console administrateur " +
+            "(minikube tunnel et fichier hosts). Sans tunnel : start-dev.ps1 -NoTunnel")
+        exit 1
+    }
+}
 
 # Les chemins ci-dessous sont relatifs a la racine du depot, alors que le
 # script vit dans scripts_windows\ : on se replace donc a la racine.
@@ -84,6 +101,12 @@ if ($SYNC_STATUS -ne "Synced") {
         application/$ROOT_APP_NAME -n $ROOT_APP_NS --timeout=120s
 } else {
     Write-Host "--- Root App déjà synchronisée ---"
+}
+
+if ($NoTunnel) {
+    Write-Host "--- -NoTunnel : ni tunnel ni fichier hosts ---"
+    Write-Host "--- Cluster et ArgoCD prets. ---"
+    exit 0
 }
 
 # 4. Lancer le tunnel

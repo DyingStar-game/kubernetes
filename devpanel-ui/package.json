@@ -1,0 +1,95 @@
+{
+  "name": "dyingstar-devpanel",
+  "productName": "DyingStar DevPanel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DyingStar local dev panel: start the whole stack from one window, watch every log, and search them live.",
+  "license": "AGPL-3.0-only",
+  "author": {
+    "name": "dyingstar-game.com",
+    "email": "contact@dyingstar-game.com"
+  },
+  "homepage": "https://www.dyingstar-game.com",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node tools/run-tests.js",
+    "make-icon": "electron tools/make-icon.js",
+    "pack": "electron-builder --dir --publish never",
+    "dist": "electron-builder --publish never"
+  },
+  "devDependencies": {
+    "electron": "^44.9.3",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "com.dyingstar.devpanel",
+    "productName": "DyingStar DevPanel",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "profiles/**/*",
+      "assets/**/*",
+      "package.json",
+      "LICENSE"
+    ],
+    "asar": true,
+    "publish": null,
+    "electronFuses": {
+      "runAsNode": false
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "artifactName": "DyingStar-DevPanel-Setup-${version}.${ext}"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "rpm",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.png",
+      "category": "Development",
+      "executableName": "dyingstar-devpanel",
+      "artifactName": "dyingstar-devpanel-${version}.${arch}.${ext}"
+    },
+    "extraResources": [
+      {
+        "from": "scripts/",
+        "to": "scripts/"
+      }
+    ]
+  }
+}

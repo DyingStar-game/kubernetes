@@ -189,6 +189,30 @@ Every script relocates itself to the repository root, so it can be run from anyw
 computer. Follow them in freelens, in the namespace `dyingstar`: all pods must be
 `Running`.
 
+### Dev panel
+
+The steps above can also be driven from one window: [`devpanel-ui/`](devpanel-ui/README.md) is a
+desktop panel (Windows and Linux) that starts the stack in the right order, shows the state of
+every pod, and keeps all their logs searchable in one place. It runs the scripts of this
+repository; it does not replace them, so everything it does can still be done by hand.
+
+Installers are on the Releases page (`devpanel-v*`), or run it from the sources:
+
+```bash
+cd devpanel-ui
+npm ci
+npm start
+```
+
+New to the project? Its setup assistant and
+[devpanel-ui/docs/getting-started.md](devpanel-ui/docs/getting-started.md) go from an empty
+machine to the game world.
+
+`start-dev` takes one option, `--no-tunnel` (`-NoTunnel` on Windows): it stops once the cluster
+and ArgoCD are in place, without starting `minikube tunnel` or editing the hosts file. Nothing
+then needs sudo or an administrator console. Use it when you reach the cluster another way, or
+only want it installed.
+
 ### Client URL
 
 In the dyingstar repository (godot files), edit `client.ini`:

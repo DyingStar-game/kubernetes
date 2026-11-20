@@ -1,0 +1,5 @@
+# Dependencies: reinstalled per machine (the Electron binary is OS-specific).
+node_modules/
+
+# Build output (installers).
+dist/

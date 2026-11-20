@@ -1,0 +1,72 @@
+{
+  "_about": [
+    "The command-line tools the panel can fetch by itself, at a fixed version, with the SHA-256 the",
+    "publisher announces for each file. Raising a version means changing the version, the urls and the",
+    "hashes together; tools/test-installer.js checks the shape. These are single binaries: they go to",
+    "<data dir>/tools/bin, need no installer and no elevated rights."
+  ],
+  "tools": [
+    {
+      "id": "kubectl",
+      "version": "1.35.1",
+      "minVersion": "1.25.0",
+      "versionArgs": ["version", "--client"],
+      "versionPattern": "Client Version: v?(\\d+\\.\\d+\\.\\d+)",
+      "assets": {
+        "win32-x64": {
+          "url": "https://dl.k8s.io/release/v1.35.1/bin/windows/amd64/kubectl.exe",
+          "sha256": "d2d28ca3440ed94262b9b4bffb30119cfca69ac30b9cad531a08e8ebd9720dd2",
+          "file": "kubectl.exe"
+        },
+        "linux-x64": {
+          "url": "https://dl.k8s.io/release/v1.35.1/bin/linux/amd64/kubectl",
+          "sha256": "36e2f4ac66259232341dd7866952d64a958846470f6a9a6a813b9117bd965207",
+          "file": "kubectl"
+        }
+      }
+    },
+    {
+      "id": "minikube",
+      "version": "1.38.1",
+      "minVersion": "1.30.0",
+      "versionArgs": ["version", "--short"],
+      "versionPattern": "v?(\\d+\\.\\d+\\.\\d+)",
+      "assets": {
+        "win32-x64": {
+          "url": "https://github.com/kubernetes/minikube/releases/download/v1.38.1/minikube-windows-amd64.exe",
+          "sha256": "04215bec5632a976b48eb632856b50f1eaaa183b9c2a5904e11d1bacc4961ff7",
+          "file": "minikube.exe"
+        },
+        "linux-x64": {
+          "url": "https://github.com/kubernetes/minikube/releases/download/v1.38.1/minikube-linux-amd64",
+          "sha256": "099477eaf248bcb5bcea8ce78a2898e93ac01461c35189da1848c3de82ecd22e",
+          "file": "minikube"
+        }
+      }
+    },
+    {
+      "id": "helm",
+      "version": "3.21.0",
+      "minVersion": "3.10.0",
+      "maxMajor": 3,
+      "versionArgs": ["version", "--short"],
+      "versionPattern": "v?(\\d+\\.\\d+\\.\\d+)",
+      "assets": {
+        "win32-x64": {
+          "url": "https://get.helm.sh/helm-v3.21.0-windows-amd64.zip",
+          "sha256": "3ea6b8383e6c0b7ce45d06a5746313b8e9225edd88d42f4f64582ff3792d7b55",
+          "archive": true,
+          "member": "windows-amd64/helm.exe",
+          "file": "helm.exe"
+        },
+        "linux-x64": {
+          "url": "https://get.helm.sh/helm-v3.21.0-linux-amd64.tar.gz",
+          "sha256": "0093eb572e3d2380f094df162ddb525e219249de88957afe24cfbb19632acd36",
+          "archive": true,
+          "member": "linux-amd64/helm",
+          "file": "helm"
+        }
+      }
+    }
+  ]
+}
