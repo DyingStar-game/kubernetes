@@ -124,6 +124,27 @@ spec:
             - name: MQTT_TOPIC_ROOT
               value: {{ . | quote }}
             {{- end }}
+            {{- with .Values.bugReport.webhook.existingSecret }}
+            - name: DISCORD_BUG_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: {{ $.Values.bugReport.webhook.secretKey }}
+                  # Missing Secret = bug reports off, not a pod that cannot start.
+                  optional: true
+            {{- end }}
+            {{- with .Values.bugReport.environment }}
+            - name: BUG_REPORT_ENVIRONMENT
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if .Values.bugReport.forum }}
+            - name: DISCORD_BUG_WEBHOOK_FORUM
+              value: "true"
+            {{- end }}
+            {{- with .Values.bugReport.forumTagIds }}
+            - name: DISCORD_BUG_WEBHOOK_TAG_IDS
+              value: {{ . | quote }}
+            {{- end }}
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
