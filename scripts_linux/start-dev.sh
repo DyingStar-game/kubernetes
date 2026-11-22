@@ -8,10 +8,23 @@ cd "$(dirname "$0")/.."
 # `minikube tunnel` ni toucher a /etc/hosts. Rien ne demande alors sudo. Pour qui
 # joint le cluster autrement (relais, port-forward) ou veut seulement l'installer.
 NO_TUNNEL=0
-for arg in "$@"; do
-    case "$arg" in
+# --sets a,b : ensembles de services a deployer (voir argocd/dev/root/sets/). `core` est
+# toujours deploye. Defaut : tous. Ex. level designer : --sets core
+ALL_SETS="core gameplay voice admin observability telepresence"
+SETS="$ALL_SETS"
+while [ $# -gt 0 ]; do
+    case "$1" in
         --no-tunnel) NO_TUNNEL=1 ;;
-        *) echo "Option inconnue : $arg (seule --no-tunnel existe)" >&2; exit 2 ;;
+        --sets) shift; SETS="core ${1//,/ }" ;;
+        --sets=*) SETS="core ${1#--sets=}"; SETS="${SETS//,/ }" ;;
+        *) echo "Option inconnue : $1 (options : --no-tunnel, --sets a,b)" >&2; exit 2 ;;
+    esac
+    shift
+done
+for set in $SETS; do
+    case " $ALL_SETS " in
+        *" $set "*) ;;
+        *) echo "Ensemble inconnu : $set (existants : $ALL_SETS)" >&2; exit 2 ;;
     esac
 done
 
@@ -115,6 +128,14 @@ if [ "$SYNC_STATUS" != "Synced" ]; then
 else
     echo "--- Root App is already Synced ---"
 fi
+
+# 3b. Deployer les ensembles demandes (root-dev ne porte que les AppProjects).
+# Un ensemble absent de la liste n'est PAS retire d'un cluster qui tourne deja :
+# voir scripts_linux/sets-dev.sh remove <ensemble>.
+echo "--- Deploying sets: $(echo $SETS | tr ' ' '\n' | awk '!seen[$0]++' | tr '\n' ' ') ---"
+for set in $(echo $SETS | tr ' ' '\n' | awk '!seen[$0]++'); do
+    kubectl apply -f "argocd/dev/root/sets/$set.yaml"
+done
 
 if [ "$NO_TUNNEL" = "1" ]; then
     echo "--- --no-tunnel : ni tunnel ni /etc/hosts ---"

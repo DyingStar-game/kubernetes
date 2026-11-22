@@ -6,14 +6,14 @@
     "fr": "Level designer"
   },
   "description": {
-    "en": "Only the editor and the game clients: no cluster to run on this machine. An example to adapt.",
-    "fr": "Seulement l'éditeur et les clients du jeu : aucun cluster à faire tourner sur cette machine. Un exemple à adapter."
+    "en": "The minimum to run the game: the editor, the game clients, and a local cluster with only what Godot and horizon need (login, voice, game server, horizon). No game services, no monitoring: light enough for a laptop.",
+    "fr": "Le minimum pour faire tourner le jeu : l'éditeur, les clients, et un cluster local avec seulement ce dont Godot et horizon ont besoin (connexion, voix, serveur de jeu, horizon). Pas de services de jeu ni de supervision : assez léger pour un portable."
   },
   "modules": {
-    "docker": false,
-    "cluster": false,
-    "network": false,
-    "horizon": false,
+    "docker": true,
+    "cluster": true,
+    "network": true,
+    "horizon": true,
     "gameServer": false,
     "telepresence": false,
     "relink": false,
@@ -23,5 +23,6 @@
     "build": false,
     "danger": false
   },
-  "settings": {}
+  "settings": {},
+  "sets": []
 }

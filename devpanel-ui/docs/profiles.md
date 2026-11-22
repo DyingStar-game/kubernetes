@@ -13,8 +13,9 @@ Run `npm test` after any of them.
 
 ## A profile
 
-A profile says which modules a kind of user gets. It never changes what the cluster deploys:
-it changes what the panel shows, watches and starts.
+A profile says which modules a kind of user gets, and which **sets of services** the local
+cluster deploys. The modules change what the panel shows, watches and starts; the sets change what
+`start-dev` deploys (see "Service sets" in the repository's README).
 
 ```json
 {
@@ -28,12 +29,18 @@ it changes what the panel shows, watches and starts.
     "relink": false,
     "clients": true, "editor": true, "npc": false, "build": false, "danger": false
   },
+  "sets": ["gameplay"],
   "settings": { "godot": { "clientCount": 1 } }
 }
 ```
 
 - `modules`: `true` or `false` for each module. A module only runs when what it requires runs
   too (see the table below); a shipped profile must not ask for a module it blocks.
+- `sets`: optional. The service sets to deploy besides `core`, which is always there (what Godot and
+  horizon need to run): `gameplay`, `voice` (LiveKit, proximity voice), `admin`, `observability`, `telepresence`. `[]` is the minimum,
+  for people who only need the game to run. Absent means every set. The `telepresence` set is added
+  by itself when the `telepresence` module is on. It only applies when the panel starts the stack;
+  a running cluster is changed with `scripts_*/sets-dev`.
 - `settings`: optional. Any setting of the settings screen, as the profile's preference. The
   user's own choice still wins.
 - `name`, `description`: shown in the settings screen. One language is enough for a personal

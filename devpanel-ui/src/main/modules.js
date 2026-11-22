@@ -126,6 +126,13 @@ const MODULES = [
   },
 ];
 
+/**
+ * The sets of services a profile may ask the cluster to deploy: the directories of
+ * argocd/dev/{infra,game,observability} in the repository (see "Service sets" in its README). `core` -- what Godot and
+ * horizon need to run -- is always deployed and implied.
+ */
+const SET_IDS = ['core', 'gameplay', 'voice', 'admin', 'observability', 'telepresence'];
+
 const MODULE_IDS = MODULES.map((m) => m.id);
 const BY_ID = new Map(MODULES.map((m) => [m.id, m]));
 
@@ -171,6 +178,15 @@ function validateProfile(raw, fallbackId) {
     if (typeof value !== 'boolean') return { ok: false, error: 'module "' + key + '" must be true or false' };
     modules[key] = value;
   }
+  // `sets` is optional: absent means every set, which is what start-dev did before sets existed.
+  let sets = null;
+  if (raw.sets !== undefined) {
+    if (!Array.isArray(raw.sets)) return { ok: false, error: '"sets" must be a list' };
+    for (const name of raw.sets) {
+      if (!SET_IDS.includes(name)) return { ok: false, error: 'unknown set "' + name + '" (' + SET_IDS.join(', ') + ')' };
+    }
+    sets = SET_IDS.filter((name) => name === 'core' || raw.sets.includes(name));
+  }
   const text = (t) => (t && typeof t === 'object' ? { en: String(t.en || t.fr || id), fr: String(t.fr || t.en || id) } : { en: id, fr: id });
   return {
     ok: true,
@@ -179,6 +195,7 @@ function validateProfile(raw, fallbackId) {
       name: text(raw.name),
       description: raw.description ? text(raw.description) : { en: '', fr: '' },
       modules,
+      sets,
       settings: raw.settings && typeof raw.settings === 'object' && !Array.isArray(raw.settings) ? raw.settings : {},
     },
   };
@@ -213,4 +230,4 @@ function loadProfiles(dirs) {
   return { profiles, problems };
 }
 
-module.exports = { MODULES, MODULE_IDS, resolveModules, validateProfile, loadProfiles };
+module.exports = { MODULES, MODULE_IDS, SET_IDS, resolveModules, validateProfile, loadProfiles };

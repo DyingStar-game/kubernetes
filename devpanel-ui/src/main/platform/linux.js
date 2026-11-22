@@ -237,8 +237,9 @@ function repoScriptCommand(cfg, script, args = []) {
 }
 
 /** start-dev: creates the cluster when there is none, installs ArgoCD, hands it the applications. */
-function stackStartCommand(cfg, extraArgs = []) {
-  return repoScriptCommand(cfg, 'start-dev', extraArgs);
+function stackStartCommand(cfg, extraArgs = [], sets = null) {
+  const setArgs = sets && sets.length ? ['--sets', sets.join(',')] : [];
+  return repoScriptCommand(cfg, 'start-dev', [...extraArgs, ...setArgs]);
 }
 
 /** clean-dev: deletes the cluster. Not the same thing as stopping the process above. */

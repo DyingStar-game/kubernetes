@@ -23,5 +23,10 @@
     "build": true,
     "danger": true
   },
-  "settings": {}
+  "settings": {},
+  "sets": [
+    "gameplay",
+    "admin",
+    "telepresence"
+  ]
 }

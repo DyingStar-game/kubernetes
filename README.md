@@ -145,6 +145,9 @@ The local stack runs on minikube: ArgoCD reconciles the Applications declared in
 `values-dev.yaml`. By default every service uses the `develop` image from Harbor —
 you only build locally the service you are working on.
 
+The Applications are grouped in **sets**, so a machine only runs what its job needs
+(see [Service sets](#service-sets)).
+
 See [Refacto.md](Refacto.md) for the detailed / manual installation guide.
 
 ### Prerequisites
@@ -162,6 +165,37 @@ See [Refacto.md](Refacto.md) for the detailed / manual installation guide.
   - `../services/livekit` — livekit
   - `../services/persistence` — service-persistence
 - [freelens](https://freelensapp.github.io/), used to manage pods and deployments in an UI
+
+### Service sets
+
+`argocd/dev/` keeps the preprod layout (`infra/`, `game/`, `observability/`), with the sets as
+sub-folders (`infra/core`, `game/core`, `game/gameplay`, `game/voice`, `game/admin`, `infra/telepresence`). Each set is
+synced by its own root Application (`argocd/dev/root/sets/<set>.yaml`). `root-dev` only deploys the AppProjects; the sets are
+applied on demand.
+
+| Set | Contents | Needed for |
+|---|---|---|
+| `core` | `infra/core` (argocd, cert-manager, cnpg-op, traefik, keycloak) + `game/core` (godotserver, horizon, service-resourcesdynamic, service-persistence) | the minimum to run Godot + Horizon: login, game server, and the two services horizon needs to load a playable world (planets, items) |
+| `gameplay` | inventory, economie, market, mission, social, npc, universesimulator, textchat | game-side services |
+| `voice` | livekit (+ its redis) | proximity voice: also set `livekit.enabled: true` in `horizon/values-dev.yaml` |
+| `admin` | dyingstar-admin, service-monitoring | back-office |
+| `observability` | grafana, prometheus, loki, tempo, k8s-monitoring | metrics, logs, traces |
+| `telepresence` | telepresence traffic-manager | running the game server from your sources |
+
+```bash
+./scripts_linux/start-dev.sh --sets core            # level designers / artists
+./scripts_linux/start-dev.sh --sets core,gameplay   # default is every set
+./scripts_linux/sets-dev.sh list                    # what is deployed
+./scripts_linux/sets-dev.sh add observability       # add a set to a running cluster
+./scripts_linux/sets-dev.sh remove gameplay         # remove one (its apps are pruned)
+```
+
+`core` is always deployed. The dev panel picks the sets from the profile
+(`"sets": [...]` in `devpanel-ui/profiles/<id>.json`).
+
+Migrating a cluster created before the sets: the next `start-dev.sh` run applies the
+new roots, which adopt the existing Applications (the old `root-game`, `root-infra`
+and `root-observability` are pruned without deleting their children).
 
 ### Quick Start
 
@@ -241,7 +275,7 @@ then set `websocket_url="ws://127.0.0.1:7040"` (or `ws://<host-LAN-ip>:7040`).
 The dev-local identity provider is **not** the Helm chart anymore: it is a
 `Keycloak` custom resource reconciled by the **upstream Keycloak Operator**.
 Both the operator and our CRs are declared by a single infra Application,
-[`argocd/dev/infra/keycloak-app.yaml`](argocd/dev/infra/keycloak-app.yaml)
+[`argocd/dev/infra/core/keycloak-app.yaml`](argocd/dev/infra/core/keycloak-app.yaml)
 (name `keycloak`, project `infra`), with two sources:
 
 - `github.com/keycloak/keycloak-k8s-resources` @ `26.7.0`, path `kubernetes` —
@@ -250,7 +284,7 @@ Both the operator and our CRs are declared by a single infra Application,
 
 | File | Role |
 | --- | --- |
-| `00-cnpg-cluster.yaml` | PostgreSQL via CloudNativePG (opérateur déjà installé par `argocd/dev/infra/cnpg-op-app.yaml`), PVC 1Gi |
+| `00-cnpg-cluster.yaml` | PostgreSQL via CloudNativePG (opérateur déjà installé par `argocd/dev/infra/core/cnpg-op-app.yaml`), PVC 1Gi |
 | `01-db-secret.yaml` | Credentials de la base, partagées entre le bootstrap CNPG et la CR Keycloak |
 | `02-admin-secret.yaml` | Credentials admin fixes (`admin` / `devpass`) via `spec.bootstrapAdmin` |
 | `03-keycloak.yaml` | La CR Keycloak (base, hostname, proxy, ressources) + feature `client-admin-api:v2` requise par les CRs clients |
@@ -509,7 +543,7 @@ same two keys. Run the assertions with
 The dev-local stack does not let application charts declare their own PostgreSQL
 anymore: databases are reconciled by the
 [CloudNativePG operator](https://cloudnative-pg.io/) installed by
-`argocd/dev/infra/cnpg-op-app.yaml` (namespace `cnpg-system`), and the consumers
+`argocd/dev/infra/core/cnpg-op-app.yaml` (namespace `cnpg-system`), and the consumers
 point at them with `database.host` / `database.existingSecret`.
 
 **Preprod** follows the same model: `argocd/preprod/infra/cnpg-op-app.yaml`
@@ -537,8 +571,8 @@ Application, not a Helm template: the chart and its database are reconciled in
 one sync. `service-resourcesdynamic` is a game service, so its database is
 declared in the game tree — unlike Keycloak, which is an auth platform and lives
 in the infra tree. Same layout for `service-economie/database/` and
-`service-social/database/`. (The `argocd/dev/game/` directory itself only holds
-`Application` objects: `root-game` scans it, so manifests must not be dropped
+`service-social/database/`. (The `argocd/dev/{infra,game}/<set>/` directories only hold
+`Application` objects: `root-<set>` scans them, so manifests must not be dropped
 there.)
 
 Conventions:
@@ -706,7 +740,7 @@ plain `telepresence connect` already carries both.
 
 ```bash
 # Client 2.33.x, aligned with the traffic-manager chart
-# (argocd/dev/infra/telepresence.yaml, targetRevision 2.33.4).
+# (argocd/dev/infra/telepresence/telepresence-app.yaml, targetRevision 2.33.4).
 telepresence connect --namespace dyingstar
 
 # Prove the outbound path before starting the game server.

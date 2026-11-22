@@ -127,6 +127,19 @@ test('a hand-written profile with a mistake is refused with the reason', () => {
   assert.ok(/id/.test(validateProfile({ id: 'Bad Id', modules: {} }).error));
 });
 
+test('a profile may name the service sets to deploy; core is always there, unknown ones are refused', () => {
+  assert.strictEqual(validateProfile({ id: 'x', modules: {} }).profile.sets, null, 'absent: every set');
+  assert.deepStrictEqual(validateProfile({ id: 'x', modules: {}, sets: [] }).profile.sets, ['core']);
+  assert.deepStrictEqual(validateProfile({ id: 'x', modules: {}, sets: ['telepresence', 'gameplay'] }).profile.sets,
+    ['core', 'gameplay', 'telepresence']);
+  assert.ok(/unknown set/.test(validateProfile({ id: 'x', modules: {}, sets: ['nope'] }).error));
+  assert.ok(/list/.test(validateProfile({ id: 'x', modules: {}, sets: 'core' }).error));
+  const { profiles } = loadProfiles([path.join(ROOT, 'profiles')]);
+  assert.deepStrictEqual(profiles.get('level-designer').sets, ['core'], 'the minimum: no game services');
+  assert.strictEqual(profiles.get('level-designer').modules.cluster, true);
+  assert.ok(profiles.get('gameserver-developer').sets.includes('telepresence'));
+});
+
 test('your own profile replaces the shipped one of the same id; a broken file is reported, not fatal', () => {
   const mine = fs.mkdtempSync(path.join(os.tmpdir(), 'devpanel-profiles-'));
   fs.writeFileSync(path.join(mine, 'developer.json'), JSON.stringify({ name: { en: 'Mine' }, modules: { editor: true } }));

@@ -2,8 +2,21 @@ param(
     # S'arreter une fois le cluster et ArgoCD en place, sans lancer `minikube tunnel`
     # ni toucher au fichier hosts. Rien ne demande alors les droits administrateur.
     # Pour qui joint le cluster autrement (relais, port-forward) ou veut seulement l'installer.
-    [switch]$NoTunnel
+    [switch]$NoTunnel,
+
+    # Ensembles de services a deployer (voir argocd\dev\root\sets\). `core` est toujours deploye.
+    # Defaut : tous. Ex. level designer : -Sets core
+    [string[]]$Sets = @('gameplay', 'voice', 'admin', 'observability', 'telepresence')
 )
+
+$ALL_SETS = @('core', 'gameplay', 'voice', 'admin', 'observability', 'telepresence')
+$Sets = @('core') + @($Sets | ForEach-Object { $_ -split ',' } | Where-Object { $_ }) | Select-Object -Unique
+foreach ($set in $Sets) {
+    if ($ALL_SETS -notcontains $set) {
+        Write-Error "Ensemble inconnu : $set (existants : $($ALL_SETS -join ', '))"
+        exit 2
+    }
+}
 
 # Le tunnel et le fichier hosts exigent les droits administrateur ; le reste, non.
 # (Avant, `#Requires -RunAsAdministrator` les imposait a tout le script.)
@@ -44,6 +57,37 @@ if (Get-Command telepresence -ErrorAction SilentlyContinue) {
 # 1. Démarrer Minikube
 Write-Host "--- Démarrage de Minikube ---"
 minikube start --disk-size=150g --mount-string "${pwd}:/mnt/local-repo.git"
+
+# 1b. Relever les limites inotify dans le noeud (voir start-dev.sh, etape 1b) :
+# sans cela horizon plante avec "too many open files" (fsnotify).
+Write-Host "--- Relevage des limites inotify dans le noeud ---"
+kubectl -n kube-system delete pod inotify-fix --ignore-not-found 2>$null | Out-Null
+$inotifyPod = @'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: inotify-fix
+  namespace: kube-system
+spec:
+  hostPID: true
+  restartPolicy: Never
+  tolerations:
+    - operator: Exists
+  containers:
+    - name: fix
+      image: busybox:1.37
+      securityContext:
+        privileged: true
+      command: ["nsenter", "-t", "1", "-m", "-u", "-i", "-n", "--", "sh", "-c"]
+      args:
+        - |
+          sysctl -w fs.inotify.max_user_watches=1048576
+          sysctl -w fs.inotify.max_user_instances=8192
+          printf 'fs.inotify.max_user_watches=1048576\nfs.inotify.max_user_instances=8192\n' > /etc/sysctl.d/99-inotify.conf
+'@
+$inotifyPod | kubectl apply -f - | Out-Null
+kubectl -n kube-system wait --for=jsonpath='{.status.phase}=Succeeded' pod/inotify-fix --timeout=90s
+kubectl -n kube-system delete pod inotify-fix --wait=false | Out-Null
 
 # 2. Installation initiale (si absente)
 $helmList = helm list -n argocd 2>$null
@@ -101,6 +145,14 @@ if ($SYNC_STATUS -ne "Synced") {
         application/$ROOT_APP_NAME -n $ROOT_APP_NS --timeout=120s
 } else {
     Write-Host "--- Root App déjà synchronisée ---"
+}
+
+# 3b. Deployer les ensembles demandes (root-dev ne porte que les AppProjects).
+# Un ensemble absent de la liste n'est PAS retire d'un cluster qui tourne deja :
+# voir scripts_windows\sets-dev.ps1 remove <ensemble>.
+Write-Host "--- Deploiement des ensembles : $($Sets -join ', ') ---"
+foreach ($set in $Sets) {
+    kubectl apply -f "argocd/dev/root/sets/$set.yaml"
 }
 
 if ($NoTunnel) {

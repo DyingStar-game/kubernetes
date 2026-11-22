@@ -1,5 +1,5 @@
 # Keycloak de dev-local, réconcilié par l'opérateur upstream installé par
-# argocd/dev/infra/keycloak-app.yaml (namespace `keycloak`).
+# argocd/dev/infra/core/keycloak-app.yaml (namespace `keycloak`).
 #
 # Pourquoi la CR vit dans le namespace `keycloak` et pas `dyingstar` : le
 # Deployment de l'opérateur est configuré avec

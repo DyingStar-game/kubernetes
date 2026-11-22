@@ -169,6 +169,19 @@ function refreshModules() {
 }
 refreshModules();
 
+/**
+ * The sets of services the cluster should run, from the profile: null = every set (no profile, or
+ * a profile that does not say). The telepresence set follows the telepresence module, so the
+ * module never finds its traffic-manager missing.
+ */
+function wantedSets() {
+  const profile = profileSet.profiles.get(config.profile) || null;
+  if (!profile || !profile.sets) return null;
+  const sets = new Set(profile.sets);
+  if (modules.telepresence) sets.add('telepresence');
+  return [...sets];
+}
+
 // --- wiring -----------------------------------------------------------------
 
 const logBus = new LogBus({ logDir: LOG_DIR, maxLines: config.logs.maxLines });
@@ -198,7 +211,7 @@ const network = new Network({
 });
 const npc = new Npc({ config, log: logBus, k8s });
 const setup = new Setup({ config, log: logBus, procs, toolchain, modules });
-const services = new Services({ config, log: logBus, procs, probes, godot, relink, telepresence, network, modules });
+const services = new Services({ config, log: logBus, procs, probes, godot, relink, telepresence, network, modules, wantedSets });
 
 // ArgoCD gives the panel no log stream of its own: it reconciles the cluster and walks away.
 // The panel therefore follows the pods itself and merges their logs into the same bus, which is

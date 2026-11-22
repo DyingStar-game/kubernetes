@@ -44,7 +44,7 @@ extraEnv:
 # also waits for livekit and service-monitoring; neither is needed to start in dev (no voice
 # without livekit, the metrics bridge just retries). resourcesdynamic is waited for on its
 # WebSocket port: ds_services connects once in on_init and never retries, so a service that only
-# answers on HTTP is not enough. Both resourcesdynamic and persistence are in the `core` set.
+# answers on HTTP is not enough. Both resourcesdynamic and persistence are in the `core` set; livekit is in the `voice` set.
 dependsOn:
   - name: godotserver
     service: godotserver

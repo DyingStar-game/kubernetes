@@ -1,0 +1,20 @@
+# Root of the "observability" set. Not scanned by root-dev: the sets are applied on demand
+# (scripts_linux/start-dev.sh --sets, scripts_linux/sets-dev.sh, the dev panel).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root-observability
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: 'file:///mnt/local-repo.git'
+      targetRevision: HEAD
+      path: argocd/dev/observability
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

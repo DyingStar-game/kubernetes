@@ -34,8 +34,9 @@ const STEPS = [
 ];
 
 class Services extends EventEmitter {
-  constructor({ config, log, procs, probes, godot, relink, telepresence = null, network = null, modules = null }) {
+  constructor({ config, log, procs, probes, godot, relink, telepresence = null, network = null, modules = null, wantedSets = () => null }) {
     super();
+    this.wantedSets = wantedSets;
     this.cfg = config;
     this.telepresence = telepresence;
     this.network = network;
@@ -193,6 +194,7 @@ class Services extends EventEmitter {
     let probe = await this.probes.minikube();
     if (probe.ok) {
       this._set('minikube', 'ok', t('msg.alreadyRunning'));
+      await this.raiseInotifyLimits();
       return true;
     }
 
@@ -222,6 +224,49 @@ class Services extends EventEmitter {
     }
     probe = await this.probes.minikube();
     this._set('minikube', 'ok', probe.detail);
+    await this.raiseInotifyLimits();
+    return true;
+  }
+
+  /**
+   * Raise the inotify limits inside the minikube node, as start-dev.sh does (step 1b). The node's
+   * defaults (max_user_instances=128) are far too low once dozens of pods mount ConfigMaps/Secrets:
+   * horizon then dies with "too many open files" (fsnotify watcher). Applied through a privileged
+   * pod that nsenters the node, and written to /etc/sysctl.d; a node recreated by `minikube delete`
+   * needs it again, hence on every start. Idempotent and best-effort: never fails the chain.
+   */
+  async raiseInotifyLimits() {
+    const script = 'sysctl -w fs.inotify.max_user_watches=1048576 && sysctl -w fs.inotify.max_user_instances=8192'
+      + " && printf 'fs.inotify.max_user_watches=1048576\\nfs.inotify.max_user_instances=8192\\n'"
+      + ' > /etc/sysctl.d/99-inotify.conf';
+    const overrides = JSON.stringify({
+      spec: {
+        hostPID: true,
+        tolerations: [{ operator: 'Exists' }],
+        containers: [{
+          name: 'fix',
+          image: 'busybox:1.37',
+          securityContext: { privileged: true },
+          command: ['nsenter', '-t', '1', '-m', '-u', '-i', '-n', '--', 'sh', '-c'],
+          args: [script],
+        }],
+      },
+    });
+    const kc = (args, ms) => run('kubectl', ['-n', 'kube-system', ...args], { timeoutMs: ms });
+    await kc(['delete', 'pod', 'inotify-fix', '--ignore-not-found', '--wait=true'], 30000);
+    const created = await run('kubectl', ['run', 'inotify-fix', '-n', 'kube-system', '--image=busybox:1.37',
+      '--restart=Never', '--overrides=' + overrides], { timeoutMs: 30000 });
+    if (created.code !== 0) {
+      this.log.note('Could not raise the inotify limits: ' + (created.stderr || '').trim(), 'WARN');
+      return false;
+    }
+    const done = await kc(['wait', '--for=jsonpath={.status.phase}=Succeeded', 'pod/inotify-fix', '--timeout=90s'], 100000);
+    await kc(['delete', 'pod', 'inotify-fix', '--wait=false'], 15000);
+    if (done.code !== 0) {
+      this.log.note('The inotify limits may not have been raised (pod did not finish).', 'WARN');
+      return false;
+    }
+    this.log.note('inotify limits raised in the minikube node.', 'INFO');
     return true;
   }
 
@@ -249,7 +294,7 @@ class Services extends EventEmitter {
    * and hands it the applications. Which script and which shell is the platform layer's business.
    */
   startStack(extraArgs = []) {
-    const { cmd, args } = platform.stackStartCommand(this.cfg, extraArgs);
+    const { cmd, args } = platform.stackStartCommand(this.cfg, extraArgs, this.wantedSets());
     return this.procs.start({
       id: 'stack',
       label: 'k8s stack (start-dev)',
