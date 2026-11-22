@@ -190,6 +190,12 @@ applied on demand.
 ./scripts_linux/sets-dev.sh remove gameplay         # remove one (its apps are pruned)
 ```
 
+Start order. `start-dev` applies `core` first and waits for it to be healthy before the other
+sets. Inside `core`, `argocd.argoproj.io/sync-wave` on the Applications orders them: 0 cert-manager,
+cnpg-op, traefik, argocd; 1 keycloak; 2 service-persistence, service-resourcesdynamic; 3 godotserver,
+horizon. This only orders a *sync* (first install, new commit): when minikube itself restarts, kubelet
+restarts every pod at once and some crash-loop for a few minutes until their database is up.
+
 `core` is always deployed. The dev panel picks the sets from the profile
 (`"sets": [...]` in `devpanel-ui/profiles/<id>.json`).
 

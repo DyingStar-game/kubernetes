@@ -133,9 +133,20 @@ fi
 # Un ensemble absent de la liste n'est PAS retire d'un cluster qui tourne deja :
 # voir scripts_linux/sets-dev.sh remove <ensemble>.
 echo "--- Deploying sets: $(echo $SETS | tr ' ' '\n' | awk '!seen[$0]++' | tr '\n' ' ') ---"
-for set in $(echo $SETS | tr ' ' '\n' | awk '!seen[$0]++'); do
-    kubectl apply -f "argocd/dev/root/sets/$set.yaml"
-done
+# `core` first, then the others once it is healthy: the other sets (game services, voice...) need
+# Keycloak and the databases, and starting everything at once makes them crash-loop until those are
+# up. Inside `core`, the sync-wave annotations of its Applications order the rest (see the README).
+# The wait is best-effort: a slow machine only gets a warning, the other sets are applied anyway.
+kubectl apply -f "argocd/dev/root/sets/core.yaml"
+OTHERS=$(echo $SETS | tr ' ' '\n' | awk '!seen[$0]++ && $0 != "core"')
+if [ -n "$OTHERS" ]; then
+    echo "--- Waiting for the core set to be healthy (up to 10 min) ---"
+    kubectl wait --for=jsonpath='{.status.health.status}=Healthy' application/root-core -n argocd --timeout=600s \
+        || echo "WARNING: core is not healthy yet, applying the other sets anyway"
+    for set in $OTHERS; do
+        kubectl apply -f "argocd/dev/root/sets/$set.yaml"
+    done
+fi
 
 if [ "$NO_TUNNEL" = "1" ]; then
     echo "--- --no-tunnel : ni tunnel ni /etc/hosts ---"

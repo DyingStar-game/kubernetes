@@ -151,8 +151,16 @@ if ($SYNC_STATUS -ne "Synced") {
 # Un ensemble absent de la liste n'est PAS retire d'un cluster qui tourne deja :
 # voir scripts_windows\sets-dev.ps1 remove <ensemble>.
 Write-Host "--- Deploiement des ensembles : $($Sets -join ', ') ---"
-foreach ($set in $Sets) {
-    kubectl apply -f "argocd/dev/root/sets/$set.yaml"
+# `core` d'abord, puis les autres une fois sain : les autres ensembles (services de jeu, voix...)
+# ont besoin de Keycloak et des bases, et tout demarrer d'un coup les fait boucler en erreur.
+# L'attente est au mieux : sur une machine lente, un avertissement, puis on applique quand meme.
+kubectl apply -f "argocd/dev/root/sets/core.yaml"
+$others = @($Sets | Where-Object { $_ -ne 'core' })
+if ($others.Count -gt 0) {
+    Write-Host "--- Attente de l'ensemble core (10 min max) ---"
+    kubectl wait --for=jsonpath='{.status.health.status}=Healthy' application/root-core -n argocd --timeout=600s
+    if ($LASTEXITCODE -ne 0) { Write-Warning "core n'est pas encore sain, on applique les autres ensembles quand meme" }
+    foreach ($set in $others) { kubectl apply -f "argocd/dev/root/sets/$set.yaml" }
 }
 
 if ($NoTunnel) {

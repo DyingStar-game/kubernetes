@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: keycloak
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   project: infra
   # Deux sources dans une seule Application : l'opérateur upstream + nos CR.
