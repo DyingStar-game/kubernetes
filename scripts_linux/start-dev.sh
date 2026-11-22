@@ -50,7 +50,12 @@ fi
 
 # 1. Start Minikube
 echo "--- Starting Minikube ---"
-minikube start --disk-size=150g --mount-string $PWD:/mnt/local-repo.git
+# MINIKUBE_CPUS / MINIKUBE_MEMORY (ex. 4 / 8g) bornent la taille du cluster ; vides : choix de
+# minikube. Pris en compte a la CREATION seulement (un cluster existant garde sa taille).
+SIZE_ARGS=()
+[ -n "$MINIKUBE_CPUS" ] && SIZE_ARGS+=("--cpus=$MINIKUBE_CPUS")
+[ -n "$MINIKUBE_MEMORY" ] && SIZE_ARGS+=("--memory=$MINIKUBE_MEMORY")
+minikube start --disk-size=150g --mount-string $PWD:/mnt/local-repo.git "${SIZE_ARGS[@]}"
 
 # 1b. Raise inotify limits inside the node. minikube's defaults
 # (fs.inotify.max_user_watches=65536/8192, max_user_instances=128) are far too

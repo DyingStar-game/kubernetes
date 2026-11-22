@@ -56,7 +56,12 @@ if (Get-Command telepresence -ErrorAction SilentlyContinue) {
 
 # 1. Démarrer Minikube
 Write-Host "--- Démarrage de Minikube ---"
-minikube start --disk-size=150g --mount-string "${pwd}:/mnt/local-repo.git"
+# MINIKUBE_CPUS / MINIKUBE_MEMORY (ex. 4 / 8g) bornent la taille du cluster ; vides : choix de
+# minikube. Pris en compte a la CREATION seulement (un cluster existant garde sa taille).
+$sizeArgs = @()
+if ($env:MINIKUBE_CPUS) { $sizeArgs += "--cpus=$($env:MINIKUBE_CPUS)" }
+if ($env:MINIKUBE_MEMORY) { $sizeArgs += "--memory=$($env:MINIKUBE_MEMORY)" }
+minikube start --disk-size=150g --mount-string "${pwd}:/mnt/local-repo.git" @sizeArgs
 
 # 1b. Relever les limites inotify dans le noeud (voir start-dev.sh, etape 1b) :
 # sans cela horizon plante avec "too many open files" (fsnotify).

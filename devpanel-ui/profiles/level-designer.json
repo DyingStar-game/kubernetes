@@ -23,6 +23,11 @@
     "build": false,
     "danger": false
   },
-  "settings": {},
+  "settings": {
+    "minikube": {
+      "cpus": "4",
+      "memory": "8g"
+    }
+  },
   "sets": []
 }

@@ -30,3 +30,7 @@ database:
 # deliberately not repeated here.
 postgresql:
   enabled: false
+
+# Wait for the CloudNativePG database before starting (see values.yaml).
+waitForDatabase:
+  enabled: true

@@ -295,12 +295,17 @@ class Services extends EventEmitter {
    */
   startStack(extraArgs = []) {
     const { cmd, args } = platform.stackStartCommand(this.cfg, extraArgs, this.wantedSets());
+    // minikube's size is only taken at creation, which is start-dev's job: hand it over by env.
+    const env = {};
+    if (this.cfg.minikube.cpus) env.MINIKUBE_CPUS = String(this.cfg.minikube.cpus);
+    if (this.cfg.minikube.memory) env.MINIKUBE_MEMORY = String(this.cfg.minikube.memory);
     return this.procs.start({
       id: 'stack',
       label: 'k8s stack (start-dev)',
       source: 'stack',
       cmd,
       args,
+      env,
     });
   }
 

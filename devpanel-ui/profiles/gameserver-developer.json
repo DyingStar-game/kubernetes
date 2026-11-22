@@ -23,7 +23,12 @@
     "build": true,
     "danger": true
   },
-  "settings": {},
+  "settings": {
+    "minikube": {
+      "cpus": "6",
+      "memory": "12g"
+    }
+  },
   "sets": [
     "gameplay",
     "admin",

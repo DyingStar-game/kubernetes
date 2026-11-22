@@ -2,6 +2,15 @@ configs:
   secret:
     argocdServerAdminPassword: $2a$10$DGjIUCWlfkG1egqOPGEjM.smmsNs4aFjTKe.5/wbp7Q51O7sz8CM2
 
+# Not used locally: no SSO (dex), no notifications, no ApplicationSet in this repository. ~90 Mi and
+# three pods less. Preprod keeps its own values.
+dex:
+  enabled: false
+notifications:
+  enabled: false
+applicationSet:
+  enabled: false
+
 server:
  httproute:
   enabled: true

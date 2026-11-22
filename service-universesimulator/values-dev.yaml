@@ -73,3 +73,7 @@ httpRoute:
             path:
               type: ReplacePrefixMatch
               replacePrefixMatch: /
+
+# Wait for the CloudNativePG database before starting (see values.yaml).
+waitForDatabase:
+  enabled: true

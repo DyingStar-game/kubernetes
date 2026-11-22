@@ -36,6 +36,14 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if and .Values.waitForDatabase.enabled .Values.database.host }}
+      initContainers:
+        # The database (a CloudNativePG Cluster in dev) may come up after the pod, e.g. when minikube
+        # restarts and every pod starts at once: wait for it instead of crash-looping.
+        - name: wait-for-db
+          image: busybox:1.37
+          command: ['sh', '-c', 'until nc -z {{ .Values.database.host }} {{ .Values.database.port }}; do echo "waiting for {{ .Values.database.host }}:{{ .Values.database.port }}..."; sleep 2; done']
+      {{- end }}
       containers:
         - name: {{ .Chart.Name }}
           {{- with .Values.securityContext }}

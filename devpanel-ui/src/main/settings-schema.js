@@ -231,6 +231,29 @@ const SCHEMA = [
     },
   },
 
+  {
+    key: 'minikube.cpus', type: 'string', section: 'cluster', default: '', advanced: true,
+    pattern: '^(max|[0-9]+)$',
+    label: { en: 'Cluster CPUs', fr: 'CPU du cluster' },
+    help: {
+      en: 'CPUs given to minikube (a number, or "max"). Empty: minikube\'s own choice. Only used when '
+        + 'the cluster is CREATED (start-dev); an existing cluster keeps its size until it is deleted.',
+      fr: 'CPU donnés à minikube (un nombre, ou « max »). Vide : le choix de minikube. Utilisé seulement '
+        + 'à la CRÉATION du cluster (start-dev) ; un cluster existant garde sa taille jusqu\'à sa suppression.',
+    },
+  },
+  {
+    key: 'minikube.memory', type: 'string', section: 'cluster', default: '', advanced: true,
+    pattern: '^(max|[0-9]+([kKmMgG][bB]?)?)$',
+    label: { en: 'Cluster memory', fr: 'Mémoire du cluster' },
+    help: {
+      en: 'Memory given to minikube, e.g. 8g or 8192mb (or "max"). Empty: minikube\'s own choice. Only '
+        + 'used when the cluster is CREATED (start-dev).',
+      fr: 'Mémoire donnée à minikube, ex. 8g ou 8192mb (ou « max »). Vide : le choix de minikube. '
+        + 'Utilisée seulement à la CRÉATION du cluster (start-dev).',
+    },
+  },
+
   // ── network and accounts ────────────────────────────────────────────────
   {
     key: 'network.mode', type: 'enum', section: 'network', options: ['relays', 'tunnel'], default: 'relays',
