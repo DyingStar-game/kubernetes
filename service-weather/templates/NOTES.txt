@@ -1,0 +1,12 @@
+1. service-weather is running:
+   kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/name={{ include "service-weather.name" . }}
+
+2. WebSocket endpoint (used by Horizon ds_bridge):
+   ws://{{ include "service-weather.fullname" . }}:{{ .Values.service.port }}/ws
+
+3. Prometheus metrics endpoint:
+   http://{{ include "service-weather.fullname" . }}:{{ .Values.service.port }}/metrics
+
+4. Health check:
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "service-weather.fullname" . }} {{ .Values.service.port }}
+   curl http://localhost:{{ .Values.service.port }}/health
