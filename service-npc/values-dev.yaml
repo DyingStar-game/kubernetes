@@ -61,3 +61,7 @@ npcLogin:
 passwordKey:
   create: true
   value: "DpHlrgMU9LD61DWUC5jfLHC7gce5sTx5P5ffm6tflGs="
+
+# Wait for the CloudNativePG database before starting (see values.yaml).
+waitForDatabase:
+  enabled: true

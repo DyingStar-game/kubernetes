@@ -313,3 +313,8 @@ postgresql:
       limits:
         cpu: 500m
         memory: 512Mi
+
+# Wait for the database before starting (init container, `nc -z` on database.host). Off by default
+# (preprod/prod: the database is up long before the pod); on in dev, where everything starts at once.
+waitForDatabase:
+  enabled: false

@@ -1,0 +1,156 @@
+name: Dev panel release
+
+# Builds the installers of the dev panel (devpanel-ui/) and publishes them on the Releases page.
+# Triggered by a tag named devpanel-vX.Y.Z -- not by "v*": this repository is more than the panel,
+# and a tag must say what it releases.
+#
+#   1. set the version in devpanel-ui/package.json, merge;
+#   2. git tag devpanel-v0.1.0 && git push origin devpanel-v0.1.0
+#
+# The installers are NOT signed: Windows shows its "protected your PC" screen on first run.
+on:
+  push:
+    tags:
+      - 'devpanel-v*'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: devpanel-ui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: devpanel-ui/package-lock.json
+
+      # A release whose tag and package.json disagree would publish files named after one version
+      # and installed as another.
+      - name: Check the tag matches package.json
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [ "${GITHUB_REF_NAME#devpanel-v}" != "$VERSION" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $VERSION"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+  build:
+    name: Build (${{ matrix.os }})
+    needs: check
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: devpanel-ui
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: --linux
+            artifact_name: devpanel-linux
+          - os: windows-latest
+            target: --win
+            artifact_name: devpanel-windows
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: devpanel-ui/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # electron-builder makes the .rpm with rpmbuild, which is not guaranteed on the runner image.
+      - name: Install rpm tooling (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends rpm
+
+      - name: Build
+        run: npx electron-builder ${{ matrix.target }} --publish never
+
+      - name: Upload Linux installers
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: |
+            devpanel-ui/dist/*.AppImage
+            devpanel-ui/dist/*.deb
+            devpanel-ui/dist/*.rpm
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload Windows installer
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: devpanel-ui/dist/*.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Publish
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Linux installers
+        uses: actions/download-artifact@v8
+        with:
+          name: devpanel-linux
+          path: artifacts/
+
+      - name: Download Windows installer
+        uses: actions/download-artifact@v8
+        with:
+          name: devpanel-windows
+          path: artifacts/
+
+      # upload-artifact only fails when NO file matches: a missing .rpm would go unnoticed and the
+      # release would ship without it. Each of the four installers must be there.
+      - name: Check every installer is present
+        run: |
+          for pattern in '*.exe' '*.AppImage' '*.deb' '*.rpm'; do
+            if ! ls artifacts/$pattern >/dev/null 2>&1; then
+              echo "Missing installer: $pattern"
+              exit 1
+            fi
+          done
+
+      # Unsigned installers: the checksums are what lets someone check a download.
+      - name: Checksums
+        run: cd artifacts && sha256sum * > SHA256SUMS && cat SHA256SUMS
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: Dev panel ${{ github.ref_name }}
+          files: |
+            artifacts/*.exe
+            artifacts/*.AppImage
+            artifacts/*.deb
+            artifacts/*.rpm
+            artifacts/SHA256SUMS

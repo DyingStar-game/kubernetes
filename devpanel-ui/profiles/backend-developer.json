@@ -1,0 +1,37 @@
+{
+  "id": "backend-developer",
+  "version": 1,
+  "name": {
+    "en": "Services developer",
+    "fr": "Développeur services"
+  },
+  "description": {
+    "en": "For working on the game services (missions, economy, market, inventory, social, NPC, chat): core, the cluster's game server and every service. No voice, no monitoring.",
+    "fr": "Pour travailler sur les services de jeu (missions, économie, marché, inventaire, social, PNJ, chat) : le core, le serveur de jeu du cluster et tous les services. Pas de voix ni de supervision."
+  },
+  "modules": {
+    "docker": true,
+    "cluster": true,
+    "network": true,
+    "horizon": true,
+    "gameServer": false,
+    "telepresence": false,
+    "relink": false,
+    "clients": true,
+    "editor": true,
+    "npc": true,
+    "build": true,
+    "danger": true
+  },
+  "settings": {
+    "minikube": {
+      "cpus": "6",
+      "memory": "12g"
+    }
+  },
+  "sets": [
+    "server",
+    "gameplay",
+    "admin"
+  ]
+}

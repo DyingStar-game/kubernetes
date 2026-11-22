@@ -211,3 +211,10 @@ sharedCache:
   directories:
     - prebaked_collision
     - tile_cache
+
+# Idle mode: the pod is a placeholder (a listener on service.port) instead of the Godot server.
+# For when the game server runs on a developer's machine and Telepresence intercepts this workload:
+# the cluster still needs a pod to intercept, but not a 1 Gi Godot one. Used by values-dev-idle.yaml.
+idle:
+  enabled: false
+  image: busybox:1.37

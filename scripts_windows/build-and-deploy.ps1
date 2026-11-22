@@ -12,7 +12,7 @@
 
     ArgoCD gere le dev avec selfHeal: true. Pour que le patch ne soit pas annule
     au reconcile suivant, chaque Application dev correspondante declare un bloc
-    `ignoreDifferences` sur l'image et l'imagePullPolicy (argocd/dev/game/*.yaml).
+    `ignoreDifferences` sur l'image et l'imagePullPolicy (argocd/dev/game/*/*.yaml).
 
     Une cible peut declarer un `hook` (dev-projects.yaml) : scripts_windows/hooks/<hook>.ps1
     est appele avec `prepare` avant le docker build et `cleanup` apres (meme si le

@@ -4,6 +4,46 @@
 # vit dans scripts_linux/ : on se replace donc a la racine.
 cd "$(dirname "$0")/.."
 
+# --no-tunnel : s'arreter une fois le cluster et ArgoCD en place, sans lancer
+# `minikube tunnel` ni toucher a /etc/hosts. Rien ne demande alors sudo. Pour qui
+# joint le cluster autrement (relais, port-forward) ou veut seulement l'installer.
+NO_TUNNEL=0
+# --sets a,b : ensembles de services a deployer (voir argocd/dev/root/sets/). `core` est
+# toujours deploye. Defaut : tous. Ex. level designer : --sets core
+ALL_SETS="core server server-idle gameplay voice admin observability"
+# server / server-idle sont exclusifs (meme Application godotserver) : le defaut prend `server`.
+SETS="core server gameplay voice admin observability"
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --no-tunnel) NO_TUNNEL=1 ;;
+        --sets) shift; SETS="core ${1//,/ }" ;;
+        --sets=*) SETS="core ${1#--sets=}"; SETS="${SETS//,/ }" ;;
+        *) echo "Option inconnue : $1 (options : --no-tunnel, --sets a,b)" >&2; exit 2 ;;
+    esac
+    shift
+done
+# Alias : `telepresence` (nom employe par le panel) = `server-idle` (pod a vide pour Telepresence).
+SETS=" $SETS "
+case "$SETS" in
+    *" server-idle "*) SETS="${SETS// telepresence / }" ;;
+    *) SETS="${SETS// telepresence / server-idle }" ;;
+esac
+SETS=$(echo $SETS)
+# Un ensemble serveur exactement : `server` (image Godot) ou `server-idle` (pod a vide, Telepresence).
+# Aucun des deux : `server`. Les deux : erreur.
+case " $SETS " in
+    *" server "*" server-idle "*|*" server-idle "*" server "*)
+        echo "server et server-idle sont exclusifs." >&2; exit 2 ;;
+    *" server "*|*" server-idle "*) ;;
+    *) SETS="$SETS server" ;;
+esac
+for set in $SETS; do
+    case " $ALL_SETS " in
+        *" $set "*) ;;
+        *) echo "Ensemble inconnu : $set (existants : $ALL_SETS)" >&2; exit 2 ;;
+    esac
+done
+
 # Configuration
 DOMAINS_FILE="hosts_config.txt"
 TRAEFIK_NS="traefik"
@@ -26,7 +66,12 @@ fi
 
 # 1. Start Minikube
 echo "--- Starting Minikube ---"
-minikube start --disk-size=150g --mount-string $PWD:/mnt/local-repo.git
+# MINIKUBE_CPUS / MINIKUBE_MEMORY (ex. 4 / 8g) bornent la taille du cluster ; vides : choix de
+# minikube. Pris en compte a la CREATION seulement (un cluster existant garde sa taille).
+SIZE_ARGS=()
+[ -n "$MINIKUBE_CPUS" ] && SIZE_ARGS+=("--cpus=$MINIKUBE_CPUS")
+[ -n "$MINIKUBE_MEMORY" ] && SIZE_ARGS+=("--memory=$MINIKUBE_MEMORY")
+minikube start --disk-size=150g --mount-string $PWD:/mnt/local-repo.git "${SIZE_ARGS[@]}"
 
 # 1b. Raise inotify limits inside the node. minikube's defaults
 # (fs.inotify.max_user_watches=65536/8192, max_user_instances=128) are far too
@@ -103,6 +148,34 @@ if [ "$SYNC_STATUS" != "Synced" ]; then
     kubectl wait --for=jsonpath='{.status.sync.status}=Synced' application/$ROOT_APP_NAME -n $ROOT_APP_NS --timeout=120s
 else
     echo "--- Root App is already Synced ---"
+fi
+
+# 3b. Deployer les ensembles demandes (root-dev ne porte que les AppProjects).
+# Un ensemble absent de la liste n'est PAS retire d'un cluster qui tourne deja :
+# voir scripts_linux/sets-dev.sh remove <ensemble>.
+echo "--- Deploying sets: $(echo $SETS | tr ' ' '\n' | awk '!seen[$0]++' | tr '\n' ' ') ---"
+# `core` first, then the others once it is healthy: the other sets (game services, voice...) need
+# Keycloak and the databases, and starting everything at once makes them crash-loop until those are
+# up. Inside `core`, the sync-wave annotations of its Applications order the rest (see the README).
+# The wait is best-effort: a slow machine only gets a warning, the other sets are applied anyway.
+# Le serveur de jeu part avec core : horizon l'attend, core ne serait jamais sain sans lui.
+for set in core server server-idle; do
+    case " $SETS " in *" $set "*) kubectl apply -f "argocd/dev/root/sets/$set.yaml" ;; esac
+done
+OTHERS=$(echo $SETS | tr ' ' '\n' | awk '!seen[$0]++ && $0 != "core" && $0 != "server" && $0 != "server-idle"')
+if [ -n "$OTHERS" ]; then
+    echo "--- Waiting for the core set to be healthy (up to 10 min) ---"
+    kubectl wait --for=jsonpath='{.status.health.status}=Healthy' application/root-core -n argocd --timeout=600s \
+        || echo "WARNING: core is not healthy yet, applying the other sets anyway"
+    for set in $OTHERS; do
+        kubectl apply -f "argocd/dev/root/sets/$set.yaml"
+    done
+fi
+
+if [ "$NO_TUNNEL" = "1" ]; then
+    echo "--- --no-tunnel : ni tunnel ni /etc/hosts ---"
+    echo "--- Cluster and ArgoCD ready. ---"
+    exit 0
 fi
 
 # 4. Launch tunnel

@@ -115,7 +115,7 @@ projects:
     deployment: textchat-chatauth
 
 # Non listés volontairement :
-#   keycloak   déployé par l'opérateur officiel (argocd/dev/game/keycloak-app.yaml
+#   keycloak   déployé par l'opérateur officiel (argocd/dev/infra/core/keycloak-app.yaml
 #              pointe sur keycloak/manifests) — pas de Deployment issu d'un chart local
 #   livekit    livekit/values-dev.yaml utilise l'image upstream livekit/livekit-server,
 #              pas l'image custom de ../services/livekit — un rebuild serait sans effet

@@ -5,6 +5,21 @@ cd "$(dirname "$0")/.."
 
 echo "--- Complete Minikube cleanup ---"
 
+# 0. Host-side leftovers: Telepresence session, tunnel, port-forwards
+if command -v telepresence > /dev/null 2>&1; then
+    echo "Disconnecting Telepresence..."
+    telepresence quit -s > /dev/null 2>&1
+fi
+sudo -n pkill -f "minikube tunnel" 2>/dev/null || pkill -f "minikube tunnel" 2>/dev/null
+
+# 0b. Remove the /etc/hosts entries added by start-dev.sh (needs sudo; skipped if not possible)
+if [ -f hosts_config.txt ]; then
+    while IFS= read -r domain || [ -n "$domain" ]; do
+        [[ -z "$domain" || "$domain" =~ ^# ]] && continue
+        sudo -n sed -i "/$domain/d" /etc/hosts 2>/dev/null || echo "   (skip /etc/hosts: $domain)"
+    done < hosts_config.txt
+fi
+
 # 1. Stop and delete the cluster
 minikube delete --all
 

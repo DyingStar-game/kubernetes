@@ -114,3 +114,7 @@ httpRoute:
 # `bugReport.webhook.existingSecret: social-bug-report` on your local branch.
 bugReport:
   environment: "dev"
+
+# Wait for the CloudNativePG database before starting (see values.yaml).
+waitForDatabase:
+  enabled: true

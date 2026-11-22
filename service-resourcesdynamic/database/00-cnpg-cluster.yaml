@@ -1,9 +1,9 @@
 # Database of service-resourcesdynamic (dev-local).
 #
 # Applied by the game Application `service-resourcesdynamic` as a second source
-# (argocd/dev/game/service-resourcesdynamic-app.yaml), so the application and its
+# (argocd/dev/game/gameplay/service-resourcesdynamic-app.yaml), so the application and its
 # database are reconciled together. The operator comes from the infra app
-# argocd/dev/infra/cnpg-op-app.yaml (namespace cnpg-system).
+# argocd/dev/infra/core/cnpg-op-app.yaml (namespace cnpg-system).
 #
 # CloudNativePG creates the Service `<cluster>-rw`, which is what
 # service-resourcesdynamic/values-dev.yaml points at via `database.host`.

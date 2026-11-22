@@ -35,15 +35,17 @@ spec:
       {{- if or .Values.dependsOn .Values.pluginsImage.enabled .Values.dataImage.enabled }}
       initContainers:
         {{- range .Values.dependsOn }}
+        {{- if or $.Values.livekit.enabled (ne .name "livekit") }}
         - name: wait-for-{{ .name }}
           image: busybox:1.37
           command: ['sh', '-c', 'until nc -z {{ .service }} {{ .port }}; do echo "waiting for {{ .service }}:{{ .port }}..."; sleep 2; done']
+        {{- end }}
         {{- end }}
         {{- if .Values.pluginsImage.enabled }}
         - name: copy-plugins
           image: "{{ .Values.pluginsImage.repository }}:{{ .Values.pluginsImage.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.pluginsImage.pullPolicy }}
-          command: ['sh', '-c', 'cp /plugins/* /shared-plugins/']
+          command: ['sh', '-c', 'cp /plugins/* /shared-plugins/{{ if not .Values.livekit.enabled }} && rm -f /shared-plugins/*plugin_dyingstar_audio*{{ end }}']
           volumeMounts:
             - name: plugins
               mountPath: /shared-plugins
@@ -66,7 +68,13 @@ spec:
           {{- end }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{- with .Values.extraEnv }}
+          {{- $env := list }}
+          {{- range .Values.extraEnv }}
+          {{- if or $.Values.livekit.enabled (not (hasPrefix "LIVEKIT_" .name)) }}
+          {{- $env = append $env . }}
+          {{- end }}
+          {{- end }}
+          {{- with $env }}
           env:
             {{- toYaml . | nindent 12 }}
           {{- end }}

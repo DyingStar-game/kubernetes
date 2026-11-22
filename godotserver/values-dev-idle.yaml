@@ -1,0 +1,17 @@
+# Dev overlay of godotserver for a game server run from your sources (editor / dedicated server) and
+# reached through a Telepresence intercept: the pod only holds the place (see `idle` in values.yaml).
+# Applied on top of values-dev.yaml by argocd/dev/game/server-idle/godotserver-app.yaml.
+idle:
+  enabled: true
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 16Mi
+  limits:
+    cpu: 100m
+    memory: 64Mi
+
+# The tiles / collision cache belongs to the real server.
+sharedCache:
+  enabled: false

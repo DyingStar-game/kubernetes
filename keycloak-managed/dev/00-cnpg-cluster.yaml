@@ -1,7 +1,7 @@
 # Base de données du Keycloak de dev-local.
 #
 # Why CloudNativePG: the operator is already installed by
-# argocd/dev/infra/cnpg-op-app.yaml, so this reuses an existing dependency
+# argocd/dev/infra/core/cnpg-op-app.yaml, so this reuses an existing dependency
 # instead of shipping a second StatefulSet + a second password to remember.
 #
 # The generated `<cluster>-app` secret is NOT used by the Keycloak CR: we keep

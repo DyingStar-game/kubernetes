@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <!-- script-src stays strict ('self' only, no inline, no eval) because that is the
+       one that matters. style-src needs 'unsafe-inline': the per-service colours are
+       written as style="" attributes on generated rows, and CSP blocks those otherwise.
+       All log text is HTML-escaped before insertion. -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <title>DyingStar - Panneau de dev</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <!-- Same mark as assets/logo.svg, inlined: an <img> would be subject to img-src
+         and file:// relative paths do not reliably match 'self'. -->
+    <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true">
+      <defs>
+        <radialGradient id="bcore" cx="38%" cy="33%" r="72%">
+          <stop offset="0%" stop-color="#fff6da"/>
+          <stop offset="28%" stop-color="#ffd057"/>
+          <stop offset="62%" stop-color="#ffba08"/>
+          <stop offset="100%" stop-color="#a87a00"/>
+        </radialGradient>
+        <mask id="bcollapse">
+          <rect width="64" height="64" fill="#fff"/>
+          <circle cx="46.5" cy="42.5" r="17.5" fill="#000"/>
+        </mask>
+      </defs>
+      <path d="M 31 4.6 A 27.4 27.4 0 0 1 58.6 30" fill="none"
+            stroke="#ffba08" stroke-opacity="0.55" stroke-width="2.4" stroke-linecap="round"/>
+      <g mask="url(#bcollapse)">
+        <circle cx="32" cy="32" r="17.5" fill="url(#bcore)"/>
+        <circle cx="32" cy="32" r="17.5" fill="none"
+                stroke="#fff0c4" stroke-opacity="0.9" stroke-width="1.4"/>
+      </g>
+    </svg>
+    <span class="brand-name">DYING<span class="brand-accent">STAR</span></span>
+    <span class="brand-sub" data-i18n="ui.brandSub">panneau de dev</span>
+  </div>
+  <div class="lights" id="lights"></div>
+  <div class="topbar-right">
+    <span class="api-hint" id="apiHint"></span>
+    <button class="gear-btn" id="btnSetup" type="button" data-i18n-title="ui.setup" title="Assistant d'installation">&#11015;</button>
+    <button class="gear-btn" id="btnSettings" type="button" data-i18n-title="ui.settings" title="Réglages">&#9881;</button>
+  </div>
+</header>
+
+<!-- Shown when the interface was reloaded from newer files than the process behind it. -->
+<div class="banner hidden" id="staleBanner" data-i18n="ui.stale">
+  Le panneau a été mis à jour : ferme-le et relance-le pour finir la mise à jour. D'ici là, certains textes et boutons peuvent manquer.
+</div>
+
+<!-- Texts: every element carrying data-i18n (its text), data-i18n-html (its markup),
+     data-i18n-title or data-i18n-placeholder is filled from src/i18n/<language>.json when the
+     page loads. What is written here in French is only what shows if that file is unreachable. -->
+
+<main class="layout">
+
+  <!-- ─────────────── SIDEBAR ─────────────── -->
+  <aside class="sidebar">
+
+    <section class="card">
+      <div class="big-actions">
+        <button id="btnStartAll" class="btn btn-primary" data-i18n="ui.startAll">Tout démarrer</button>
+        <button id="btnStopAll" class="btn btn-danger" data-i18n="ui.stopAll">Tout arrêter</button>
+      </div>
+      <label class="inline-check" data-module="clients">
+        <input type="checkbox" id="chkClients"> <span data-i18n="ui.launch">lancer</span> <input type="number" id="numClients" min="1" max="8" value="2" class="mini-num"> <span data-i18n="ui.clientsAtEnd">client(s) à la fin</span>
+      </label>
+      <button id="btnAbort" class="btn btn-ghost btn-block hidden" data-i18n="ui.abort">Annuler la séquence</button>
+    </section>
+
+    <section class="card" data-domain="platform" id="chainCard">
+      <h2 data-i18n="ui.chain.title">Séquence de démarrage</h2>
+      <ol class="chain" id="chain"></ol>
+    </section>
+
+    <section class="card" data-domain="game" data-module="gameServer">
+      <h2 data-i18n="ui.server.title">Serveur de jeu</h2>
+      <!-- The editor is the OTHER way to start a dedicated server (F5 in it), which is exactly
+           what the guards on these buttons are about: the panel cannot stop a server it did not
+           start. -->
+      <div class="btn-row">
+        <button class="btn" data-action="start-godot-server" data-i18n="ui.server.start">Serveur dédié</button>
+        <button class="btn btn-ghost" id="btnRestartServer" data-i18n="ui.server.restart" data-i18n-title="ui.server.restart.tip">Relancer le serveur</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-ghost" data-action="stop-godot-server" data-i18n="ui.server.stop" data-i18n-title="ui.server.stop.tip">Arrêter le serveur</button>
+      </div>
+      <button class="btn btn-ghost btn-block" data-action="kill-orphan-godot" data-i18n="ui.server.killGhosts" data-i18n-title="ui.server.killGhosts.tip">Tuer les serveurs fantômes</button>
+    </section>
+
+    <section class="card" data-domain="game" data-module="editor clients">
+      <h2 data-i18n="ui.game.title">Éditeur et clients</h2>
+      <div class="btn-row" data-module="editor">
+        <button class="btn" data-action="start-editor" data-i18n="ui.editor">Éditeur</button>
+      </div>
+      <div class="btn-row" data-module="clients">
+        <button class="btn" id="btnClients" data-i18n="ui.clients.start">Lancer les clients</button>
+        <button class="btn btn-ghost" data-action="stop-clients" data-i18n="ui.clients.stop">Fermer clients</button>
+      </div>
+    </section>
+
+    <section class="card" data-domain="game" data-module="telepresence">
+      <h2 data-i18n="ui.tp.title">Telepresence</h2>
+      <p class="hint" data-i18n-html="ui.tp.hint">La voie prévue pour lancer le serveur de jeu depuis tes sources.</p>
+      <div class="btn-row">
+        <button class="btn" data-action="telepresence-connect" data-i18n="ui.tp.connect">Connecter</button>
+        <button class="btn btn-ghost" data-action="telepresence-quit" data-i18n="ui.tp.quit">Déconnecter</button>
+      </div>
+      <button class="btn btn-block" data-action="telepresence-intercept" data-i18n="ui.tp.intercept">Intercepter le serveur de jeu</button>
+      <button class="btn btn-ghost btn-block" data-action="telepresence-leave" data-i18n="ui.tp.leave">Arrêter l'interception</button>
+    </section>
+
+    <section class="card" data-domain="game" data-module="npc">
+      <h2 data-i18n="ui.npc.title">Service PNJ</h2>
+      <p class="hint" data-i18n-html="ui.npc.hint">Déployé par ArgoCD (<code>service-npc</code>) : il tourne tout seul. Son journal est dans l'onglet <code>service-npc</code>.</p>
+      <button class="btn btn-block" data-action="restart-npc" data-i18n="ui.npc.restart" data-i18n-title="ui.npc.restart.tip">Redémarrer</button>
+    </section>
+
+    <section class="card" data-domain="platform" data-module="cluster">
+      <h2 data-i18n="ui.platform.title">Plateforme</h2>
+      <p class="hint" data-i18n-html="ui.platform.hint">ArgoCD réconcilie le cluster tout seul : une fois installée, la stack revient d'elle-même à chaque démarrage de minikube. Ce bouton lance le script <code>start-dev</code> du dépôt, qui crée le cluster s'il n'existe pas et y installe ArgoCD.</p>
+      <button class="btn btn-ghost btn-block" data-action="start-stack" data-i18n="ui.stack.start" data-i18n-title="ui.stack.start.tip">Démarrer la stack</button>
+    </section>
+
+    <section class="card" data-domain="platform" data-module="cluster">
+      <h2 data-i18n="ui.sets.title">Services</h2>
+      <p class="hint" data-i18n-html="ui.sets.hint">Les ensembles de services du cluster local.</p>
+      <div id="setsList" class="sets-list"></div>
+    </section>
+
+    <section class="card" data-domain="platform" data-module="network">
+      <h2 data-i18n="ui.net.title">Réseau</h2>
+      <p class="hint" data-i18n-html="ui.net.hint">Comment cette machine joint le cluster sans tunnel.</p>
+      <div class="btn-row">
+        <button class="btn" data-action="network-repair" data-i18n="ui.net.repair">Réparer les relais</button>
+        <button class="btn btn-ghost" data-action="network-hosts" data-i18n="ui.net.hosts">Écrire le fichier hosts</button>
+      </div>
+      <div id="hostsCmdBox" class="hosts-cmd" hidden>
+        <p class="hint" data-i18n="ui.net.cmdHint">Sans fenêtre d'autorisation : colle cette commande dans un terminal.</p>
+        <code id="hostsCmd"></code>
+        <button class="btn btn-ghost" id="btnCopyHostsCmd" data-i18n="ui.net.copyCmd">Copier la commande</button>
+      </div>
+    </section>
+
+    <section class="card" data-domain="horizon" data-module="horizon">
+      <h2>Horizon</h2>
+      <div class="btn-row">
+        <button class="btn" data-module="relink" data-action="relink-now" data-i18n="ui.relink" data-i18n-title="ui.relink.tip">Redémarrer horizon</button>
+        <button class="btn" id="btnPortFwd" data-i18n="ui.relay" data-i18n-title="ui.relay.tip">Relais horizon</button>
+      </div>
+    </section>
+
+    <section class="card" data-domain="danger" data-module="danger">
+      <h2 data-i18n="ui.danger.title">Zone rouge</h2>
+      <details class="danger-fold">
+        <summary data-i18n="ui.danger.fold">Actions irréversibles</summary>
+        <p class="hint" data-i18n-html="ui.danger.purgeHint">⚠ Purger efface les objets persistés du monde. ArgoCD annule en quelques secondes un horizon mis à zéro (<code>selfHeal</code>) : la purge se ferait sous un horizon vivant, qui ré-écrit tout aussitôt. Suspendre <code>selfHeal</code> avant de purger.</p>
+        <button class="btn btn-warn btn-block" id="btnPurge" data-i18n="ui.purge" data-i18n-title="ui.purge.tip">Purger ScyllaDB</button>
+        <p class="hint" data-i18n-html="ui.danger.deleteHint">⚠ <strong>Supprimer le cluster</strong> efface minikube et tout ce qu'il contient : les bases de données, donc les joueurs et les objets du monde. Il faudra tout réinstaller (10 à 25 minutes).</p>
+        <button class="btn btn-danger btn-block" id="btnDeleteCluster" data-i18n="ui.deleteCluster" data-i18n-title="ui.deleteCluster.tip">Supprimer le cluster</button>
+        <div class="confirm-row hidden" id="deleteClusterConfirm">
+          <input type="text" id="deleteClusterWord" autocomplete="off" spellcheck="false" data-i18n-placeholder="ui.deleteWord" placeholder="tape : minikube">
+          <button class="btn btn-danger small" id="btnDeleteClusterGo" disabled data-i18n="ui.delete">Supprimer</button>
+        </div>
+        <p class="hint" data-i18n-html="ui.danger.cleanHint">⚠ <strong>Nettoyer l'environnement</strong> arrête tout (serveur, clients, relais, Telepresence, processus orphelins), puis supprime le cluster et les entrées hosts. Irréversible.</p>
+        <button class="btn btn-danger btn-block" id="btnCleanEnv" data-i18n="ui.cleanEnv" data-i18n-title="ui.cleanEnv.tip">Nettoyer l'environnement</button>
+        <div class="confirm-row hidden" id="cleanEnvConfirm">
+          <input type="text" id="cleanEnvWord" autocomplete="off" spellcheck="false" data-i18n-placeholder="ui.deleteWord" placeholder="tape : minikube">
+          <button class="btn btn-danger small" id="btnCleanEnvGo" disabled data-i18n="ui.clean">Nettoyer</button>
+        </div>
+      </details>
+    </section>
+
+    <section class="card" data-domain="platform" data-module="build">
+      <h2 data-i18n="ui.build.title">Construire une image</h2>
+      <p class="hint" data-i18n-html="ui.build.hint">Chaque service tourne par défaut sur l'image publiée. Construire une cible la compile dans le docker de minikube et repointe son Deployment dessus, <strong>sans aucun commit</strong>.</p>
+      <div id="buildTargets" class="conf-list"></div>
+    </section>
+
+    <section class="card">
+      <h2 data-i18n="ui.procs.title">Processus</h2>
+      <div id="procs" class="proc-list"></div>
+    </section>
+
+    <section class="card" data-domain="platform" data-module="cluster">
+      <h2>Pods <span class="muted" id="podsSummary"></span></h2>
+      <div id="pods" class="pod-list"></div>
+    </section>
+
+  </aside>
+
+  <!-- ─────────────── LOGS ─────────────── -->
+  <section class="logs">
+
+    <nav class="tabs" id="tabs"></nav>
+
+    <div class="searchbar">
+      <div class="search-field">
+        <input type="text" id="search" data-i18n-placeholder="ui.search.placeholder" placeholder="Rechercher dans les logs…  (Ctrl+F)" autocomplete="off" spellcheck="false">
+        <span class="search-count" id="searchCount"></span>
+        <button class="search-clear" id="searchClear" type="button" data-i18n-title="ui.search.clear" title="Effacer la recherche (Échap)">&times;</button>
+      </div>
+      <div class="seg" id="modeSeg">
+        <button class="seg-btn active" data-mode="filter" data-i18n="ui.filter" data-i18n-title="ui.filter.tip">Filtrer</button>
+        <button class="seg-btn" data-mode="highlight" data-i18n="ui.highlight" data-i18n-title="ui.highlight.tip">Surligner</button>
+      </div>
+      <button class="toggle" id="btnRegex" data-i18n-title="ui.regex.tip">.*</button>
+      <button class="toggle" id="btnCase" data-i18n-title="ui.case.tip">Aa</button>
+      <button class="icon-btn" id="btnPrev" data-i18n-title="ui.prev.tip">↑</button>
+      <button class="icon-btn" id="btnNext" data-i18n-title="ui.next.tip">↓</button>
+      <span class="sep"></span>
+      <div class="levels" id="levels"></div>
+      <span class="sep"></span>
+      <label class="inline-check tight"><input type="checkbox" id="chkFollow" checked> <span data-i18n="ui.follow">suivre</span></label>
+      <label class="inline-check tight" data-i18n-title="ui.clearOnRestart.tip">
+        <input type="checkbox" id="chkClearOnRestart" checked> <span data-i18n="ui.clearOnRestart">vider au relancement</span>
+      </label>
+      <button class="btn btn-ghost small" id="btnClear" data-i18n="ui.clear" data-i18n-title="ui.clear.tip">Vider</button>
+      <button class="btn btn-ghost small" id="btnCopy" data-i18n="ui.copy" data-i18n-title="ui.copy.tip">Copier</button>
+      <button class="btn btn-ghost small" id="btnOpenLogs" data-i18n="ui.folder" data-i18n-title="ui.folder.tip">Dossier</button>
+    </div>
+
+    <div class="log-viewport" id="viewport" tabindex="0">
+      <div class="log-spacer" id="spacer"></div>
+      <div class="log-rows" id="rows"></div>
+      <div class="log-empty" id="empty" data-i18n="ui.empty">Aucune ligne à afficher.</div>
+    </div>
+
+    <div class="detail" id="detail">
+      <span class="detail-hint" data-i18n="ui.detailHint">Clique une ligne pour la lire en entier ici.</span>
+    </div>
+
+  </section>
+</main>
+
+<!-- The settings screen: an overlay under the top bar, filled by settings.js. -->
+<div class="settings hidden" id="settings"></div>
+
+<!-- The setup assistant: same kind of overlay, filled by setup.js. -->
+<div class="settings hidden" id="setup"></div>
+
+<script src="i18n.js"></script>
+<script src="settings.js"></script>
+<script src="setup.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

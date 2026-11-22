@@ -1,4 +1,37 @@
-#Requires -RunAsAdministrator
+param(
+    # S'arreter une fois le cluster et ArgoCD en place, sans lancer `minikube tunnel`
+    # ni toucher au fichier hosts. Rien ne demande alors les droits administrateur.
+    # Pour qui joint le cluster autrement (relais, port-forward) ou veut seulement l'installer.
+    [switch]$NoTunnel,
+
+    # Ensembles de services a deployer (voir argocd\dev\root\sets\). `core` est toujours deploye.
+    # Defaut : tous. Ex. level designer : -Sets core
+    [string[]]$Sets = @('server', 'gameplay', 'voice', 'admin', 'observability')
+)
+
+$ALL_SETS = @('core', 'server', 'server-idle', 'gameplay', 'voice', 'admin', 'observability')
+$Sets = @('core') + @($Sets | ForEach-Object { $_ -split ',' } | Where-Object { $_ }) | Select-Object -Unique
+# Un ensemble serveur exactement : server (image Godot) ou server-idle (pod a vide, Telepresence).
+if (($Sets -contains 'server') -and ($Sets -contains 'server-idle')) { Write-Error 'server et server-idle sont exclusifs.'; exit 2 }
+if (($Sets -notcontains 'server') -and ($Sets -notcontains 'server-idle')) { $Sets += 'server' }
+foreach ($set in $Sets) {
+    if ($ALL_SETS -notcontains $set) {
+        Write-Error "Ensemble inconnu : $set (existants : $($ALL_SETS -join ', '))"
+        exit 2
+    }
+}
+
+# Le tunnel et le fichier hosts exigent les droits administrateur ; le reste, non.
+# (Avant, `#Requires -RunAsAdministrator` les imposait a tout le script.)
+if (-not $NoTunnel) {
+    $principal = New-Object Security.Principal.WindowsPrincipal(
+        [Security.Principal.WindowsIdentity]::GetCurrent())
+    if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        Write-Error ("start-dev.ps1 doit etre lance dans une console administrateur " +
+            "(minikube tunnel et fichier hosts). Sans tunnel : start-dev.ps1 -NoTunnel")
+        exit 1
+    }
+}
 
 # Les chemins ci-dessous sont relatifs a la racine du depot, alors que le
 # script vit dans scripts_windows\ : on se replace donc a la racine.
@@ -26,7 +59,43 @@ if (Get-Command telepresence -ErrorAction SilentlyContinue) {
 
 # 1. Démarrer Minikube
 Write-Host "--- Démarrage de Minikube ---"
-minikube start --disk-size=150g --mount-string "${pwd}:/mnt/local-repo.git"
+# MINIKUBE_CPUS / MINIKUBE_MEMORY (ex. 4 / 8g) bornent la taille du cluster ; vides : choix de
+# minikube. Pris en compte a la CREATION seulement (un cluster existant garde sa taille).
+$sizeArgs = @()
+if ($env:MINIKUBE_CPUS) { $sizeArgs += "--cpus=$($env:MINIKUBE_CPUS)" }
+if ($env:MINIKUBE_MEMORY) { $sizeArgs += "--memory=$($env:MINIKUBE_MEMORY)" }
+minikube start --disk-size=150g --mount-string "${pwd}:/mnt/local-repo.git" @sizeArgs
+
+# 1b. Relever les limites inotify dans le noeud (voir start-dev.sh, etape 1b) :
+# sans cela horizon plante avec "too many open files" (fsnotify).
+Write-Host "--- Relevage des limites inotify dans le noeud ---"
+kubectl -n kube-system delete pod inotify-fix --ignore-not-found 2>$null | Out-Null
+$inotifyPod = @'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: inotify-fix
+  namespace: kube-system
+spec:
+  hostPID: true
+  restartPolicy: Never
+  tolerations:
+    - operator: Exists
+  containers:
+    - name: fix
+      image: busybox:1.37
+      securityContext:
+        privileged: true
+      command: ["nsenter", "-t", "1", "-m", "-u", "-i", "-n", "--", "sh", "-c"]
+      args:
+        - |
+          sysctl -w fs.inotify.max_user_watches=1048576
+          sysctl -w fs.inotify.max_user_instances=8192
+          printf 'fs.inotify.max_user_watches=1048576\nfs.inotify.max_user_instances=8192\n' > /etc/sysctl.d/99-inotify.conf
+'@
+$inotifyPod | kubectl apply -f - | Out-Null
+kubectl -n kube-system wait --for=jsonpath='{.status.phase}=Succeeded' pod/inotify-fix --timeout=90s
+kubectl -n kube-system delete pod inotify-fix --wait=false | Out-Null
 
 # 2. Installation initiale (si absente)
 $helmList = helm list -n argocd 2>$null
@@ -84,6 +153,30 @@ if ($SYNC_STATUS -ne "Synced") {
         application/$ROOT_APP_NAME -n $ROOT_APP_NS --timeout=120s
 } else {
     Write-Host "--- Root App déjà synchronisée ---"
+}
+
+# 3b. Deployer les ensembles demandes (root-dev ne porte que les AppProjects).
+# Un ensemble absent de la liste n'est PAS retire d'un cluster qui tourne deja :
+# voir scripts_windows\sets-dev.ps1 remove <ensemble>.
+Write-Host "--- Deploiement des ensembles : $($Sets -join ', ') ---"
+# `core` d'abord, puis les autres une fois sain : les autres ensembles (services de jeu, voix...)
+# ont besoin de Keycloak et des bases, et tout demarrer d'un coup les fait boucler en erreur.
+# L'attente est au mieux : sur une machine lente, un avertissement, puis on applique quand meme.
+# Le serveur de jeu part avec core : horizon l'attend, core ne serait jamais sain sans lui.
+$first = @('core', 'server', 'server-idle')
+foreach ($set in ($first | Where-Object { $Sets -contains $_ })) { kubectl apply -f "argocd/dev/root/sets/$set.yaml" }
+$others = @($Sets | Where-Object { $first -notcontains $_ })
+if ($others.Count -gt 0) {
+    Write-Host "--- Attente de l'ensemble core (10 min max) ---"
+    kubectl wait --for=jsonpath='{.status.health.status}=Healthy' application/root-core -n argocd --timeout=600s
+    if ($LASTEXITCODE -ne 0) { Write-Warning "core n'est pas encore sain, on applique les autres ensembles quand meme" }
+    foreach ($set in $others) { kubectl apply -f "argocd/dev/root/sets/$set.yaml" }
+}
+
+if ($NoTunnel) {
+    Write-Host "--- -NoTunnel : ni tunnel ni fichier hosts ---"
+    Write-Host "--- Cluster et ArgoCD prets. ---"
+    exit 0
 }
 
 # 4. Lancer le tunnel

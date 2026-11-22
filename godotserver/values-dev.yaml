@@ -8,10 +8,12 @@ image:
   pullPolicy: Always
   tag: "develop"
 
+# Local minikube: the requests only reserve room for the scheduler, the limits are the real
+# ceiling. Kept low so the rest of the stack still fits on a laptop.
 resources:
   requests:
-    cpu: 500m
-    memory: 2Gi
+    cpu: 250m
+    memory: 1Gi
   limits:
     cpu: 4
     memory: 10Gi

@@ -38,8 +38,16 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- if .Values.idle.enabled }}
+          # Idle placeholder: no Godot, just something listening on the game server port so the Service,
+          # horizon's wait and Telepresence's traffic-agent have a pod to work with.
+          image: "{{ .Values.idle.image }}"
+          imagePullPolicy: IfNotPresent
+          command: ['sh', '-c', 'while true; do nc -l -p {{ .Values.service.port }} >/dev/null 2>&1; done']
+          {{- else }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- end }}
           {{- with .Values.env }}
           env:
             {{- toYaml . | nindent 12 }}
@@ -48,6 +56,7 @@ spec:
             - name: http
               containerPort: {{ .Values.service.port }}
               protocol: TCP
+          {{- if not .Values.idle.enabled }}
           {{- with .Values.livenessProbe }}
           livenessProbe:
             {{- toYaml . | nindent 12 }}
@@ -55,6 +64,7 @@ spec:
           {{- with .Values.readinessProbe }}
           readinessProbe:
             {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- end }}
           {{- with .Values.resources }}
           resources:

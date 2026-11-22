@@ -1,0 +1,37 @@
+{
+  "id": "gameserver-developer",
+  "version": 1,
+  "name": {
+    "en": "Game server developer",
+    "fr": "Développeur du serveur de jeu"
+  },
+  "description": {
+    "en": "Like Developer, but the game server runs from your sources on this machine, and the panel keeps horizon linked to it. The cluster reaches it through a Telepresence intercept of godotserver (see the repository's README).",
+    "fr": "Comme Développeur, mais le serveur de jeu tourne depuis tes sources sur cette machine, et le panneau garde horizon relié à lui. Le cluster l'atteint par une interception Telepresence de godotserver (voir le README du dépôt)."
+  },
+  "modules": {
+    "docker": true,
+    "cluster": true,
+    "network": true,
+    "horizon": true,
+    "gameServer": true,
+    "telepresence": true,
+    "relink": true,
+    "clients": true,
+    "editor": true,
+    "npc": true,
+    "build": true,
+    "danger": true
+  },
+  "settings": {
+    "minikube": {
+      "cpus": "6",
+      "memory": "12g"
+    }
+  },
+  "sets": [
+    "server-idle",
+    "gameplay",
+    "admin"
+  ]
+}

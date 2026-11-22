@@ -1,9 +1,9 @@
 # Database of service-social (dev-local).
 #
 # Applied by the game Application `service-social` as a second source
-# (argocd/dev/game/service-social-app.yaml), so the application and its
+# (argocd/dev/game/gameplay/service-social-app.yaml), so the application and its
 # database are reconciled together. The operator comes from the infra app
-# argocd/dev/infra/cnpg-op-app.yaml (namespace cnpg-system).
+# argocd/dev/infra/core/cnpg-op-app.yaml (namespace cnpg-system).
 #
 # CloudNativePG creates the Service `<cluster>-rw`, which is what
 # service-social/values-dev.yaml points at via `database.host`.

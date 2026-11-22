@@ -1,0 +1,36 @@
+{
+  "id": "developer",
+  "version": 1,
+  "name": {
+    "en": "Developer",
+    "fr": "Développeur"
+  },
+  "description": {
+    "en": "The repository's standard setup: the whole stack in the local cluster, game server included. You launch the editor and clients against it. Monitoring (Grafana, Prometheus, Loki, Tempo) is not deployed: add it with the repository's sets-dev script when needed.",
+    "fr": "Le montage standard du dépôt : toute la stack dans le cluster local, serveur de jeu compris. Tu lances l'éditeur et des clients dessus. La supervision (Grafana, Prometheus, Loki, Tempo) n'est pas déployée : ajoute-la avec le script sets-dev du dépôt au besoin."
+  },
+  "modules": {
+    "docker": true,
+    "cluster": true,
+    "network": true,
+    "horizon": true,
+    "gameServer": false,
+    "telepresence": false,
+    "relink": false,
+    "clients": true,
+    "editor": true,
+    "npc": true,
+    "build": true,
+    "danger": true
+  },
+  "settings": {
+    "minikube": {
+      "cpus": "6",
+      "memory": "12g"
+    }
+  },
+  "sets": [
+    "gameplay",
+    "admin"
+  ]
+}
