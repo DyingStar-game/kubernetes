@@ -10,8 +10,9 @@ cd "$(dirname "$0")/.."
 NO_TUNNEL=0
 # --sets a,b : ensembles de services a deployer (voir argocd/dev/root/sets/). `core` est
 # toujours deploye. Defaut : tous. Ex. level designer : --sets core
-ALL_SETS="core gameplay voice admin observability telepresence"
-SETS="$ALL_SETS"
+ALL_SETS="core server server-idle gameplay voice admin observability telepresence"
+# server / server-idle sont exclusifs (meme Application godotserver) : le defaut prend `server`.
+SETS="core server gameplay voice admin observability telepresence"
 while [ $# -gt 0 ]; do
     case "$1" in
         --no-tunnel) NO_TUNNEL=1 ;;
@@ -21,6 +22,14 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
+# Un ensemble serveur exactement : `server` (image Godot) ou `server-idle` (pod a vide, Telepresence).
+# Aucun des deux : `server`. Les deux : erreur.
+case " $SETS " in
+    *" server "*" server-idle "*|*" server-idle "*" server "*)
+        echo "server et server-idle sont exclusifs." >&2; exit 2 ;;
+    *" server "*|*" server-idle "*) ;;
+    *) SETS="$SETS server" ;;
+esac
 for set in $SETS; do
     case " $ALL_SETS " in
         *" $set "*) ;;
@@ -142,8 +151,11 @@ echo "--- Deploying sets: $(echo $SETS | tr ' ' '\n' | awk '!seen[$0]++' | tr '\
 # Keycloak and the databases, and starting everything at once makes them crash-loop until those are
 # up. Inside `core`, the sync-wave annotations of its Applications order the rest (see the README).
 # The wait is best-effort: a slow machine only gets a warning, the other sets are applied anyway.
-kubectl apply -f "argocd/dev/root/sets/core.yaml"
-OTHERS=$(echo $SETS | tr ' ' '\n' | awk '!seen[$0]++ && $0 != "core"')
+# Le serveur de jeu part avec core : horizon l'attend, core ne serait jamais sain sans lui.
+for set in core server server-idle; do
+    case " $SETS " in *" $set "*) kubectl apply -f "argocd/dev/root/sets/$set.yaml" ;; esac
+done
+OTHERS=$(echo $SETS | tr ' ' '\n' | awk '!seen[$0]++ && $0 != "core" && $0 != "server" && $0 != "server-idle"')
 if [ -n "$OTHERS" ]; then
     echo "--- Waiting for the core set to be healthy (up to 10 min) ---"
     kubectl wait --for=jsonpath='{.status.health.status}=Healthy' application/root-core -n argocd --timeout=600s \

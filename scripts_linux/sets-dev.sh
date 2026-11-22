@@ -5,7 +5,7 @@
 #   sets-dev.sh remove <ensemble>...   (jamais `core`)
 cd "$(dirname "$0")/.."
 
-ALL_SETS="core gameplay voice admin observability telepresence"
+ALL_SETS="core server server-idle gameplay voice admin observability telepresence"
 
 check_set() {
     case " $ALL_SETS " in
@@ -27,7 +27,16 @@ case "$cmd" in
         ;;
     add)
         [ $# -gt 0 ] || { echo "Usage: $0 add <ensemble>..." >&2; exit 2; }
-        for set in "$@"; do check_set "$set"; kubectl apply -f "argocd/dev/root/sets/$set.yaml"; done
+        for set in "$@"; do
+            check_set "$set"
+            # server / server-idle define the same Application: drop the other root first (its
+            # children are kept, the new root adopts them and updates the Application).
+            case "$set" in
+                server) kubectl delete application root-server-idle -n argocd --ignore-not-found ;;
+                server-idle) kubectl delete application root-server -n argocd --ignore-not-found ;;
+            esac
+            kubectl apply -f "argocd/dev/root/sets/$set.yaml"
+        done
         ;;
     remove)
         [ $# -gt 0 ] || { echo "Usage: $0 remove <ensemble>..." >&2; exit 2; }

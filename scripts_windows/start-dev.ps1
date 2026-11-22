@@ -6,11 +6,14 @@ param(
 
     # Ensembles de services a deployer (voir argocd\dev\root\sets\). `core` est toujours deploye.
     # Defaut : tous. Ex. level designer : -Sets core
-    [string[]]$Sets = @('gameplay', 'voice', 'admin', 'observability', 'telepresence')
+    [string[]]$Sets = @('server', 'gameplay', 'voice', 'admin', 'observability', 'telepresence')
 )
 
-$ALL_SETS = @('core', 'gameplay', 'voice', 'admin', 'observability', 'telepresence')
+$ALL_SETS = @('core', 'server', 'server-idle', 'gameplay', 'voice', 'admin', 'observability', 'telepresence')
 $Sets = @('core') + @($Sets | ForEach-Object { $_ -split ',' } | Where-Object { $_ }) | Select-Object -Unique
+# Un ensemble serveur exactement : server (image Godot) ou server-idle (pod a vide, Telepresence).
+if (($Sets -contains 'server') -and ($Sets -contains 'server-idle')) { Write-Error 'server et server-idle sont exclusifs.'; exit 2 }
+if (($Sets -notcontains 'server') -and ($Sets -notcontains 'server-idle')) { $Sets += 'server' }
 foreach ($set in $Sets) {
     if ($ALL_SETS -notcontains $set) {
         Write-Error "Ensemble inconnu : $set (existants : $($ALL_SETS -join ', '))"
@@ -159,8 +162,10 @@ Write-Host "--- Deploiement des ensembles : $($Sets -join ', ') ---"
 # `core` d'abord, puis les autres une fois sain : les autres ensembles (services de jeu, voix...)
 # ont besoin de Keycloak et des bases, et tout demarrer d'un coup les fait boucler en erreur.
 # L'attente est au mieux : sur une machine lente, un avertissement, puis on applique quand meme.
-kubectl apply -f "argocd/dev/root/sets/core.yaml"
-$others = @($Sets | Where-Object { $_ -ne 'core' })
+# Le serveur de jeu part avec core : horizon l'attend, core ne serait jamais sain sans lui.
+$first = @('core', 'server', 'server-idle')
+foreach ($set in ($first | Where-Object { $Sets -contains $_ })) { kubectl apply -f "argocd/dev/root/sets/$set.yaml" }
+$others = @($Sets | Where-Object { $first -notcontains $_ })
 if ($others.Count -gt 0) {
     Write-Host "--- Attente de l'ensemble core (10 min max) ---"
     kubectl wait --for=jsonpath='{.status.health.status}=Healthy' application/root-core -n argocd --timeout=600s

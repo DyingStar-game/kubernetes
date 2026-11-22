@@ -30,6 +30,7 @@
     }
   },
   "sets": [
+    "server-idle",
     "gameplay",
     "admin",
     "telepresence"

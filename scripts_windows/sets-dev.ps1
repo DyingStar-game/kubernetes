@@ -7,7 +7,7 @@ param(
     [Parameter(Position = 1, ValueFromRemainingArguments = $true)][string[]]$Names
 )
 Set-Location -LiteralPath (Join-Path $PSScriptRoot '..')
-$ALL_SETS = @('core', 'gameplay', 'voice', 'admin', 'observability', 'telepresence')
+$ALL_SETS = @('core', 'server', 'server-idle', 'gameplay', 'voice', 'admin', 'observability', 'telepresence')
 foreach ($n in $Names) {
     if ($ALL_SETS -notcontains $n) { Write-Error "Ensemble inconnu : $n (existants : $($ALL_SETS -join ', '))"; exit 2 }
 }
@@ -20,7 +20,13 @@ switch ($Command) {
     }
     'add' {
         if (-not $Names) { Write-Error 'Usage: sets-dev.ps1 add <ensemble>...'; exit 2 }
-        foreach ($set in $Names) { kubectl apply -f "argocd/dev/root/sets/$set.yaml" }
+        foreach ($set in $Names) {
+            # server / server-idle define the same Application: drop the other root first (its
+            # children are kept, the new root adopts them and updates the Application).
+            if ($set -eq 'server') { kubectl delete application root-server-idle -n argocd --ignore-not-found }
+            if ($set -eq 'server-idle') { kubectl delete application root-server -n argocd --ignore-not-found }
+            kubectl apply -f "argocd/dev/root/sets/$set.yaml"
+        }
     }
     'remove' {
         if (-not $Names) { Write-Error 'Usage: sets-dev.ps1 remove <ensemble>...'; exit 2 }

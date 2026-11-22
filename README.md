@@ -169,13 +169,15 @@ See [Refacto.md](Refacto.md) for the detailed / manual installation guide.
 ### Service sets
 
 `argocd/dev/` keeps the preprod layout (`infra/`, `game/`, `observability/`), with the sets as
-sub-folders (`infra/core`, `game/core`, `game/gameplay`, `game/voice`, `game/admin`, `infra/telepresence`). Each set is
+sub-folders (`infra/core`, `game/core`, `game/server`, `game/server-idle`, `game/gameplay`, `game/voice`, `game/admin`, `infra/telepresence`). Each set is
 synced by its own root Application (`argocd/dev/root/sets/<set>.yaml`). `root-dev` only deploys the AppProjects; the sets are
 applied on demand.
 
 | Set | Contents | Needed for |
 |---|---|---|
-| `core` | `infra/core` (argocd, cert-manager, cnpg-op, traefik, keycloak) + `game/core` (godotserver, horizon, service-resourcesdynamic, service-persistence) | the minimum to run Godot + Horizon: login, game server, and the two services horizon needs to load a playable world (planets, items) |
+| `core` | `infra/core` (argocd, cert-manager, cnpg-op, traefik, keycloak) + `game/core` (horizon, service-resourcesdynamic, service-persistence) | the minimum to run Godot + Horizon: login, game server, and the two services horizon needs to load a playable world (planets, items) |
+| `server` | godotserver (the game server image) | the game server in the cluster. Default |
+| `server-idle` | godotserver as an idle placeholder pod | a server run from your sources behind a Telepresence intercept: keeps the workload to intercept, without the Godot image (~1 Gi less). Exclusive with `server` |
 | `gameplay` | inventory, economie, market, mission, social, npc, universesimulator, textchat | game-side services |
 | `voice` | livekit (+ its redis) | proximity voice: also set `livekit.enabled: true` in `horizon/values-dev.yaml` |
 | `admin` | dyingstar-admin, service-monitoring | back-office |
@@ -196,7 +198,10 @@ cnpg-op, traefik, argocd; 1 keycloak; 2 service-persistence, service-resourcesdy
 horizon. This only orders a *sync* (first install, new commit): when minikube itself restarts, kubelet
 restarts every pod at once and some crash-loop for a few minutes until their database is up.
 
-`core` is always deployed. The dev panel picks the sets from the profile
+`core` is always deployed, plus exactly one of `server` / `server-idle` (horizon waits for the game
+server, so `start-dev` applies it together with `core`; `sets-dev.sh add server-idle` switches a running
+cluster). In idle mode do not run `build-and-deploy.sh godotserver`: it would patch the Godot image
+over the placeholder. The dev panel picks the sets from the profile
 (`"sets": [...]` in `devpanel-ui/profiles/<id>.json`).
 
 Migrating a cluster created before the sets: the next `start-dev.sh` run applies the

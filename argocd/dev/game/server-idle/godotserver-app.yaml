@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: godotserver
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  project: game
+  source:
+    repoURL: 'file:///mnt/local-repo.git'
+    path: godotserver
+    targetRevision: HEAD
+    helm:
+      valueFiles:
+        - $values/godotserver/values-dev.yaml
+        - $values/godotserver/values-dev-idle.yaml
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: dyingstar
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+    # Sans ceci, ignoreDifferences n'agit que sur la détection de drift : une sync
+    # déclenchée par un commit ré-appliquerait l'image Harbor sur le build local.
+    - RespectIgnoreDifferences=true
+
+  # Variante « à vide » : le pod ne fait que tenir la place (serveur lancé depuis tes sources,
+  # trafic redirigé par Telepresence). Ne pas builder godotserver en local dans ce mode.
+  # Le build local (./scripts_linux/build-and-deploy.sh) patche l'image du container principal
+  # avec imagePullPolicy: Never — sans ceci, selfHeal l'annulerait au reconcile.
+  # Le nombre d'instances est aussi un réglage local : values-dev.yaml reste à 1 et
+  # chaque dev scale à la main (kubectl scale deployment godotserver -n dyingstar --replicas=N).
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+        - /spec/template/spec/containers/0/image
+        - /spec/template/spec/containers/0/imagePullPolicy

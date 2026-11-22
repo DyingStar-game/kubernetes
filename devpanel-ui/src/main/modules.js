@@ -129,9 +129,11 @@ const MODULES = [
 /**
  * The sets of services a profile may ask the cluster to deploy: the directories of
  * argocd/dev/{infra,game,observability} in the repository (see "Service sets" in its README). `core` -- what Godot and
- * horizon need to run -- is always deployed and implied.
+ * horizon need to run -- is always deployed and implied. Exactly one of `server` (the game server's own
+ * image) and `server-idle` (a placeholder pod, for a server run from your sources behind a
+ * Telepresence intercept) is deployed: `server` when the profile names neither.
  */
-const SET_IDS = ['core', 'gameplay', 'voice', 'admin', 'observability', 'telepresence'];
+const SET_IDS = ['core', 'server', 'server-idle', 'gameplay', 'voice', 'admin', 'observability', 'telepresence'];
 
 const MODULE_IDS = MODULES.map((m) => m.id);
 const BY_ID = new Map(MODULES.map((m) => [m.id, m]));
@@ -185,7 +187,11 @@ function validateProfile(raw, fallbackId) {
     for (const name of raw.sets) {
       if (!SET_IDS.includes(name)) return { ok: false, error: 'unknown set "' + name + '" (' + SET_IDS.join(', ') + ')' };
     }
+    if (raw.sets.includes('server') && raw.sets.includes('server-idle')) {
+      return { ok: false, error: '"server" and "server-idle" are exclusive' };
+    }
     sets = SET_IDS.filter((name) => name === 'core' || raw.sets.includes(name));
+    if (!sets.includes('server') && !sets.includes('server-idle')) sets.splice(1, 0, 'server');
   }
   const text = (t) => (t && typeof t === 'object' ? { en: String(t.en || t.fr || id), fr: String(t.fr || t.en || id) } : { en: id, fr: id });
   return {
