@@ -189,6 +189,13 @@ extraEnv: []
 # - name: GAME_SERVER_HOST
 #   value: "host.minikube.internal"
 
+# LiveKit (proximity voice). Horizon runs fine without it (no voice only). When
+# false: no wait-for-livekit init container, no LIVEKIT_* env, and the audio
+# plugin (plugin_dyingstar_audio) is removed from the plugins directory. Needs
+# pluginsImage.enabled to drop the plugin; otherwise it loads and stays idle.
+livekit:
+  enabled: true
+
 # Init containers that wait for dependent services to be ready before starting.
 # Each entry produces a busybox init container that polls the service with nc.
 dependsOn:

@@ -5,6 +5,11 @@ image:
   pullPolicy: Always
   tag: "develop"
 
+# Proximity voice off by default in dev: no livekit dependency, secret or plugin.
+# Set to true (and deploy the livekit app) to test voice.
+livekit:
+  enabled: false
+
 # uncomment if you use godotserver running in local (F5), otherwise horizon will
 #   connect to godotserver pod in minikube
 extraEnv:
@@ -34,6 +39,22 @@ extraEnv:
       secretKeyRef:
         name: livekit-keys
         key: LIVEKIT_API_SECRET
+
+# Services horizon waits for before starting (init containers, one `nc -z` each). The chart default
+# also waits for livekit and service-monitoring; neither is needed to start in dev (no voice
+# without livekit, the metrics bridge just retries). resourcesdynamic is waited for on its
+# WebSocket port: ds_services connects once in on_init and never retries, so a service that only
+# answers on HTTP is not enough. Both resourcesdynamic and persistence are in the `core` set.
+dependsOn:
+  - name: godotserver
+    service: godotserver
+    port: 8980
+  - name: service-resourcesdynamic
+    service: service-resourcesdynamic
+    port: 9200
+  - name: service-persistence
+    service: service-persistence
+    port: 9100
 
 # NodePort for the WebTransport UDP port (Traefik cannot relay QUIC); the WebSocket
 # keeps going through the HTTPRoute below.
@@ -76,7 +97,7 @@ httpRoute:
             value: /
 resources:
   requests:
-    cpu: 1
+    cpu: 250m
     memory: 512Mi
   limits:
     cpu: 4
