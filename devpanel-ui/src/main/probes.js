@@ -15,9 +15,13 @@ const RELAY_CONTAINER = 'horizon-wt-relay';
  */
 /// How long between two CPU samples before we dare a verdict. Long enough that a server merely
 /// waiting on a slow frame is not called dead.
-const ALIVE_WINDOW_S = 4;
-/// CPU seconds that must have been consumed over that window to count as alive.
-const ALIVE_MIN_CPU_S = 0.05;
+const ALIVE_WINDOW_S = 5;
+/// CPU seconds that must have been consumed over that window to count as alive. An IDLE headless
+/// Godot server legitimately burns well under 1% of a core, so this only asks for "not exactly
+/// nothing" (one scheduler tick is 0.01 s): a really wedged process gains zero.
+const ALIVE_MIN_CPU_S = 0;
+/// Consecutive windows without any CPU before calling it frozen: one quiet window is just idle.
+const FROZEN_STRIKES = 3;
 
 class Probes {
   /**
@@ -405,8 +409,10 @@ class Probes {
       return mark.alive === undefined ? null : mark.alive;  // keep the last verdict between samples
     }
     // A busy server burns whole seconds; the threshold only has to clear timer noise.
-    const alive = (cpu - mark.cpu) > ALIVE_MIN_CPU_S;
-    this._cpuMark = { pid, cpu, at: now, alive };
+    const burned = (cpu - mark.cpu) > ALIVE_MIN_CPU_S;
+    const strikes = burned ? 0 : (mark.strikes || 0) + 1;
+    const alive = strikes >= FROZEN_STRIKES ? false : true;
+    this._cpuMark = { pid, cpu, at: now, alive, strikes };
     return alive;
   }
 

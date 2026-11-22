@@ -190,6 +190,24 @@ class Services extends EventEmitter {
     return true;
   }
 
+  /**
+   * Arguments of the panel's own `minikube start`. When the cluster does not exist yet this call
+   * CREATES it, and Docker cannot add a mount to an existing container afterwards: start-dev then
+   * dies with GUEST_MOUNT_CONFLICT and ArgoCD's file:///mnt/local-repo.git is empty. So the
+   * repository mount (and the size, taken at creation only) are given here exactly as start-dev does.
+   */
+  minikubeStartArgs() {
+    const args = [...this.cfg.minikube.startArgs];
+    const repo = this.cfg.paths.kubernetesRepo;
+    if (repo && !args.some((a) => String(a).startsWith('--mount'))) {
+      args.push('--mount-string', repo + ':/mnt/local-repo.git');
+    }
+    if (!args.some((a) => String(a).startsWith('--disk-size'))) args.push('--disk-size=150g');
+    if (this.cfg.minikube.cpus && !args.some((a) => String(a).startsWith('--cpus'))) args.push('--cpus=' + this.cfg.minikube.cpus);
+    if (this.cfg.minikube.memory && !args.some((a) => String(a).startsWith('--memory'))) args.push('--memory=' + this.cfg.minikube.memory);
+    return args;
+  }
+
   async startMinikube(signal) {
     let probe = await this.probes.minikube();
     if (probe.ok) {
@@ -209,7 +227,7 @@ class Services extends EventEmitter {
       label: 'minikube start',
       source: 'minikube',
       cmd: 'minikube',
-      args: this.cfg.minikube.startArgs,
+      args: this.minikubeStartArgs(),
     });
 
     const ready = await waitFor(async () => (await this.probes.minikube()).ok, {
@@ -276,6 +294,7 @@ class Services extends EventEmitter {
    * the chain, but say so out loud.
    */
   async ensureContext() {
+    this.probes.invalidate('kubeContext'); // minikube start has just rewritten it
     let ctx = await this.probes.kubeContext();
     if (ctx.ok) {
       this._set('context', 'ok', ctx.detail);
@@ -284,6 +303,7 @@ class Services extends EventEmitter {
     this._set('context', 'running', t('msg.switchingContext', { context: ctx.expected }));
     this.log.note('Kube context is "' + ctx.detail + '", switching to "' + ctx.expected + '".', 'WARN');
     await run('kubectl', ['config', 'use-context', ctx.expected], { timeoutMs: 15000 });
+    this.probes.invalidate('kubeContext');
     ctx = await this.probes.kubeContext();
     this._set('context', ctx.ok ? 'ok' : 'error', ctx.detail);
     return ctx.ok;
@@ -354,7 +374,12 @@ class Services extends EventEmitter {
   async waitStackReady(signal, { watchProcess = true } = {}) {
     const ready = await waitFor(async () => {
       // Bail out early if start-dev died: no point waiting the full timeout.
-      if (watchProcess && !this.procs.isRunning('stack')) return 'dead';
+      // start-dev ending cleanly (code 0) is NORMAL: with --no-tunnel it exits as soon as the
+      // ArgoCD applications are created, and the pods come up afterwards. Only a failure counts.
+      if (watchProcess && !this.procs.isRunning('stack')) {
+        const rec = this.procs.get('stack');
+        if (!rec || rec.status !== 'stopped' || rec.exitCode !== 0) return 'dead';
+      }
       const pods = await this.probes.pods();
       const port = this._on('horizon') ? await this.probes.horizonRoute() : { ok: true };
       if (port.ok && pods.ok) return 'ready';
