@@ -127,6 +127,12 @@ button, input { font-family: inherit; font-size: inherit; color: inherit; }
   font-weight: 600;
 }
 
+.sets-list { display: flex; flex-direction: column; gap: 6px; }
+.set-row { display: flex; align-items: center; gap: 8px; }
+.set-row .set-info { flex: 1; min-width: 0; }
+.set-row .set-name { font-weight: 600; }
+.set-row .set-help { font-size: 11px; color: var(--text-faint); line-height: 1.35; }
+.set-row.absent .set-name { color: var(--text-faint); }
 .hosts-cmd { margin-top: 8px; }
 .hosts-cmd code { display: block; margin: 0 0 6px; padding: 6px 8px; font-family: var(--mono); font-size: 11px;
   word-break: break-all; user-select: all; background: var(--bg-soft, rgba(127,127,127,.12)); border-radius: 4px; }

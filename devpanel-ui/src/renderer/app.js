@@ -528,6 +528,7 @@ function renderButtonStates(state) {
    * and sends you debugging the wrong thing for an hour. Each of the three conditions below is a
    * way that has actually happened, and the tooltip names the CONSEQUENCE, not the plumbing.
    */
+  renderSets(pr.sets);
   // The hosts file by hand, for a machine without the system's graphical prompt.
   const hostsCmd = p_net(pr).hostsCommand || '';
   $('hostsCmdBox').hidden = !hostsCmd;
@@ -591,6 +592,42 @@ function renderButtonStates(state) {
  * leaving buttons that silently do nothing. */
 const REQUIRED_API_LEVEL = 4;
 let settingsAutoOpened = false;
+
+/** The card of the sets of services: what runs, and a button to add or remove each one. */
+function renderSets(sets) {
+  const box = $('setsList');
+  if (!box) return;
+  const list = (sets && sets.ok && sets.sets) || [];
+  box.replaceChildren();
+  for (const s of list) {
+    const row = document.createElement('div');
+    row.className = 'set-row' + (s.deployed ? '' : ' absent');
+    const info = document.createElement('div');
+    info.className = 'set-info';
+    const name = document.createElement('div');
+    name.className = 'set-name';
+    name.textContent = t('set.' + s.id + '.name') + ' \u2014 ' + (s.deployed
+      ? t('ui.sets.deployed') + (s.health && s.health !== 'Healthy' ? ' (' + s.health + ')' : '')
+      : t('ui.sets.absent'));
+    const help = document.createElement('div');
+    help.className = 'set-help';
+    help.textContent = t('set.' + s.id + '.help');
+    info.append(name, help);
+    row.append(info);
+    // core is always there; the two game server sets exclude each other, so one is switched TO,
+    // never removed.
+    const isServer = s.id === 'server' || s.id === 'server-idle';
+    if (s.id !== 'core' && !(isServer && s.deployed)) {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-ghost';
+      btn.dataset.setAction = s.deployed ? 'set-remove' : 'set-add';
+      btn.dataset.set = s.id;
+      btn.textContent = s.deployed ? t('ui.sets.remove') : (isServer ? t('ui.sets.use') : t('ui.sets.add'));
+      row.append(btn);
+    }
+    box.append(row);
+  }
+}
 
 /** The network part of the probes, never undefined. */
 function p_net(probes) {
@@ -922,6 +959,15 @@ document.addEventListener('click', async (ev) => {
   if (btn) {
     btn.disabled = true;
     try { await window.panel.action(btn.dataset.action); } finally { btn.disabled = false; }
+    return;
+  }
+  const setBtn = ev.target.closest('[data-set-action]');
+  if (setBtn) {
+    const set = setBtn.dataset.set;
+    const remove = setBtn.dataset.setAction === 'set-remove';
+    if (remove && !window.confirm(t('ui.sets.confirmRemove', { name: t('set.' + set + '.name') }))) return;
+    setBtn.disabled = true;
+    try { await window.panel.action(setBtn.dataset.setAction, { set, confirm: remove ? true : undefined }); } finally { setBtn.disabled = false; }
     return;
   }
   const stop = ev.target.closest('[data-stop]');

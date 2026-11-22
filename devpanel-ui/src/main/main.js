@@ -248,6 +248,13 @@ async function buildState({ withProbes = true } = {}) {
         lastProbes.npc = { ok: false, detail: String(err && err.message) };
       }
     }
+    if (lastProbes && !lastProbes.error && modules.cluster && lastProbes.minikube && lastProbes.minikube.ok) {
+      try {
+        lastProbes.sets = await k8s.setsState();
+      } catch (err) {
+        lastProbes.sets = { ok: false, sets: [], detail: String(err && err.message) };
+      }
+    }
     if (lastProbes && !lastProbes.error && modules.network) {
       try {
         lastProbes.network = await network.status();
@@ -327,6 +334,7 @@ const ACTION_MODULE = {
   'telepresence-connect': 'telepresence', 'telepresence-intercept': 'telepresence',
   'telepresence-leave': 'telepresence', 'telepresence-quit': 'telepresence',
   'read-build-targets': 'build', 'build-image': 'build',
+  'set-add': 'cluster', 'set-remove': 'cluster',
   'purge-scylla': 'danger', 'delete-cluster': 'danger',
 };
 
@@ -496,6 +504,15 @@ async function doAction(requested, payload = {}) {
 
     case 'read-build-targets':
       return k8s.readBuildTargets();
+
+    case 'set-add':
+    case 'set-remove':
+      if (!payload.set) return { ok: false, detail: 'field "set" is required' };
+      // Removing a set deletes its workloads and their databases: a script has to say it means it.
+      if (action === 'set-remove' && payload.confirm !== true) {
+        return { ok: false, detail: 'set-remove deletes the set\'s workloads and databases: pass "confirm": true' };
+      }
+      return k8s.changeSet(action === 'set-add' ? 'add' : 'remove', payload.set);
 
     case 'build-image':
       if (!payload.target) return { ok: false, detail: 'field "target" is required' };

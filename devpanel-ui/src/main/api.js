@@ -113,7 +113,7 @@ class Api {
             'purge-scylla', 'port-forward {on}', 'read-build-targets', 'build-image {target}',
             'kill-orphan-godot', 'use-minikube-context', 'restart-npc',
             'telepresence-connect', 'telepresence-intercept', 'telepresence-leave', 'telepresence-quit',
-            'network-repair', 'network-hosts',
+            'network-repair', 'network-hosts', 'set-add {set}', 'set-remove {set, confirm: true}',
             'clear-logs {source}', 'stop-proc {id}',
           ],
         });

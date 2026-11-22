@@ -3,7 +3,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { run, waitFor } = require('./util');
-const { portInfo, killTree, exposeHorizonCommand, buildAndDeployCommand } = require('./platform');
+const { portInfo, killTree, exposeHorizonCommand, buildAndDeployCommand, setsCommand } = require('./platform');
+const { SET_IDS } = require('./modules');
 
 /**
  * Cluster operations the panel exposes as buttons -- the gestures that otherwise mean opening a
@@ -241,6 +242,43 @@ class K8s {
       cwd: this.cfg.paths.kubernetesRepo,
     });
     return { ok: true, detail: 'build of ' + target + ' started (tab "build")' };
+  }
+
+  /**
+   * Which sets of services the cluster runs: one `root-<set>` Application per deployed set (see
+   * "Service sets" in the repository's README). Cached a few seconds: the probes ask often.
+   * Returns { ok, sets: [{ id, deployed, health }] }.
+   */
+  async setsState() {
+    if (this._sets && Date.now() - this._sets.at < 5000) return this._sets.value;
+    const r = await run('kubectl', ['get', 'applications.argoproj.io', '-n', 'argocd', '--no-headers',
+      '-o', 'custom-columns=NAME:.metadata.name,HEALTH:.status.health.status'], { timeoutMs: 8000 });
+    let value;
+    if (r.code !== 0) {
+      value = { ok: false, sets: [], detail: (r.stderr || '').trim().split('\n')[0] };
+    } else {
+      const roots = new Map();
+      for (const line of r.stdout.split(/\r?\n/)) {
+        const [name, health] = line.trim().split(/\s+/);
+        if (name && name.startsWith('root-')) roots.set(name.slice(5), health || '');
+      }
+      value = { ok: true, sets: SET_IDS.map((id) => ({ id, deployed: roots.has(id), health: roots.get(id) || '' })) };
+    }
+    this._sets = { at: Date.now(), value };
+    return value;
+  }
+
+  /** Add or remove a set of services: the repository's sets-dev script, as a tracked process. */
+  changeSet(action, set) {
+    if (!SET_IDS.includes(set)) return { ok: false, detail: 'unknown set: ' + set };
+    if (action === 'remove' && set === 'core') return { ok: false, detail: 'core cannot be removed' };
+    this._sets = null;
+    const { cmd, args } = setsCommand(this.cfg, [action, set]);
+    this.procs.start({
+      id: 'set-' + action + '-' + set, label: 'sets ' + action + ' ' + set, source: 'stack',
+      cmd, args, cwd: this.cfg.paths.kubernetesRepo,
+    });
+    return { ok: true, detail: action + ' ' + set + ' started (tab "stack")' };
   }
 }
 

@@ -1,0 +1,39 @@
+{
+  "id": "full-stack",
+  "version": 1,
+  "name": {
+    "en": "Full stack",
+    "fr": "Stack complète"
+  },
+  "description": {
+    "en": "Everything the local cluster can run: core, game server, every service, voice and monitoring (Grafana, Prometheus, Loki, Tempo). Heavy: for comfortable machines.",
+    "fr": "Tout ce que le cluster local sait faire : core, serveur de jeu, tous les services, voix et supervision (Grafana, Prometheus, Loki, Tempo). Lourd : réservé aux machines confortables."
+  },
+  "modules": {
+    "docker": true,
+    "cluster": true,
+    "network": true,
+    "horizon": true,
+    "gameServer": false,
+    "telepresence": false,
+    "relink": false,
+    "clients": true,
+    "editor": true,
+    "npc": true,
+    "build": true,
+    "danger": true
+  },
+  "settings": {
+    "minikube": {
+      "cpus": "8",
+      "memory": "16g"
+    }
+  },
+  "sets": [
+    "server",
+    "gameplay",
+    "voice",
+    "admin",
+    "observability"
+  ]
+}

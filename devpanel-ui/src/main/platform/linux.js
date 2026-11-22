@@ -256,6 +256,11 @@ function exposeHorizonCommand(cfg) {
     [cfg.k8s.horizonDeployment || 'horizon', cfg.ports.horizon]);
 }
 
+/** sets-dev: list / add / remove a set of services of the local cluster (argocd/dev/root/sets). */
+function setsCommand(cfg, args) {
+  return repoScriptCommand(cfg, 'sets-dev', args);
+}
+
 /** build-and-deploy: builds ONE target of dev-projects.yaml inside minikube's docker. */
 function buildAndDeployCommand(cfg, target) {
   return repoScriptCommand(cfg, 'build-and-deploy', [target]);
@@ -314,6 +319,7 @@ module.exports = {
   stackStopCommand,
   exposeHorizonCommand,
   buildAndDeployCommand,
+  setsCommand,
   checkDevCommand,
   processCpuSeconds,
   processStartTime,

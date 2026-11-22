@@ -93,7 +93,7 @@ console.log('\n--- profile files ---');
 test('the shipped profiles are valid and say something about every module', () => {
   const { profiles, problems } = loadProfiles([path.join(ROOT, 'profiles')]);
   assert.deepStrictEqual(problems, []);
-  assert.deepStrictEqual([...profiles.keys()].sort(), ['developer', 'gameserver-developer', 'level-designer']);
+  assert.deepStrictEqual([...profiles.keys()].sort(), ['backend-developer', 'developer', 'full-stack', 'gameserver-developer', 'level-designer']);
   for (const p of profiles.values()) {
     assert.deepStrictEqual(Object.keys(p.modules).sort(), [...MODULE_IDS].sort(), p.id + ' must list every module');
     assert.ok(p.name.en && p.name.fr && p.description.en && p.description.fr, p.id + ': texts');

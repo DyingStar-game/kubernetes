@@ -82,8 +82,17 @@ test('nothing is translated that is never used', () => {
     'src/main/services.js', 'src/main/probes.js', 'src/main/npc.js', 'src/main/telepresence.js',
     'src/main/network.js']
     .map(read).join('\n');
-  const unused = Object.keys(en).filter((k) => !k.startsWith('step.') && !sources.includes(k));
+  const unused = Object.keys(en).filter((k) => !k.startsWith('step.') && !k.startsWith('set.') && !sources.includes(k));
   assert.deepStrictEqual(unused, []);
+});
+
+test('every set of services has its name and its help, in both languages', () => {
+  const { SET_IDS } = require('../src/main/modules');
+  for (const id of SET_IDS) {
+    for (const part of ['name', 'help']) {
+      assert.ok(('set.' + id + '.' + part) in en && ('set.' + id + '.' + part) in fr, 'set.' + id + '.' + part);
+    }
+  }
 });
 
 test('t() fills placeholders and never throws on a missing key', () => {
