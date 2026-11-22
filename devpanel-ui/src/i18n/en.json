@@ -77,8 +77,6 @@
   "set.server-idle.name": "Serveur de jeu (à vide)",
   "set.server.help": "The game server runs in the cluster, from its image. Exclusive with \"idle\".",
   "set.server.name": "Serveur de jeu (image)",
-  "set.telepresence.help": "The traffic manager, to run the game server from your sources.",
-  "set.telepresence.name": "Telepresence",
   "set.voice.help": "LiveKit, proximity voice (also set livekit.enabled on horizon).",
   "set.voice.name": "Voix",
   "setup.allDone": "Everything is in place. Close this screen and use \"Start everything\".",

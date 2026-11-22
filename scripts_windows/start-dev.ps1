@@ -6,10 +6,10 @@ param(
 
     # Ensembles de services a deployer (voir argocd\dev\root\sets\). `core` est toujours deploye.
     # Defaut : tous. Ex. level designer : -Sets core
-    [string[]]$Sets = @('server', 'gameplay', 'voice', 'admin', 'observability', 'telepresence')
+    [string[]]$Sets = @('server', 'gameplay', 'voice', 'admin', 'observability')
 )
 
-$ALL_SETS = @('core', 'server', 'server-idle', 'gameplay', 'voice', 'admin', 'observability', 'telepresence')
+$ALL_SETS = @('core', 'server', 'server-idle', 'gameplay', 'voice', 'admin', 'observability')
 $Sets = @('core') + @($Sets | ForEach-Object { $_ -split ',' } | Where-Object { $_ }) | Select-Object -Unique
 # Un ensemble serveur exactement : server (image Godot) ou server-idle (pod a vide, Telepresence).
 if (($Sets -contains 'server') -and ($Sets -contains 'server-idle')) { Write-Error 'server et server-idle sont exclusifs.'; exit 2 }

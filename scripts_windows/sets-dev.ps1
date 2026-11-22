@@ -7,7 +7,7 @@ param(
     [Parameter(Position = 1, ValueFromRemainingArguments = $true)][string[]]$Names
 )
 Set-Location -LiteralPath (Join-Path $PSScriptRoot '..')
-$ALL_SETS = @('core', 'server', 'server-idle', 'gameplay', 'voice', 'admin', 'observability', 'telepresence')
+$ALL_SETS = @('core', 'server', 'server-idle', 'gameplay', 'voice', 'admin', 'observability')
 foreach ($n in $Names) {
     if ($ALL_SETS -notcontains $n) { Write-Error "Ensemble inconnu : $n (existants : $($ALL_SETS -join ', '))"; exit 2 }
 }

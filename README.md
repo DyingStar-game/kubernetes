@@ -169,20 +169,19 @@ See [Refacto.md](Refacto.md) for the detailed / manual installation guide.
 ### Service sets
 
 `argocd/dev/` keeps the preprod layout (`infra/`, `game/`, `observability/`), with the sets as
-sub-folders (`infra/core`, `game/core`, `game/server`, `game/server-idle`, `game/gameplay`, `game/voice`, `game/admin`, `infra/telepresence`). Each set is
+sub-folders (`infra/core`, `game/core`, `game/server`, `game/server-idle`, `game/gameplay`, `game/voice`, `game/admin`). Each set is
 synced by its own root Application (`argocd/dev/root/sets/<set>.yaml`). `root-dev` only deploys the AppProjects; the sets are
 applied on demand.
 
 | Set | Contents | Needed for |
 |---|---|---|
-| `core` | `infra/core` (argocd, cert-manager, cnpg-op, traefik, keycloak) + `game/core` (horizon, service-resourcesdynamic, service-persistence) | the minimum to run Godot + Horizon: login, game server, and the two services horizon needs to load a playable world (planets, items) |
+| `core` | `infra/core` (argocd, cert-manager, cnpg-op, traefik, keycloak, telepresence traffic-manager) + `game/core` (horizon, service-resourcesdynamic, service-persistence) | the minimum to run Godot + Horizon: login, game server, and the two services horizon needs to load a playable world (planets, items) |
 | `server` | godotserver (the game server image) | the game server in the cluster. Default |
 | `server-idle` | godotserver as an idle placeholder pod | a server run from your sources behind a Telepresence intercept: keeps the workload to intercept, without the Godot image (~1 Gi less). Exclusive with `server` |
 | `gameplay` | inventory, economie, market, mission, social, npc, universesimulator, textchat | game-side services |
 | `voice` | livekit (+ its redis) | proximity voice: also set `livekit.enabled: true` in `horizon/values-dev.yaml` |
 | `admin` | dyingstar-admin, service-monitoring | back-office |
 | `observability` | grafana, prometheus, loki, tempo, k8s-monitoring | metrics, logs, traces |
-| `telepresence` | telepresence traffic-manager | running the game server from your sources |
 
 ```bash
 ./scripts_linux/start-dev.sh --sets core            # level designers / artists
@@ -751,7 +750,7 @@ plain `telepresence connect` already carries both.
 
 ```bash
 # Client 2.33.x, aligned with the traffic-manager chart
-# (argocd/dev/infra/telepresence/telepresence-app.yaml, targetRevision 2.33.4).
+# (argocd/dev/infra/core/telepresence-app.yaml, targetRevision 2.33.4).
 telepresence connect --namespace dyingstar
 
 # Prove the outbound path before starting the game server.

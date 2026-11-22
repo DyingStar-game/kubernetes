@@ -10,9 +10,9 @@ cd "$(dirname "$0")/.."
 NO_TUNNEL=0
 # --sets a,b : ensembles de services a deployer (voir argocd/dev/root/sets/). `core` est
 # toujours deploye. Defaut : tous. Ex. level designer : --sets core
-ALL_SETS="core server server-idle gameplay voice admin observability telepresence"
+ALL_SETS="core server server-idle gameplay voice admin observability"
 # server / server-idle sont exclusifs (meme Application godotserver) : le defaut prend `server`.
-SETS="core server gameplay voice admin observability telepresence"
+SETS="core server gameplay voice admin observability"
 while [ $# -gt 0 ]; do
     case "$1" in
         --no-tunnel) NO_TUNNEL=1 ;;

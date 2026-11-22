@@ -77,8 +77,6 @@
   "set.server-idle.name": "Serveur de jeu (à vide)",
   "set.server.help": "Le serveur de jeu tourne dans le cluster, depuis son image. Exclusif avec « à vide ».",
   "set.server.name": "Serveur de jeu (image)",
-  "set.telepresence.help": "Le traffic-manager, pour faire tourner le serveur de jeu depuis tes sources.",
-  "set.telepresence.name": "Telepresence",
   "set.voice.help": "LiveKit, la voix de proximité (activer aussi livekit.enabled côté horizon).",
   "set.voice.name": "Voix",
   "setup.allDone": "Tout est en place. Ferme cet écran et utilise « Tout démarrer ».",

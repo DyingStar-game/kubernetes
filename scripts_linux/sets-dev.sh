@@ -5,7 +5,7 @@
 #   sets-dev.sh remove <ensemble>...   (jamais `core`)
 cd "$(dirname "$0")/.."
 
-ALL_SETS="core server server-idle gameplay voice admin observability telepresence"
+ALL_SETS="core server server-idle gameplay voice admin observability"
 
 check_set() {
     case " $ALL_SETS " in

@@ -132,17 +132,16 @@ test('a profile may name the service sets to deploy; core is always there, unkno
   assert.deepStrictEqual(validateProfile({ id: 'x', modules: {}, sets: [] }).profile.sets, ['core', 'server'],
     'a game server set is always there: horizon waits for it');
   assert.deepStrictEqual(validateProfile({ id: 'x', modules: {}, sets: ['telepresence', 'gameplay'] }).profile.sets,
-    ['core', 'server', 'gameplay', 'telepresence']);
+    ['core', 'server', 'gameplay'], 'telepresence is in core: an old profile naming it is still read');
   assert.ok(/unknown set/.test(validateProfile({ id: 'x', modules: {}, sets: ['nope'] }).error));
   assert.ok(/list/.test(validateProfile({ id: 'x', modules: {}, sets: 'core' }).error));
   const { profiles } = loadProfiles([path.join(ROOT, 'profiles')]);
   assert.deepStrictEqual(profiles.get('level-designer').sets, ['core', 'server-idle'],
-    'the minimum: no game services, the game server runs locally behind Telepresence (that set is added by the module)');
+    'the minimum: no game services, the game server runs locally behind Telepresence ');
   assert.deepStrictEqual(validateProfile({ id: 'x', modules: {}, sets: ['server-idle'] }).profile.sets, ['core', 'server-idle']);
   assert.ok(/exclusive/.test(validateProfile({ id: 'x', modules: {}, sets: ['server', 'server-idle'] }).error));
   assert.ok(profiles.get('gameserver-developer').sets.includes('server-idle'), 'Telepresence: a placeholder pod is enough');
   assert.strictEqual(profiles.get('level-designer').modules.cluster, true);
-  assert.ok(profiles.get('gameserver-developer').sets.includes('telepresence'));
 });
 
 test('your own profile replaces the shipped one of the same id; a broken file is reported, not fatal', () => {
