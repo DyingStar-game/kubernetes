@@ -28,7 +28,10 @@ profil sans cluster local existe (éditeur et clients seulement).
 2. Lance-le.
    - **Windows affiche « Windows a protégé votre ordinateur »** : c'est normal, le programme
      n'est pas signé. Clique *Informations complémentaires*, puis *Exécuter quand même*.
-   - AppImage : rends le fichier exécutable (`chmod +x`), puis lance-le.
+   - AppImage : rends le fichier exécutable (`chmod +x`), puis lance-le. Si rien ne se passe sur
+     un Ubuntu/Debian récent, installe FUSE 2 (`sudo apt install libfuse2`, `libfuse2t64` sur
+     Ubuntu 24.04). Si une erreur « sandbox » apparaît (Ubuntu 24.04 restreint les user
+     namespaces), prends plutôt le `.deb`, qui installe correctement l'aide de sandbox.
 
 > Tant qu'aucune version n'est publiée sur la page Releases, pars des sources (ci-dessous).
 
@@ -66,7 +69,7 @@ C'est **le** dossier du projet : les sources et Godot y seront rangés côte à 
 | **Docker** | fait tourner des « conteneurs », de petites machines isolées ; tous les services du jeu en sont |
 | **minikube** | un petit cluster Kubernetes sur ta machine, dans Docker : c'est lui qui héberge les services |
 | **kubectl** | la commande qui parle au cluster (le panneau s'en sert en permanence) |
-| **Helm** | installe des choses dans le cluster. Il faut la version **3** |
+| **Helm** | installe des choses dans le cluster. Version **3** ou **4** |
 | **SDK .NET 9** | bâtit la partie C# du jeu |
 
 - **minikube, kubectl, Helm** : clique **Télécharger**. Le panneau les prend chez leur éditeur,
@@ -114,12 +117,16 @@ Ouvre les **Réglages** (roue dentée ⚙ en haut à droite), section **Profil**
 
 | Profil | Pour qui | Ce que tu vois |
 |---|---|---|
-| **Développeur** | la plupart des gens | toute la stack, l'éditeur, les clients |
-| **Développeur du serveur de jeu** | tu modifies le code du serveur de jeu | en plus : serveur local et Telepresence |
-| **Level designer** | tu travailles dans l'éditeur | l'éditeur et les clients, sans cluster |
+| **Développeur** | la plupart des gens | core, serveur de jeu, services de jeu, administration ; l'éditeur, les clients |
+| **Développeur services** | tu modifies les services de jeu | pareil, sans les outils du serveur de jeu local |
+| **Développeur du serveur de jeu** | tu modifies le code du serveur de jeu | un pod à vide pour le serveur, qui tourne depuis tes sources derrière Telepresence |
+| **Level designer** | tu travailles dans l'éditeur | le cluster minimum (core seul) et ton serveur de jeu local ; l'éditeur et les clients |
+| **Stack complète** | tout, machine confortable | tous les ensembles, voix et supervision comprises |
 
-Un profil ne change que ce que le panneau **affiche et lance**. Tu peux en changer quand tu
-veux, et cocher ou décocher une brique à la main juste en dessous.
+Un profil change ce que le panneau **affiche et lance**, et les **ensembles de services** que le
+cluster local déploie (le minimum est le *core*). Tu peux en changer quand tu veux, cocher ou
+décocher un module, et ajouter ou retirer un ensemble sur un cluster qui tourne depuis la carte
+**Services**.
 
 ## 4. Lire la fenêtre
 

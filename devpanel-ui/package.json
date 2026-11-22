@@ -1,7 +1,7 @@
 {
   "name": "dyingstar-devpanel",
   "productName": "DyingStar DevPanel",
-  "version": "0.1.0",
+  "version": "0.1.1-beta.1",
   "private": true,
   "description": "DyingStar local dev panel: start the whole stack from one window, watch every log, and search them live.",
   "license": "AGPL-3.0-only",

@@ -109,11 +109,12 @@ const PAYLOAD_SHA = crypto.createHash('sha256').update(PAYLOAD).digest('hex');
     assert.strictEqual(compareVersions([3, 21, 0], [3, 21, 0]), 0);
   });
 
-  await test('too old is refused; Helm 4 is refused too (the scripts need Helm 3)', () => {
+  await test('too old is refused; Helm 3 and 4 are accepted, a later major is not', () => {
     const helm = toolchain.tools.find((t) => t.id === 'helm');
     assert.strictEqual(versionVerdict(helm, 'v3.21.0').ok, true);
+    assert.strictEqual(versionVerdict(helm, 'v4.3.0').ok, true);
     assert.deepStrictEqual(versionVerdict(helm, 'v3.9.4'), { ok: false, reason: 'too-old', version: '3.9.4' });
-    assert.deepStrictEqual(versionVerdict(helm, 'v4.0.1'), { ok: false, reason: 'too-new', version: '4.0.1' });
+    assert.deepStrictEqual(versionVerdict(helm, 'v5.0.0'), { ok: false, reason: 'too-new', version: '5.0.0' });
     const kubectl = toolchain.tools.find((t) => t.id === 'kubectl');
     assert.strictEqual(versionVerdict(kubectl, 'v1.40.0').ok, true, 'a newer kubectl is fine');
   });

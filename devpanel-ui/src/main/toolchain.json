@@ -46,22 +46,22 @@
     },
     {
       "id": "helm",
-      "version": "3.21.0",
+      "version": "4.3.0",
       "minVersion": "3.10.0",
-      "maxMajor": 3,
+      "maxMajor": 4,
       "versionArgs": ["version", "--short"],
       "versionPattern": "v?(\\d+\\.\\d+\\.\\d+)",
       "assets": {
         "win32-x64": {
-          "url": "https://get.helm.sh/helm-v3.21.0-windows-amd64.zip",
-          "sha256": "3ea6b8383e6c0b7ce45d06a5746313b8e9225edd88d42f4f64582ff3792d7b55",
+          "url": "https://get.helm.sh/helm-v4.3.0-windows-amd64.zip",
+          "sha256": "304ea163cce4d9ad14e189c01846c6a34de9cfdfe48536ae54b2e8ba7884e67c",
           "archive": true,
           "member": "windows-amd64/helm.exe",
           "file": "helm.exe"
         },
         "linux-x64": {
-          "url": "https://get.helm.sh/helm-v3.21.0-linux-amd64.tar.gz",
-          "sha256": "0093eb572e3d2380f094df162ddb525e219249de88957afe24cfbb19632acd36",
+          "url": "https://get.helm.sh/helm-v4.3.0-linux-amd64.tar.gz",
+          "sha256": "86584a54def73570558f66f5111cc53dfed56689637ae32c1201205d494f54fb",
           "archive": true,
           "member": "linux-amd64/helm",
           "file": "helm"

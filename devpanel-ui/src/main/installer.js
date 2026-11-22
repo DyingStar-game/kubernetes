@@ -47,7 +47,8 @@ function compareVersions(a, b) {
 /**
  * Is an installed version good enough for this tool?
  * Too old is not, and neither is a newer MAJOR when the tool caps it: the repository's scripts
- * need Helm 3, and a Helm 4 found first on the PATH breaks them.
+ * are checked up to Helm 4 (see maxMajor in toolchain.json); a later major found first on the PATH
+ * is not assumed to work.
  */
 function versionVerdict(tool, versionText) {
   const found = parseVersion(versionText);

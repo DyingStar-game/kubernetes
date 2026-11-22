@@ -27,7 +27,10 @@ a local cluster (editor and clients only).
 2. Run it.
    - **Windows shows "Windows protected your PC"**: expected, the program is not signed. Click
      *More info*, then *Run anyway*.
-   - AppImage: make the file executable (`chmod +x`), then run it.
+   - AppImage: make the file executable (`chmod +x`), then run it. If nothing happens on a recent
+     Ubuntu/Debian, install FUSE 2 (`sudo apt install libfuse2`, `libfuse2t64` on Ubuntu 24.04).
+     If it stops with a "sandbox" error (Ubuntu 24.04 restricts user namespaces), use the `.deb`
+     instead, which installs the sandbox helper properly.
 
 > As long as no version is published on the Releases page, start from the sources (below).
 
@@ -65,7 +68,7 @@ This is **the** folder of the project: the sources and Godot will sit in it, sid
 | **Docker** | runs "containers", small isolated machines; every service of the game is one |
 | **minikube** | a small Kubernetes cluster on your machine, inside Docker: it hosts the services |
 | **kubectl** | the command that talks to the cluster (the panel uses it all the time) |
-| **Helm** | installs things in the cluster. Version **3** is required |
+| **Helm** | installs things in the cluster. Version **3** or **4** |
 | **.NET 9 SDK** | builds the C# part of the game |
 
 - **minikube, kubectl, Helm**: click **Download**. The panel takes them from their publisher,
@@ -113,12 +116,16 @@ Open the **Settings** (the ⚙ gear at the top right), section **Profile**.
 
 | Profile | For whom | What you see |
 |---|---|---|
-| **Developer** | most people | the whole stack, the editor, the clients |
-| **Game server developer** | you change the game server's code | plus: local server and Telepresence |
-| **Level designer** | you work in the editor | the editor and the clients, no cluster |
+| **Developer** | most people | core, game server, game services, admin; the editor, the clients |
+| **Services developer** | you change the game services | the same, without the local game server tools |
+| **Game server developer** | you change the game server's code | a placeholder pod for the server, which runs from your sources behind Telepresence |
+| **Level designer** | you work in the editor | the minimum cluster (core only) plus your local game server; the editor and the clients |
+| **Full stack** | everything, comfortable machine | all the sets, voice and monitoring included |
 
-A profile only changes what the panel **shows and starts**. You can change it whenever you
-like, and tick or untick a single module just below it.
+A profile changes what the panel **shows and starts**, and which **sets of services** the local
+cluster deploys (the minimum is the *core*). You can change it whenever you like, tick or untick a
+single module just below it, and add or remove a set on a running cluster from the **Services**
+card.
 
 ## 4. Reading the window
 

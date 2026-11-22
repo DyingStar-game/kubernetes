@@ -280,7 +280,7 @@ function checkDevCommand(cfg) {
  * start is the classic way to misread this file.
  */
 async function processCpuSeconds(pid) {
-  const stat = readProc(pid, 'stat');
+  const stat = (readProc(pid, 'stat') || '').toString('latin1');
   if (!stat) return null;
   const tail = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
   // stat field 14 is utime; with the first two fields (pid, comm) cut off it lands at index 11.
