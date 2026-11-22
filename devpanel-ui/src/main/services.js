@@ -306,6 +306,9 @@ class Services extends EventEmitter {
       cmd,
       args,
       env,
+      // start-dev mounts $PWD into minikube (--mount-string $PWD:/mnt/local-repo.git): without the
+      // repository as cwd, ArgoCD's "local-repo" volume points at the wrong folder.
+      cwd: this.cfg.paths.kubernetesRepo,
     });
   }
 
@@ -378,7 +381,7 @@ class Services extends EventEmitter {
    */
   deleteCluster() {
     const { cmd, args } = platform.stackStopCommand(this.cfg);
-    return this.procs.start({ id: 'clean-dev', label: 'clean-dev', source: 'stack', cmd, args });
+    return this.procs.start({ id: 'clean-dev', label: 'clean-dev', source: 'stack', cmd, args, cwd: this.cfg.paths.kubernetesRepo });
   }
 
   async stopStack() {

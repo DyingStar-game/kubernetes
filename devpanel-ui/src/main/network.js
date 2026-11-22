@@ -189,11 +189,24 @@ class Network {
     }
   }
 
-  hostsState() {
+  /**
+   * The address the hosts file must give the names. Relays mode: loopback. Tunnel mode (the
+   * repository's way, and the one Linux uses): Traefik's LoadBalancer address, which is what
+   * `minikube tunnel` serves -- loopback leads nowhere there. '' while the tunnel has not
+   * handed Traefik an address yet.
+   */
+  async hostsIp() {
+    if (this.mode() !== 'tunnel') return LOOPBACK;
+    const r = await run('kubectl', ['get', 'svc', 'traefik', '-n', 'traefik', '-o',
+      'jsonpath={.status.loadBalancer.ingress[0].ip}'], { timeoutMs: 12000 });
+    return r.code === 0 ? r.stdout.trim() : '';
+  }
+
+  hostsState(ip = LOOPBACK) {
     const names = this.hostNames();
     let text = '';
     try { text = fs.readFileSync(hostsFilePath(), 'utf8'); } catch { /* unreadable: every name is missing */ }
-    return { names, missing: planHosts(text, names, LOOPBACK).missing };
+    return { names, ip, missing: ip ? planHosts(text, names, ip).missing : names };
   }
 
   /** What the cluster looks like from Docker and kubectl; null fields when it cannot be read. */
@@ -225,10 +238,13 @@ class Network {
   /** For the status light and the card: the relays, the hosts file, and one line that sums it up. */
   async status() {
     const mode = this.mode();
-    const hosts = this.hostsState();
     if (mode === 'tunnel') {
-      return { mode, ok: hosts.missing.length === hosts.names.length ? false : true, hosts, relays: [], detail: t('net.tunnelMode') };
+      const hosts = this.hostsState(await this.hostsIp());
+      return { mode, ok: hosts.missing.length === hosts.names.length ? false : true, hosts, relays: [], detail: t('net.tunnelMode'),
+        hostsOk: !!hosts.ip && hosts.names.length > 0 && hosts.missing.length === 0,
+        hostsCommand: hosts.ip && hosts.missing.length ? hostsCommand(hosts.missing, hosts.ip) : '' };
     }
+    const hosts = this.hostsState();
     const specs = buildRelaySpecs(await this.facts());
     const relays = [];
     for (const spec of specs) relays.push({ name: spec.name, action: diffRelay(await this._inspect(spec.name), spec) });
@@ -273,17 +289,19 @@ class Network {
   }
 
   /**
-   * Point the stack's names at 127.0.0.1 in the hosts file. The ONE thing that needs elevated
+   * Point the stack's names at the right address (see hostsIp) in the hosts file. The ONE thing that needs elevated
    * rights: it is run through the system's own prompt, as a tracked process, and does nothing
    * when the file is already right.
    */
-  writeHosts() {
-    const { names, missing } = this.hostsState();
+  async writeHosts() {
+    const ip = await this.hostsIp();
+    if (!ip) return { ok: false, detail: 'Traefik has no address yet: is `minikube tunnel` running?' };
+    const { names, missing } = this.hostsState(ip);
     if (!names.length) return { ok: false, detail: 'hosts_config.txt not found in the kubernetes repository' };
     if (!missing.length) return { ok: true, detail: 'the hosts file is already right' };
     if (process.platform === 'win32') {
       const script = path.join(this.scriptsDir, 'setup-hosts.ps1');
-      const inner = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-Ip', LOOPBACK, '-Names', names.join(',')]
+      const inner = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-Ip', ip, '-Names', names.join(',')]
         .map((a) => "'" + String(a).replace(/'/g, "''") + "'").join(',');
       this.procs.start({
         id: 'network-hosts', label: 'hosts file', source: 'network', cmd: 'powershell',
@@ -291,7 +309,7 @@ class Network {
       });
     } else {
       // Inline: root may not be able to read a script inside a mounted application image.
-      const body = hostsBody(names, LOOPBACK);
+      const body = hostsBody(names, ip);
       this.procs.start({ id: 'network-hosts', label: 'hosts file', source: 'network', cmd: 'pkexec', args: ['sh', '-c', body] });
     }
     return { ok: true, detail: 'asking for permission to write ' + missing.length + ' name(s): see the "network" tab' };
