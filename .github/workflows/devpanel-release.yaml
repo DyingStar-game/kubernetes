@@ -81,6 +81,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # electron-builder makes the .rpm with rpmbuild, which is not guaranteed on the runner image.
+      - name: Install rpm tooling (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends rpm
+
       - name: Build
         run: npx electron-builder ${{ matrix.target }} --publish never
 
@@ -123,6 +128,17 @@ jobs:
         with:
           name: devpanel-windows
           path: artifacts/
+
+      # upload-artifact only fails when NO file matches: a missing .rpm would go unnoticed and the
+      # release would ship without it. Each of the four installers must be there.
+      - name: Check every installer is present
+        run: |
+          for pattern in '*.exe' '*.AppImage' '*.deb' '*.rpm'; do
+            if ! ls artifacts/$pattern >/dev/null 2>&1; then
+              echo "Missing installer: $pattern"
+              exit 1
+            fi
+          done
 
       # Unsigned installers: the checksums are what lets someone check a download.
       - name: Checksums

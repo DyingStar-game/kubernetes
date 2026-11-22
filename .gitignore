@@ -3,3 +3,6 @@
 
 # Zabbix pre-shared keys — secrets, keep them out of the repository
 *.psk
+
+# graphify (graphe de connaissance local)
+graphify-out/
