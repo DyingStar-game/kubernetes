@@ -705,8 +705,8 @@ instance reaching the cluster) are the two directions of the *same* session: a
 plain `telepresence connect` already carries both.
 
 ```bash
-# Client 2.28.x, aligned with the traffic-manager chart
-# (argocd/dev/infra/telepresence.yaml, targetRevision 2.28.0).
+# Client 2.33.x, aligned with the traffic-manager chart
+# (argocd/dev/infra/telepresence.yaml, targetRevision 2.33.4).
 telepresence connect --namespace dyingstar
 
 # Prove the outbound path before starting the game server.
@@ -737,8 +737,8 @@ Caveats specific to this repo:
   and the `minikube tunnel` — independently of Telepresence. Check it during a
   session with
   `curl -s http://auth.dyingstar.local/realms/dyingstar/.well-known/openid-configuration`.
-- The client must match the traffic-manager installed by ArgoCD (**2.28.x** vs
-  chart `2.28.0`); a version skew shows up as connection errors.
+- The client must match the traffic-manager installed by ArgoCD (**2.33.x** vs
+  chart `2.33.4`); a version skew shows up as connection errors.
 - `telepresence/values.yaml` pins `routeController.serviceCIDRs` because the
   automatic ServiceCIDR discovery needs Kubernetes ≥ 1.33.
 
