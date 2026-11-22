@@ -22,6 +22,7 @@ const TESTS = [
   'test-installer.js',
   'test-setup.js',
   'test-network.js',
+  'test-devtoken.js',
   'test-server-guard.js',
   'test-relink-guard.js',
   'test-linux-platform.js',
