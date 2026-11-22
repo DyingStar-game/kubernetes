@@ -22,6 +22,13 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
+# Alias : `telepresence` (nom employe par le panel) = `server-idle` (pod a vide pour Telepresence).
+SETS=" $SETS "
+case "$SETS" in
+    *" server-idle "*) SETS="${SETS// telepresence / }" ;;
+    *) SETS="${SETS// telepresence / server-idle }" ;;
+esac
+SETS=$(echo $SETS)
 # Un ensemble serveur exactement : `server` (image Godot) ou `server-idle` (pod a vide, Telepresence).
 # Aucun des deux : `server`. Les deux : erreur.
 case " $SETS " in

@@ -168,6 +168,12 @@
           <input type="text" id="deleteClusterWord" autocomplete="off" spellcheck="false" data-i18n-placeholder="ui.deleteWord" placeholder="tape : minikube">
           <button class="btn btn-danger small" id="btnDeleteClusterGo" disabled data-i18n="ui.delete">Supprimer</button>
         </div>
+        <p class="hint" data-i18n-html="ui.danger.cleanHint">⚠ <strong>Nettoyer l'environnement</strong> arrête tout (serveur, clients, relais, Telepresence, processus orphelins), puis supprime le cluster et les entrées hosts. Irréversible.</p>
+        <button class="btn btn-danger btn-block" id="btnCleanEnv" data-i18n="ui.cleanEnv" data-i18n-title="ui.cleanEnv.tip">Nettoyer l'environnement</button>
+        <div class="confirm-row hidden" id="cleanEnvConfirm">
+          <input type="text" id="cleanEnvWord" autocomplete="off" spellcheck="false" data-i18n-placeholder="ui.deleteWord" placeholder="tape : minikube">
+          <button class="btn btn-danger small" id="btnCleanEnvGo" disabled data-i18n="ui.clean">Nettoyer</button>
+        </div>
       </details>
     </section>
 

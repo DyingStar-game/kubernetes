@@ -105,7 +105,7 @@ class Api {
           actions: [
             'start-all', 'stop-all', 'abort',
             'start-docker', 'start-minikube', 'start-stack', 'stop-stack',
-            'delete-cluster {confirm: true}',
+            'delete-cluster {confirm: true}', 'clean-env {confirm: true}',
             'start-godot-server', 'stop-godot-server', 'start-editor', 'stop-editor',
             'start-clients {count}', 'stop-clients',
             'relink-now', 'relink-watch {on}',

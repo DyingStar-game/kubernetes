@@ -171,15 +171,14 @@ refreshModules();
 
 /**
  * The sets of services the cluster should run, from the profile: null = every set (no profile, or
- * a profile that does not say). The telepresence set follows the telepresence module, so the
- * module never finds its traffic-manager missing.
+ * a profile that does not say).
  */
 function wantedSets() {
   const profile = profileSet.profiles.get(config.profile) || null;
   if (!profile || !profile.sets) return null;
-  const sets = new Set(profile.sets);
-  if (modules.telepresence) sets.add('telepresence');
-  return [...sets];
+  // Telepresence's traffic manager is part of `core`: `telepresence` is no longer a set (start-dev
+  // refuses it). Profiles of older versions may still list it: drop it.
+  return profile.sets.filter((name) => name !== 'telepresence');
 }
 
 // --- wiring -----------------------------------------------------------------
@@ -335,7 +334,7 @@ const ACTION_MODULE = {
   'telepresence-leave': 'telepresence', 'telepresence-quit': 'telepresence',
   'read-build-targets': 'build', 'build-image': 'build',
   'set-add': 'cluster', 'set-remove': 'cluster',
-  'purge-scylla': 'danger', 'delete-cluster': 'danger',
+  'purge-scylla': 'danger', 'delete-cluster': 'danger', 'clean-env': 'danger',
 };
 
 async function doAction(requested, payload = {}) {
@@ -395,6 +394,15 @@ async function doAction(requested, payload = {}) {
         return { ok: false, detail: 'delete-cluster destroys the cluster and its data: pass "confirm": true' };
       }
       services.deleteCluster();
+      return { ok: true };
+
+    case 'clean-env':
+      // Irreversible: stops everything the panel started, then deletes the cluster (clean-dev
+      // also drops the tunnel, Telepresence and the hosts entries).
+      if (payload.confirm !== true) {
+        return { ok: false, detail: 'clean-env stops everything and destroys the cluster and its data: pass "confirm": true' };
+      }
+      await services.cleanEnv();
       return { ok: true };
 
     case 'stop-stack':

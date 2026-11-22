@@ -564,6 +564,7 @@ function renderButtonStates(state) {
     // "Démarrer la stack" is not gated on minikube: creating the cluster when there is none is
     // precisely that script's job.
     ['#btnDeleteCluster', !!pr.docker?.ok, t('ui.gate.delete')],
+    ['#btnCleanEnv', !!pr.docker?.ok, t('ui.gate.delete')],
     ['[data-action="network-repair"]', p_net(pr).mode !== 'tunnel' && p_net(pr).relaysOk === false,
       p_net(pr).mode === 'tunnel' ? t('ui.gate.netTunnel') : t('ui.gate.netOk')],
     ['[data-action="network-hosts"]', p_net(pr).mode !== 'tunnel' && p_net(pr).hostsOk === false,
@@ -1098,6 +1099,22 @@ $('btnDeleteClusterGo').addEventListener('click', async () => {
   if ($('deleteClusterWord').value.trim() !== DELETE_WORD) return;
   $('deleteClusterConfirm').classList.add('hidden');
   await window.panel.action('delete-cluster', { confirm: true });
+});
+
+$('btnCleanEnv').addEventListener('click', () => {
+  const row = $('cleanEnvConfirm');
+  row.classList.toggle('hidden');
+  $('cleanEnvWord').value = '';
+  $('btnCleanEnvGo').disabled = true;
+  if (!row.classList.contains('hidden')) $('cleanEnvWord').focus();
+});
+$('cleanEnvWord').addEventListener('input', (ev) => {
+  $('btnCleanEnvGo').disabled = ev.target.value.trim() !== DELETE_WORD;
+});
+$('btnCleanEnvGo').addEventListener('click', async () => {
+  if ($('cleanEnvWord').value.trim() !== DELETE_WORD) return;
+  $('cleanEnvConfirm').classList.add('hidden');
+  await window.panel.action('clean-env', { confirm: true });
 });
 
 $('btnPurge').addEventListener('click', async () => {

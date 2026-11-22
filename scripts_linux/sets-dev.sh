@@ -15,6 +15,8 @@ check_set() {
 }
 
 cmd="$1"; shift
+# Alias : `telepresence` = `server-idle`.
+set -- "${@/#telepresence/server-idle}"
 case "$cmd" in
     list)
         for set in $ALL_SETS; do

@@ -384,6 +384,19 @@ class Services extends EventEmitter {
     return this.procs.start({ id: 'clean-dev', label: 'clean-dev', source: 'stack', cmd, args, cwd: this.cfg.paths.kubernetesRepo });
   }
 
+  /**
+   * Clean the whole environment: everything stopAll stops, plus orphan game servers, the
+   * Telepresence session and a stale relay, then the cluster itself (clean-dev). Irreversible.
+   */
+  async cleanEnv() {
+    this.log.note('=== Cleaning the environment ===');
+    await this.stopAll({ stopMinikube: false });
+    await this.godot.killOrphanServers();
+    await run('telepresence', ['quit', '-s'], { timeoutMs: 20000 }).catch(() => {});
+    this.deleteCluster();
+    return { ok: true };
+  }
+
   async stopStack() {
     await this.procs.stop('stack');
     // Only the script's process tree is stopped. The deployments stay in place, and so does the
