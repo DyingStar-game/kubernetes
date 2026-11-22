@@ -137,7 +137,10 @@ function repoScriptCommand(cfg, script, args = []) {
 /** start-dev: creates the cluster when there is none, installs ArgoCD, hands it the applications. */
 function stackStartCommand(cfg, extraArgs = [], sets = null) {
   const setArgs = sets && sets.length ? ['-Sets', sets.join(',')] : [];
-  return repoScriptCommand(cfg, 'start-dev', [...extraArgs, ...setArgs]);
+  // The tunnel and the hosts file need an administrator console, which the panel's own network layer
+  // replaces: unless the user chose the tunnel mode, start-dev stops once the cluster and ArgoCD are up.
+  const tunnelArgs = (cfg.network && cfg.network.mode) === 'tunnel' || extraArgs.includes('-NoTunnel') ? [] : ['-NoTunnel'];
+  return repoScriptCommand(cfg, 'start-dev', [...extraArgs, ...tunnelArgs, ...setArgs]);
 }
 
 /** clean-dev: deletes the cluster. Not the same thing as stopping the process above. */

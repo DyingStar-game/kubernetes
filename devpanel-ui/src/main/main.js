@@ -370,9 +370,11 @@ async function doAction(requested, payload = {}) {
         return { ok: true, detail: deployed };
       }
       logBus.note(
-        'start-dev needs elevated rights (minikube tunnel + the hosts file). If it fails here, '
-        + 'run it ONCE from an elevated terminal, then come back to the panel.',
-        'WARN'
+        (config.network && config.network.mode) === 'tunnel'
+          ? 'Tunnel mode: start-dev needs elevated rights (minikube tunnel + the hosts file). If it fails '
+            + 'here, run it ONCE from an elevated terminal, then come back to the panel.'
+          : 'start-dev runs without the tunnel (the panel\'s network layer reaches the cluster): no '
+            + 'administrator rights needed.'
       );
       services.startStack();
       return { ok: true };

@@ -86,7 +86,7 @@
   "setup.stack.name": "Services",
   "setup.stack.none": "non démarrée",
   "setup.stack.ok": "Elle tourne.",
-  "setup.stack.start": "Lance le script start-dev du dépôt. Il demande les droits administrateur la première fois.",
+  "setup.stack.start": "Lance le script start-dev du dépôt sans le tunnel : aucun droit administrateur. À la main : ./scripts_linux/start-dev.sh --no-tunnel (Windows : .\\scripts_windows\\start-dev.ps1 -NoTunnel).",
   "setup.stack.title": "La stack locale",
   "setup.subtitle": "Ce qui manque encore à cette machine pour lancer le projet",
   "setup.sys.manual": "À installer toi-même :",

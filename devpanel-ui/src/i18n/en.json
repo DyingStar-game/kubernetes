@@ -86,7 +86,7 @@
   "setup.stack.name": "Services",
   "setup.stack.none": "not started",
   "setup.stack.ok": "Running.",
-  "setup.stack.start": "Runs the repository's start-dev script. It needs administrator rights the first time.",
+  "setup.stack.start": "Runs the repository's start-dev script without the tunnel: no administrator rights needed. By hand: ./scripts_linux/start-dev.sh --no-tunnel (Windows: .\\scripts_windows\\start-dev.ps1 -NoTunnel).",
   "setup.stack.title": "The local stack",
   "setup.subtitle": "What this machine still needs to run the project",
   "setup.sys.manual": "To install yourself:",
