@@ -151,5 +151,15 @@ test('the elevated Windows script refuses anything but names and an address', ()
   assert.ok(!/Invoke-Expression|iex /i.test(script), 'the script must not evaluate anything it is given');
 });
 
+test('the hosts file can also be written by hand: one pasteable sudo line, none on Windows', () => {
+  const { hostsCommand } = require('../src/main/network');
+  const line = hostsCommand(['auth.dyingstar.local'], '127.0.0.1', 'linux');
+  assert.ok(line.startsWith('sudo sh -c "'), line);
+  assert.ok(line.includes('127.0.0.1 auth.dyingstar.local'), 'the name and the address');
+  assert.ok(line.includes('auth\\\\.dyingstar\\\\.local'), 'dots escaped for sed, and for the double quotes');
+  assert.strictEqual(hostsCommand(['a.b'], '127.0.0.1', 'win32'), '', 'Windows has its own prompt');
+  assert.strictEqual(hostsCommand([], '127.0.0.1', 'linux'), '', 'nothing missing, nothing to paste');
+});
+
 console.log('\nResult: ' + passed + ' passed, ' + failed + ' failed.');
 process.exit(failed ? 1 : 0);

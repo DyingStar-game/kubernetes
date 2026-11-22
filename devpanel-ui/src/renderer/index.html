@@ -135,6 +135,11 @@
         <button class="btn" data-action="network-repair" data-i18n="ui.net.repair">Réparer les relais</button>
         <button class="btn btn-ghost" data-action="network-hosts" data-i18n="ui.net.hosts">Écrire le fichier hosts</button>
       </div>
+      <div id="hostsCmdBox" class="hosts-cmd" hidden>
+        <p class="hint" data-i18n="ui.net.cmdHint">Sans fenêtre d'autorisation : colle cette commande dans un terminal.</p>
+        <code id="hostsCmd"></code>
+        <button class="btn btn-ghost" id="btnCopyHostsCmd" data-i18n="ui.net.copyCmd">Copier la commande</button>
+      </div>
     </section>
 
     <section class="card" data-domain="horizon" data-module="horizon">

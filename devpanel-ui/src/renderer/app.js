@@ -528,6 +528,10 @@ function renderButtonStates(state) {
    * and sends you debugging the wrong thing for an hour. Each of the three conditions below is a
    * way that has actually happened, and the tooltip names the CONSEQUENCE, not the plumbing.
    */
+  // The hosts file by hand, for a machine without the system's graphical prompt.
+  const hostsCmd = p_net(pr).hostsCommand || '';
+  $('hostsCmdBox').hidden = !hostsCmd;
+  $('hostsCmd').textContent = hostsCmd;
   const hzPort = state.config?.ports?.horizon || 7040;
   // Each condition only counts when the module that watches it is on: a panel that does not run
   // the cluster has no opinion about horizon, and must not grey the button out over it.
@@ -849,6 +853,23 @@ $('btnCopy').addEventListener('click', async () => {
     ta.remove();
   }
   flash($('btnCopy'), t('ui.copy.done', { n: view.length }));
+});
+
+$('btnCopyHostsCmd').addEventListener('click', async () => {
+  const text = $('hostsCmd').textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+  }
+  flash($('btnCopyHostsCmd'), t('ui.net.copied'));
 });
 
 $('btnOpenLogs').addEventListener('click', () => window.panel.action('open-logs-folder'));

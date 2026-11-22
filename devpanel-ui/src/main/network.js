@@ -138,6 +138,24 @@ function planHosts(text, names, ip) {
   return { missing, text: lines.join(eol) + eol };
 }
 
+/**
+ * The shell that points names at the loopback address in /etc/hosts (idempotent: a name's old line
+ * goes first). Run by pkexec from the panel, or pasted by the user after `sudo`.
+ */
+function hostsBody(names, ip) {
+  return names.map((n) => "sed -i '/[[:space:]]" + n.replace(/\./g, '\\.') + "$/d' /etc/hosts && echo '"
+    + ip + ' ' + n + "' >> /etc/hosts").join(' && ');
+}
+
+/**
+ * The same thing as one line to paste in a terminal, for a machine where the system's graphical
+ * prompt (pkexec) is not there or not wanted. '' where it makes no sense (Windows has its own prompt).
+ */
+function hostsCommand(names, ip = '127.0.0.1', platform = process.platform) {
+  if (platform === 'win32' || !names.length) return '';
+  return 'sudo sh -c "' + hostsBody(names, ip).replace(/(["$`\\])/g, '\\$1') + '"';
+}
+
 /** Host names are written into a file by an elevated process: nothing but a plain name gets through. */
 function isHostName(name) {
   return /^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$/i.test(String(name));
@@ -220,7 +238,8 @@ class Network {
     if (!specs.length) detail = t('net.noCluster');
     else if (!relaysOk) detail = t('net.relaysOff', { names: relays.filter((r) => r.action !== 'keep').map((r) => r.name).join(', ') });
     else if (!hostsOk) detail = t('net.hostsMissing', { n: hosts.missing.length });
-    return { mode, ok: relaysOk && hostsOk, relaysOk, hostsOk, hosts, relays, detail };
+    return { mode, ok: relaysOk && hostsOk, relaysOk, hostsOk, hosts, relays, detail,
+      hostsCommand: hostsOk ? '' : hostsCommand(hosts.missing, LOOPBACK) };
   }
 
   /**
@@ -272,8 +291,7 @@ class Network {
       });
     } else {
       // Inline: root may not be able to read a script inside a mounted application image.
-      const body = names.map((n) => "sed -i '/[[:space:]]" + n.replace(/\./g, '\\.') + "$/d' /etc/hosts && echo '"
-        + LOOPBACK + ' ' + n + "' >> /etc/hosts").join(' && ');
+      const body = hostsBody(names, LOOPBACK);
       this.procs.start({ id: 'network-hosts', label: 'hosts file', source: 'network', cmd: 'pkexec', args: ['sh', '-c', body] });
     }
     return { ok: true, detail: 'asking for permission to write ' + missing.length + ' name(s): see the "network" tab' };
@@ -281,5 +299,5 @@ class Network {
 }
 
 module.exports = {
-  Network, IMAGE, relayAddresses, buildRelaySpecs, dockerRunArgs, diffRelay, planHosts, isHostName, hostsFilePath,
+  Network, IMAGE, relayAddresses, buildRelaySpecs, dockerRunArgs, diffRelay, planHosts, isHostName, hostsFilePath, hostsBody, hostsCommand,
 };
