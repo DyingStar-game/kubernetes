@@ -6,17 +6,17 @@
     "fr": "Level designer"
   },
   "description": {
-    "en": "The minimum to run the game: the editor, the game clients, and a local cluster with only what Godot and horizon need (login, voice, game server, horizon). No game services, no monitoring: light enough for a laptop.",
-    "fr": "Le minimum pour faire tourner le jeu : l'éditeur, les clients, et un cluster local avec seulement ce dont Godot et horizon ont besoin (connexion, voix, serveur de jeu, horizon). Pas de services de jeu ni de supervision : assez léger pour un portable."
+    "en": "The minimum to run the game: the editor, the game clients, and a local cluster with only what Godot and horizon need. The game server runs from your sources on this machine (the panel launches it), behind a Telepresence intercept, so the cluster only keeps a placeholder pod for it. No game services, no monitoring: light enough for a laptop.",
+    "fr": "Le minimum pour faire tourner le jeu : l'éditeur, les clients, et un cluster local avec seulement ce dont Godot et horizon ont besoin. Le serveur de jeu tourne depuis tes sources sur cette machine (le panneau le lance), derrière une interception Telepresence : le cluster ne garde qu'un pod à vide pour lui. Pas de services de jeu ni de supervision : assez léger pour un portable."
   },
   "modules": {
     "docker": true,
     "cluster": true,
     "network": true,
     "horizon": true,
-    "gameServer": false,
-    "telepresence": false,
-    "relink": false,
+    "gameServer": true,
+    "telepresence": true,
+    "relink": true,
     "clients": true,
     "editor": true,
     "npc": false,
@@ -29,5 +29,7 @@
       "memory": "8g"
     }
   },
-  "sets": []
+  "sets": [
+    "server-idle"
+  ]
 }

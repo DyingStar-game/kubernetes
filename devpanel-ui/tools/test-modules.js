@@ -136,7 +136,8 @@ test('a profile may name the service sets to deploy; core is always there, unkno
   assert.ok(/unknown set/.test(validateProfile({ id: 'x', modules: {}, sets: ['nope'] }).error));
   assert.ok(/list/.test(validateProfile({ id: 'x', modules: {}, sets: 'core' }).error));
   const { profiles } = loadProfiles([path.join(ROOT, 'profiles')]);
-  assert.deepStrictEqual(profiles.get('level-designer').sets, ['core', 'server'], 'the minimum: no game services');
+  assert.deepStrictEqual(profiles.get('level-designer').sets, ['core', 'server-idle'],
+    'the minimum: no game services, the game server runs locally behind Telepresence (that set is added by the module)');
   assert.deepStrictEqual(validateProfile({ id: 'x', modules: {}, sets: ['server-idle'] }).profile.sets, ['core', 'server-idle']);
   assert.ok(/exclusive/.test(validateProfile({ id: 'x', modules: {}, sets: ['server', 'server-idle'] }).error));
   assert.ok(profiles.get('gameserver-developer').sets.includes('server-idle'), 'Telepresence: a placeholder pod is enough');
