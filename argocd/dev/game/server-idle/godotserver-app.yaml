@@ -28,6 +28,8 @@ spec:
     # déclenchée par un commit ré-appliquerait l'image Harbor sur le build local.
     - RespectIgnoreDifferences=true
 
+  # Variante « à vide » : l'image n'est PAS ignorée ici (contrairement à la variante `server`, où
+  # build-and-deploy la patche), sinon ArgoCD garderait l'image Godot sous la commande du placeholder.
   # Variante « à vide » : le pod ne fait que tenir la place (serveur lancé depuis tes sources,
   # trafic redirigé par Telepresence). Ne pas builder godotserver en local dans ce mode.
   # Le build local (./scripts_linux/build-and-deploy.sh) patche l'image du container principal
@@ -39,5 +41,3 @@ spec:
       kind: Deployment
       jsonPointers:
         - /spec/replicas
-        - /spec/template/spec/containers/0/image
-        - /spec/template/spec/containers/0/imagePullPolicy
