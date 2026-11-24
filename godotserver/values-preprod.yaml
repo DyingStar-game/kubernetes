@@ -1,10 +1,11 @@
 # Preprod overrides for godotserver
 # Usage: helm upgrade --install -n dyingstar-preprod godotserver ./godotserver -f godotserver/values-preprod.yaml
 
-# Starting size; once Horizon sizes the pool (GAME_SERVER_AUTOSCALE=1 in the horizon
-# chart), set externalScaling: true so that upgrades leave its replicas alone.
+# Horizon sizes the pool (GAME_SERVER_AUTOSCALE=1 in the horizon chart): the
+# Deployment is rendered without replicas so that upgrades leave them alone.
+# replicaCount only matters when externalScaling is turned off again.
 replicaCount: 30
-externalScaling: false
+externalScaling: true
 
 # Godot servers stay on dyingstarnode1 while it has room; another node only takes
 # the overflow (Horizon gives back the idle servers of autoscale_drain_first_nodes first).
