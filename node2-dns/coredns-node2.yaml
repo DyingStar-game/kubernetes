@@ -1,11 +1,12 @@
-# Node-local CoreDNS for dyingstarnode2 (remote node behind the WireGuard
-# tunnel to the home LAN).
+# Node-local CoreDNS for the remote datacenter nodes behind the WireGuard
+# tunnel to the home LAN: dyingstarnode2 and dyingstarnode3. The resources keep
+# their historical `coredns-node2` name to avoid a delete/recreate on node2.
 #
 # The cluster CoreDNS runs on the control plane at home. When the tunnel drops,
-# pods on dyingstarnode2 (Harbor, ARC runners) would lose DNS and Harbor could
-# no longer reach its own database/redis by service name. This instance runs on
-# the node itself and keeps answering from its informer cache while the API
-# server is unreachable.
+# pods on these nodes (Harbor, ARC runners on node2; part of dyingstar-prod on
+# node3) would lose DNS and could no longer reach their database/redis by
+# service name. This instance runs on each node and keeps answering from its
+# informer cache while the API server is unreachable.
 #
 # Wiring on the node (out of git, see the node procedure):
 #   - dummy interface `nodelocaldns` holding 169.254.20.10/32 (NetworkManager)
@@ -88,8 +89,17 @@ spec:
       hostNetwork: true
       # Use the host resolv.conf for upstream, not the cluster DNS (loop).
       dnsPolicy: Default
-      nodeSelector:
-        kubernetes.io/hostname: dyingstarnode2
+      # Every remote node behind the WireGuard tunnel.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - dyingstarnode2
+                      - dyingstarnode3
       # Must survive every taint, including unreachable/not-ready while the
       # tunnel is down: evicting it is exactly what we want to avoid.
       tolerations:
