@@ -20,6 +20,14 @@ nameOverride: ""
 fullnameOverride: ""
 
 # This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
+# Horizon sizes the godotserver pool itself (ds_game_server autoscale.rs): this
+# creates the Role it needs. Turn the autoscaler on in Horizon with the env var
+# GAME_SERVER_AUTOSCALE ("1", or "dry-run" to only log its decisions) in extraEnv,
+# and set externalScaling on the godotserver chart so nothing resets its replicas.
+gameServerAutoscale:
+  enabled: false
+  deployment: godotserver
+
 serviceAccount:
   # Specifies whether a service account should be created
   create: true
