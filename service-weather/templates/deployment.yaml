@@ -28,6 +28,14 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "service-weather.serviceAccountName" . }}
+      {{- if and .Values.waitForDatabase.enabled .Values.database.host }}
+      initContainers:
+        # The database (a CloudNativePG Cluster) may come up after the pod: wait for it instead of
+        # crash-looping. The service itself also retries its connection for a while.
+        - name: wait-for-db
+          image: busybox:1.37
+          command: ['sh', '-c', 'until nc -z {{ .Values.database.host }} {{ .Values.database.port }}; do echo "waiting for {{ .Values.database.host }}:{{ .Values.database.port }}..."; sleep 2; done']
+      {{- end }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -43,6 +51,30 @@ spec:
           env:
             - name: PORT
               value: {{ .Values.service.port | quote }}
+            {{- with .Values.atmosphere.bodies }}
+            # The real atmosphere model (off when empty). Its checkpoints go to the database below.
+            - name: ATMOSPHERE_BODIES
+              value: {{ . | quote }}
+            - name: ATMOSPHERE_THREADS
+              value: {{ $.Values.atmosphere.threads | quote }}
+            {{- end }}
+            {{- if .Values.database.host }}
+            - name: POSTGRES_HOST
+              value: {{ .Values.database.host | quote }}
+            - name: POSTGRES_PORT
+              value: {{ .Values.database.port | quote }}
+            - name: POSTGRES_USER
+              value: {{ .Values.database.user | quote }}
+            - name: POSTGRES_DB
+              value: {{ .Values.database.name | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: password
+            - name: DATABASE_URL
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)"
+            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
