@@ -32,6 +32,27 @@ service:
 # Extra environment variables injected into the container.
 extraEnv: []
 
+# The real atmosphere model (services/weather/crates/weather-atmosphere). Empty `bodies` = off: the
+# service runs only its seed-based weather. Example: "Sandbox". It needs `database` below (its
+# checkpoints, ~6 MB per body); a lost state only restarts the model from cold (~1 h of spin-up).
+atmosphere:
+  bodies: ""
+  threads: 2
+
+# Where the atmosphere keeps its checkpoints: a PostgreSQL database (a CloudNativePG Cluster,
+# service-weather/database/ in dev-local). Empty host = no DATABASE_URL given to the service.
+# The Secret must hold the key `password`.
+database:
+  host: ""
+  port: 5432
+  name: weather
+  user: weather
+  existingSecret: ""
+
+# Wait for the database before starting (only when database.host is set).
+waitForDatabase:
+  enabled: true
+
 resources: {}
   # requests:
   #   cpu: 50m

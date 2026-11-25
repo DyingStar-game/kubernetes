@@ -5,13 +5,20 @@ metadata:
   namespace: argocd
 spec:
   project: game
-  source:
-    repoURL: 'file:///mnt/local-repo.git'
-    path: service-weather
-    targetRevision: HEAD
-    helm:
-      valueFiles:
-        - $values/service-weather/values-dev.yaml
+  sources:
+    - repoURL: 'file:///mnt/local-repo.git'
+      path: service-weather
+      targetRevision: HEAD
+      helm:
+        valueFiles:
+          - $values/service-weather/values-dev.yaml
+    # The database of the atmosphere model's checkpoints (CloudNativePG).
+    - repoURL: 'file:///mnt/local-repo.git'
+      path: service-weather/database
+      targetRevision: HEAD
+    - repoURL: 'file:///mnt/local-repo.git'
+      targetRevision: HEAD
+      ref: values
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: dyingstar
@@ -21,6 +28,7 @@ spec:
       selfHeal: true
     syncOptions:
     - CreateNamespace=true
+    - ServerSideApply=true
     # Sans ceci, ignoreDifferences n'agit que sur la détection de drift : une sync
     # déclenchée par un commit ré-appliquerait l'image Harbor sur le build local.
     - RespectIgnoreDifferences=true

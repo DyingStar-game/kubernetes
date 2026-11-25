@@ -7,6 +7,15 @@ image:
 serviceMonitor:
   enabled: false
 
+# The real atmosphere model of Sandbox, with its checkpoints in the CloudNativePG Cluster declared in
+# service-weather/database/ (applied as a second source by the same ArgoCD app). An image built
+# before services#66 ignores these variables.
+atmosphere:
+  bodies: "Sandbox"
+database:
+  host: weather-db-rw
+  existingSecret: weather-db-auth
+
 extraEnv:
   - name: RUST_LOG
     value: "weather=debug"
