@@ -1,0 +1,32 @@
+# Database of service-weather (preprod): the checkpoints of the atmosphere model.
+#
+# Applied by the game Application `service-weather` as a second source
+# (argocd/preprod/game/service-weather-app.yaml). The CloudNativePG operator
+# comes from argocd/preprod/infra/cnpg-op-app.yaml (namespace cnpg-system).
+#
+# CloudNativePG creates the Service `weather-db-rw`, which is what
+# service-weather/values-preprod.yaml points at via `database.host`.
+# The state is small (~6 MB per simulated body, two slots): 1Gi is plenty. Losing
+# it is not serious: the model starts again from cold (no player data in it).
+#
+# ⚠ The `weather-db-auth` Secret is NOT committed: it is created out of band
+# in `dyingstar-preprod` (keys `username` = weather and `password`, matching
+# `database.existingSecret`). It MUST exist before the Cluster is reconciled,
+# otherwise its `initdb` fails. The dev-local credentials
+# (service-weather/database/01-db-secret.yaml) must never be reused here.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: weather-db
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  instances: 1
+  storage:
+    size: 1Gi
+  bootstrap:
+    initdb:
+      database: weather
+      owner: weather
+      secret:
+        name: weather-db-auth

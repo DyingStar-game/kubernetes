@@ -5,13 +5,20 @@ metadata:
   namespace: argocd
 spec:
   project: game
-  source:
-    repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
-    path: service-weather
-    targetRevision: main
-    helm:
-      valueFiles:
-        - $values/service-weather/values-preprod.yaml
+  sources:
+    - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
+      path: service-weather
+      targetRevision: main
+      helm:
+        valueFiles:
+          - $values/service-weather/values-preprod.yaml
+    # The atmosphere model's checkpoints (CloudNativePG Cluster `weather-db`).
+    - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
+      path: service-weather/database-preprod
+      targetRevision: main
+    - repoURL: 'https://github.com/dyingstar-game/kubernetes.git'
+      targetRevision: main
+      ref: values
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: dyingstar-preprod
@@ -21,3 +28,9 @@ spec:
       selfHeal: true
     syncOptions:
     - CreateNamespace=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m

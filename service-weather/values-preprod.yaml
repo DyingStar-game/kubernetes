@@ -7,12 +7,24 @@ image:
 serviceMonitor:
   enabled: true
 
-podAnnotations: 
+podAnnotations:
   k8s.grafana.com/scrape: "true"
 
+# The real atmosphere model of Sandbox (services#66), its checkpoints in the CloudNativePG Cluster
+# declared in service-weather/database-preprod/ (applied as a second source by the same ArgoCD app).
+# The `weather-db-auth` Secret is created out of band — never committed.
+atmosphere:
+  bodies: "Sandbox"
+  threads: 2
+database:
+  host: weather-db-rw
+  existingSecret: weather-db-auth
+
+# The model holds ~160 MB (measured on a local stack during its spin-up): the old 128Mi limit would
+# OOM-kill it. Its CPU is used in bursts (spin-up at the first start, then one model chunk an hour).
 resources:
   requests:
-    cpu: 50m
-    memory: 64Mi
+    cpu: 100m
+    memory: 192Mi
   limits:
-    memory: 128Mi
+    memory: 384Mi
