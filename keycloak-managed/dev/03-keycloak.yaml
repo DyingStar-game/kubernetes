@@ -26,7 +26,7 @@ spec:
       - client-admin-api:v2
 
   # image volontairement absente : l'opérateur utilise RELATED_IMAGE_KEYCLOAK
-  # (quay.io/keycloak/keycloak:26.7.0), ce qui garantit que le serveur et
+  # (quay.io/keycloak/keycloak:26.8.2), ce qui garantit que le serveur et
   # l'opérateur restent sur la même version.
 
   db:

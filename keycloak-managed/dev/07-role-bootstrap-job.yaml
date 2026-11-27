@@ -53,8 +53,8 @@ spec:
         - name: bootstrap-roles
           # Même image que la CR Keycloak de ce dossier (image volontairement
           # absente de 03-keycloak.yaml : l'opérateur tire RELATED_IMAGE_KEYCLOAK,
-          # ici 26.7.0 — version alignée sur l'opérateur).
-          image: quay.io/keycloak/keycloak:26.7.0
+          # ici 26.8.2 — version alignée sur l'opérateur).
+          image: quay.io/keycloak/keycloak:26.8.2
           imagePullPolicy: IfNotPresent
           command: ["/bin/bash", "-c"]
           args:
@@ -538,6 +538,44 @@ spec:
                 echo "FGAP: ok"
               else
                 echo "FGAP: FAILED — svc-npc ne peut pas gérer les PNJ ; fallback manuel : import/README.md § NPC accounts"
+              fi
+
+              # 10. Scope `kc-admin-api` des comptes de service qui appellent
+              #     l'API d'admin (Keycloak >= 26.8.2)
+              #
+              # Depuis 26.8.2, l'API REST d'admin exige que le token porte
+              # l'audience de l'API d'admin, donnée par le client scope intégré
+              # `kc-admin-api` (créé par la migration dans chaque realm). Seuls
+              # `admin-cli` et `security-admin-console` le reçoivent d'office :
+              # sans lui, `operator-admin` (l'opérateur, pour les
+              # KeycloakOIDCClient) et `svc-npc` (création des PNJ) prennent un
+              # 401. On l'ajoute en default client scope (idempotent). Si le
+              # scope n'existe pas encore (serveur pas encore redémarré en
+              # 26.8.2 au moment du sync), on l'attend 10 min puis on abandonne
+              # sans échouer : le sync suivant rattrapera.
+              scope_id() {
+                "${KC}" get client-scopes -r "$1" --fields id,name --format csv --noquotes \
+                  | { grep ',kc-admin-api$' || true; } | cut -d, -f1
+              }
+              add_admin_scope() {
+                local realm="$1" client="$2" cid sid
+                cid=$("${KC}" get clients -r "${realm}" -q "clientId=${client}" --fields id \
+                      --format csv --noquotes | head -1)
+                [ -n "${cid}" ] || { echo "kc-admin-api: ${realm}/${client} absent, ignoré"; return 0; }
+                sid=$(scope_id "${realm}")
+                "${KC}" update "clients/${cid}/default-client-scopes/${sid}" -r "${realm}" \
+                  && echo "kc-admin-api: ${realm}/${client} ok"
+              }
+              for i in $(seq 1 60); do
+                [ -n "$(scope_id master)" ] && break
+                echo "kc-admin-api: scope absent (Keycloak < 26.8.2 ?), attente..."
+                sleep 10
+              done
+              if [ -n "$(scope_id master)" ]; then
+                add_admin_scope master operator-admin || echo "kc-admin-api: FAILED master/operator-admin"
+                add_admin_scope "${KC_REALM}" svc-npc || echo "kc-admin-api: FAILED ${KC_REALM}/svc-npc"
+              else
+                echo "kc-admin-api: scope toujours absent, ignoré (prochain sync)"
               fi
 
               # ------------------------------------------------------------------

@@ -1,7 +1,7 @@
 # Identité machine des clients de service du realm `dyingstar`.
 #
 # Réconcilié par le CRD `KeycloakOIDCClient` (v2alpha1) de l'opérateur
-# keycloak-k8s-resources 26.7.0 — vérifiable avec :
+# keycloak-k8s-resources 26.8.2 — vérifiable avec :
 #   kubectl api-resources | grep keycloak
 #   kubectl explain keycloakoidcclient.spec.client
 #
@@ -34,6 +34,9 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: svc-game-client-secret
+  labels:
+    # Requis par l\'opérateur >= 26.8.0 pour un Secret de `auth.secretRef`.
+    operator.keycloak.org/kind: KeycloakOIDCClient
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
 type: Opaque
@@ -44,6 +47,9 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: svc-market-client-secret
+  labels:
+    # Requis par l\'opérateur >= 26.8.0 pour un Secret de `auth.secretRef`.
+    operator.keycloak.org/kind: KeycloakOIDCClient
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
 type: Opaque
@@ -54,6 +60,9 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: svc-inventory-client-secret
+  labels:
+    # Requis par l\'opérateur >= 26.8.0 pour un Secret de `auth.secretRef`.
+    operator.keycloak.org/kind: KeycloakOIDCClient
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
 type: Opaque
@@ -64,6 +73,9 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: svc-mission-client-secret
+  labels:
+    # Requis par l\'opérateur >= 26.8.0 pour un Secret de `auth.secretRef`.
+    operator.keycloak.org/kind: KeycloakOIDCClient
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
 type: Opaque
@@ -74,6 +86,9 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: svc-admin-client-secret
+  labels:
+    # Requis par l\'opérateur >= 26.8.0 pour un Secret de `auth.secretRef`.
+    operator.keycloak.org/kind: KeycloakOIDCClient
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
 type: Opaque
@@ -86,6 +101,9 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: dyingstar-admin-client-secret
+  labels:
+    # Requis par l\'opérateur >= 26.8.0 pour un Secret de `auth.secretRef`.
+    operator.keycloak.org/kind: KeycloakOIDCClient
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
 type: Opaque
@@ -96,6 +114,9 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: svc-economie-client-secret
+  labels:
+    # Requis par l\'opérateur >= 26.8.0 pour un Secret de `auth.secretRef`.
+    operator.keycloak.org/kind: KeycloakOIDCClient
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
 type: Opaque
@@ -106,6 +127,9 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: svc-social-client-secret
+  labels:
+    # Requis par l\'opérateur >= 26.8.0 pour un Secret de `auth.secretRef`.
+    operator.keycloak.org/kind: KeycloakOIDCClient
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
 type: Opaque
@@ -116,6 +140,9 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: svc-chat-client-secret
+  labels:
+    # Requis par l\'opérateur >= 26.8.0 pour un Secret de `auth.secretRef`.
+    operator.keycloak.org/kind: KeycloakOIDCClient
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
 type: Opaque
@@ -129,6 +156,9 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: svc-universesimulator-client-secret
+  labels:
+    # Requis par l\'opérateur >= 26.8.0 pour un Secret de `auth.secretRef`.
+    operator.keycloak.org/kind: KeycloakOIDCClient
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
 type: Opaque
@@ -141,6 +171,9 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: svc-npc-client-secret
+  labels:
+    # Requis par l\'opérateur >= 26.8.0 pour un Secret de `auth.secretRef`.
+    operator.keycloak.org/kind: KeycloakOIDCClient
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
 type: Opaque
@@ -152,6 +185,9 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: npc-login-client-secret
+  labels:
+    # Requis par l\'opérateur >= 26.8.0 pour un Secret de `auth.secretRef`.
+    operator.keycloak.org/kind: KeycloakOIDCClient
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
 type: Opaque
