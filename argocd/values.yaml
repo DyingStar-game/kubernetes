@@ -1,3 +1,11 @@
+# Latest 3.4 patch (security fixes). The argo-cd chart only follows the newest
+# Argo CD minor, so its last 3.4 release ships v3.4.6: the image is pinned here
+# on top of chart 9.5.21 (v3.4.3, same CRDs as v3.4.15). Drop this pin when
+# moving to the chart of a newer minor.
+global:
+  image:
+    tag: v3.4.15
+
 controller:
   replicas: 1
 
