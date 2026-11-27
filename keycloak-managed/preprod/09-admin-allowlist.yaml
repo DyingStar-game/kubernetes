@@ -1,0 +1,38 @@
+# Restreint l'administration de Keycloak (console et API d'admin `/admin`, realm
+# `master` `/realms/master`) à quelques adresses source. Le realm des joueurs
+# (`/realms/dyingstar`) et les ressources statiques restent publics.
+#
+# Référencé par les règles `/admin` et `/realms/master` de 05-httproute.yaml
+# (filtre `ExtensionRef`, résolu par le provider kubernetesCRD de Traefik, qui
+# doit vivre dans le même namespace que la route).
+#
+# Adresse vue par Traefik : son Service est en `externalTrafficPolicy: Local`,
+# donc un client d'Internet arrive avec sa vraie IP. Depuis le LAN de la maison,
+# en revanche, la réflexion NAT d'OPNsense fait arriver TOUT le LAN avec
+# l'adresse d'OPNsense, 192.168.20.1 : c'est elle qui autorise les PC de
+# l'admin (les deux IP de PC ne servent que si cette réflexion change). Ne pas
+# passer à une stratégie `ipStrategy` lisant X-Forwarded-For : le client
+# pourrait la forger.
+#
+# Les composants du cluster qui parlent à l'API d'admin (opérateur, jobs de
+# bootstrap, service-npc) passent par le Service `keycloak:8080`, jamais par
+# cette route : ce filtre ne les concerne pas.
+#
+# ⚠ Miroir : keycloak/values-dev-shared.yaml (`adminIpAllowList`).
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: keycloak-admin-allowlist
+  namespace: dyingstar-preprod
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  ipAllowList:
+    sourceRange:
+      # OPNsense : tout le LAN de la maison (réflexion NAT)
+      - 192.168.20.1/32
+      # PC de l'admin
+      - 192.168.20.158/32
+      - 192.168.20.174/32
+      # IP publique de la maison (dynamique : à mettre à jour si elle change)
+      - 46.231.240.213/32

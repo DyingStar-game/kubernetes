@@ -25,6 +25,26 @@ spec:
   hostnames:
     - "auth-preprod.dyingstar-game.com"
   rules:
+    # Administration (console + API d'admin, realm master) : filtrée par IP
+    # source (09-admin-allowlist.yaml). PathPrefix s'arrête aux segments :
+    # `/realms/master` ne couvre pas `/realms/master-x`. La règle la plus
+    # spécifique l'emporte sur `/`.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /admin
+        - path:
+            type: PathPrefix
+            value: /realms/master
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: traefik.io
+            kind: Middleware
+            name: keycloak-admin-allowlist
+      backendRefs:
+        - name: keycloak
+          port: 8080
     - matches:
         - path:
             type: PathPrefix

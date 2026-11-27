@@ -1,0 +1,17 @@
+{{- /*
+Traefik Middleware restricting the admin paths (`/admin`, `/realms/master`) to a
+few source addresses. Referenced from httpRoute.rules by an `ExtensionRef` filter
+named "<fullname>-admin-allowlist". See values-dev-shared.yaml.
+*/ -}}
+{{- if .Values.adminIpAllowList.enabled -}}
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ include "keycloak.fullname" . }}-admin-allowlist
+  labels:
+    {{- include "keycloak.labels" . | nindent 4 }}
+spec:
+  ipAllowList:
+    sourceRange:
+      {{- required "adminIpAllowList.sourceRange must not be empty" .Values.adminIpAllowList.sourceRange | toYaml | nindent 6 }}
+{{- end }}

@@ -50,6 +50,13 @@ ingress:
           pathType: ImplementationSpecific
   tls: []
 
+# Traefik Middleware `<fullname>-admin-allowlist` (ipAllowList) to reference from
+# httpRoute.rules with an ExtensionRef filter, e.g. on `/admin` and
+# `/realms/master`. Needs Traefik's kubernetesCRD provider.
+adminIpAllowList:
+  enabled: false
+  sourceRange: []
+
 # Gateway API HTTPRoute (disabled by default).
 httpRoute:
   enabled: false
