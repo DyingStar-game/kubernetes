@@ -42,13 +42,15 @@ spec:
     enabled: true
     # HTTPS en frontal (listener Traefik `keycloak`) : sslRequired par défaut
     # (`external`) convient, on ne force donc pas `none` comme en dev-local.
-    registrationAllowed: true
+    # Connexion par Discord uniquement : ni inscription locale ni « mot de passe
+    # oublié » (le job 08, section 11, l'applique aussi au realm déjà importé).
+    registrationAllowed: false
     registrationEmailAsUsername: false
     rememberMe: true
     verifyEmail: false
     loginWithEmailAllowed: true
     duplicateEmailsAllowed: false
-    resetPasswordAllowed: true
+    resetPasswordAllowed: false
     editUsernameAllowed: false
     bruteForceProtected: true
     permanentLockout: false
@@ -165,7 +167,7 @@ spec:
         realmRoles:
           - npc
     # Aucun utilisateur en dur en preprod : les comptes joueurs arrivent par le
-    # Discord IdP / l'inscription (registrationAllowed: true). Le compte de test
+    # Discord IdP (seul moyen de connexion, cf. job 08 section 11). Le compte de test
     # `devplayer` reste dev-local (keycloak-managed/dev/04-realm-import.yaml).
     # Scopes standard du realm. L'import opérateur ne les provisionne pas : il
     # faut les décrire ici (comme dans un export de realm complet) sinon les
