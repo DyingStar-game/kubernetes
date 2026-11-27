@@ -210,6 +210,55 @@ else
   $KCADM create identity-provider/instances -r "$REALM" "${IDP_ARGS[@]}"
 fi
 
+# ── GitHub-only login ────────────────────────────────────────────────────────
+# Contributors log in with GitHub only: the login page goes straight to GitHub,
+# no username/password form, no local registration or password reset, and no
+# password grant on admin-cli. Same function as the preprod role job
+# (keycloak-managed/preprod/08-role-bootstrap-job.yaml, section 11).
+KC="$KCADM"
+# idp_only_login <realm> <idp alias> [client losing the password grant...]
+# Login through the identity provider only. Idempotent; ${KC} must be logged in.
+#   - the browser flow Identity Provider Redirector gets the IdP as default
+#     provider: the login page redirects straight to it;
+#   - the `forms` sub-flow (Username Password Form, OTP) becomes DISABLED;
+#   - the listed clients lose the password grant (direct access grants).
+idp_only_login() {
+  local realm="$1" idp="$2" ex id prov name cfg rest
+  shift 2
+  "${KC}" get "identity-provider/instances/${idp}" -r "${realm}" >/dev/null 2>&1 \
+    || { echo "idp-only: no IdP ${idp} in realm ${realm}, skipped"; return 0; }
+  "${KC}" update "realms/${realm}" \
+    -s registrationAllowed=false -s resetPasswordAllowed=false || return 1
+  ex=$("${KC}" get authentication/flows/browser/executions -r "${realm}" \
+        --fields id,providerId,displayName,level,authenticationConfig \
+        --format csv --noquotes) || return 1
+  local redir_id="" redir_cfg="" forms_id=""
+  while IFS=, read -r id prov name lvl cfg rest; do
+    case "${prov}" in identity-provider-redirector) redir_id="${id}"; redir_cfg="${cfg}";; esac
+    [ "${name}" = "forms" ] && [ "${lvl}" = "0" ] && forms_id="${id}"
+  done <<< "${ex}"
+  [ -n "${redir_id}" ] && [ -n "${forms_id}" ] \
+    || { echo "idp-only: unexpected browser flow in ${realm} (redirector='${redir_id}' forms='${forms_id}')"; return 1; }
+  if [ -n "${redir_cfg}" ]; then
+    "${KC}" update "authentication/config/${redir_cfg}" -r "${realm}" \
+      -s "config.defaultProvider=${idp}" || return 1
+  else
+    "${KC}" create "authentication/executions/${redir_id}/config" -r "${realm}" \
+      -s "alias=idp-only-${idp}" -s "config.defaultProvider=${idp}" || return 1
+  fi
+  "${KC}" update authentication/flows/browser/executions -r "${realm}" \
+    -b "{\"id\":\"${forms_id}\",\"requirement\":\"DISABLED\"}" || return 1
+  local c cid
+  for c in "$@"; do
+    cid=$("${KC}" get clients -r "${realm}" -q "clientId=${c}" --fields id \
+          --format csv --noquotes | head -1)
+    [ -n "${cid}" ] || continue
+    "${KC}" update "clients/${cid}" -r "${realm}" -s directAccessGrantsEnabled=false || return 1
+  done
+  echo "idp-only: ${realm} -> ${idp} ok"
+}
+idp_only_login "$REALM" github admin-cli
+
 echo "done"
 REMOTE
 
