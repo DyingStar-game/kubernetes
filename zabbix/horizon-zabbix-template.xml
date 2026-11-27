@@ -20,8 +20,10 @@
   Link this template to both hosts.
 
   Macros to set per host:
-    {$HORIZON_METRICS_URL}   →  http://horizon.dyingstar-prod:9091/metrics
-                                http://horizon.dyingstar-preprod:9091/metrics
+    {$HORIZON_METRICS_URL}   →  http://service-monitoring.dyingstar-prod.svc:9300/metrics
+                                http://service-monitoring.dyingstar-preprod.svc:9300/metrics
+                                (Horizon no longer serves /metrics itself: it feeds
+                                service-monitoring, which exposes the horizon_* metrics)
     {$MIN_GODOT_SERVERS}     →  1   (trigger threshold: minimum expected servers)
     {$PEAK_HOURS_START}      →  18  (hour, 24h clock, local time)
     {$PEAK_HOURS_END}        →  23
@@ -55,8 +57,8 @@
       <macros>
         <macro>
           <macro>{$HORIZON_METRICS_URL}</macro>
-          <value>http://horizon:9091/metrics</value>
-          <description>Full URL of the Horizon /metrics endpoint (in-cluster DNS).</description>
+          <value>http://service-monitoring:9300/metrics</value>
+          <description>Full URL of the horizon_* metrics, exposed by service-monitoring (in-cluster DNS).</description>
         </macro>
         <macro>
           <macro>{$MIN_GODOT_SERVERS}</macro>

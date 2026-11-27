@@ -103,17 +103,32 @@ zabbix:
       limits:
         memory: 128Mi
 
-  # We use kube-state-metrics from the monitoring chart — disable the bundled one.
+  # kube-state-metrics is not bundled: the cluster already runs one, from the
+  # k8s-monitoring Application (Grafana k8s-monitoring chart).
   kubeStateMetrics:
     enabled: false
 
-  # kube-prometheus-stack already installs its own kube-state-metrics.
-  # Point zabbix agent2 kubernetes plugin at the existing kube-state-metrics service.
-  zabbixAgent2:
-    # These env vars configure the agent2 Kubernetes plugin.
-    # Adjust the kube-state-metrics service name if it differs in your cluster.
-    extraEnv:
-      - name: ZBX_PLUGINS
-        value: "kubernetes"
-      - name: KUBE_STATE_METRICS_URL
-        value: "http://monitoring-stack-kube-state-metrics.monitoring.svc:8080/metrics"
+# ---------------------------------------------------------------------------
+# What the external Zabbix server can collect through these proxies
+#
+# The proxies run in-cluster, so Zabbix HTTP agent items (and templates using
+# macros) can point at cluster DNS names. Endpoints of the current stack, all
+# checked from the proxy pod with `zabbix_agent2 -t web.page.get[...]`:
+#
+#   Horizon business metrics (players, Godot servers, connects, auth), raw
+#   Prometheus text exposed by service-monitoring (the metrics bridge Horizon
+#   feeds) — {$HORIZON_METRICS_URL} of horizon-zabbix-template.xml:
+#     http://service-monitoring.dyingstar-preprod.svc:9300/metrics
+#     http://service-monitoring.dyingstar-prod.svc:9300/metrics
+#
+#   kube-state-metrics (cluster object state, e.g. Zabbix "Kubernetes cluster
+#   state by HTTP" templates):
+#     http://k8s-monitoring-kube-state-metrics.k8s-monitoring.svc:8080/metrics
+#
+#   Prometheus HTTP API (PromQL from an HTTP agent item, node and kubelet
+#   metrics collected by k8s-monitoring):
+#     http://prometheus-server.observability.svc/api/v1/query?query=<PromQL>
+#
+# The former `monitoring` stack (kube-prometheus-stack: monitoring-stack-
+# prometheus, monitoring-kube-state-metrics) is gone; do not point items at it.
+# ---------------------------------------------------------------------------
