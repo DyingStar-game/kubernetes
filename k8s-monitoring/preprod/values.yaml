@@ -32,13 +32,13 @@ destinations:
     url: http://tempo.observability.svc.cluster.local:4318/v1/traces
 
 # Activation et configuration de la collecte
-# Collecte des Pods / Services annotés `k8s.grafana.com/scrape: "true"`
-# (port via `k8s.grafana.com/metrics.portNumber` ou portName, chemin
-# `/metrics` par défaut). Utilisé par service-monitoring (métriques
-# horizon_*) et service-weather (weather_*), qui portent l'annotation dans
-# leur values-preprod.yaml.
+# Collecte des Pods annotés `k8s.grafana.com/scrape` : désactivée. La destination
+# `prometheus` ci-dessus ne reçoit rien (404 : Prometheus n'a pas le récepteur
+# remote write, et l'URL serait /api/v1/write) ; c'est Prometheus qui collecte
+# lui-même les pods annotés `prometheus.io/scrape` (job kubernetes-pods), dont
+# service-monitoring (horizon_*) et service-weather (weather_*).
 annotationAutodiscovery:
-  enabled: true
+  enabled: false
   collector: metrics-collector
 
 clusterMetrics:

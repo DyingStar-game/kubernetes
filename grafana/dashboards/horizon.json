@@ -5,7 +5,7 @@
     "dyingstar",
     "horizon"
   ],
-  "description": "Métriques métier de Horizon, exposées par service-monitoring (horizon_*) et collectées par Alloy (annotation k8s.grafana.com/scrape).",
+  "description": "Métriques métier de Horizon, exposées par service-monitoring (horizon_*) et collectées par Prometheus (job kubernetes-pods, annotation prometheus.io/scrape).",
   "schemaVersion": 39,
   "version": 1,
   "editable": true,
