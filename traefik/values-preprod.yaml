@@ -28,11 +28,10 @@ service:
   spec:
     type: NodePort
     externalTrafficPolicy: Local
-logs:
-  general:
-    level: INFO
-  access:
-    enabled: true
+log:
+  level: INFO
+accessLog:
+  enabled: true
 
 providers:
   kubernetesGateway:
