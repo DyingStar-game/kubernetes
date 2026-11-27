@@ -15,10 +15,11 @@ metadata:
 spec:
   instances: 1
 
-  # Image custom (`../services/keycloak`, FROM quay.io/keycloak/keycloak:26.7.0
+  # Image custom (`../services/keycloak`, FROM quay.io/keycloak/keycloak:26.8.2
   # + SPI Discord + script de bootstrap). Indispensable en preprod : le provider
   # Discord (providerId `discord`) vient du SPI `iForged/keycloak-discord`, absent
-  # de l'image upstream. La version doit rester alignée sur l'opérateur (26.7.0).
+  # de l'image upstream. La version doit rester alignée sur l'opérateur (26.8.2) :
+  # ARG KEYCLOAK_VERSION du Dockerfile de services/keycloak.
   image: harbor.dyingstar-game.space/dyingstar/keycloak:develop
 
   # L'API admin clients v2 est requise par le contrôleur des `KeycloakOIDCClient`

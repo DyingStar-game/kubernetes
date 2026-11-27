@@ -1,7 +1,7 @@
 # Keycloak preprod (opérateur)
 
 Ressources Keycloak de **preprod**, réconciliées par l'opérateur upstream
-(`keycloak-k8s-resources` `26.7.0`) installé par
+(`keycloak-k8s-resources` `26.8.2`) installé par
 [`argocd/preprod/infra/keycloak-app.yaml`](../../argocd/preprod/infra/keycloak-app.yaml),
 dans le namespace `keycloak-operator`.
 
@@ -75,8 +75,16 @@ kubectl --context "$CTX" -n "$NS" create secret generic keycloak-discord \
 for c in svc-game svc-market svc-inventory svc-mission svc-admin svc-economie svc-social svc-chat svc-universesimulator svc-npc dyingstar-admin npc-login; do
   kubectl --context "$CTX" -n "$NS" create secret generic "${c}-client-secret" \
     --from-literal=secret="$(openssl rand -hex 32)"
+  # Opérateur >= 26.8.0 : un Secret de `auth.secretRef` doit porter ce label.
+  kubectl --context "$CTX" -n "$NS" label secret "${c}-client-secret" \
+    operator.keycloak.org/kind=KeycloakOIDCClient
 done
 ```
+
+> Keycloak >= 26.8.2 : l'API d'admin exige le client scope intégré
+> `kc-admin-api` sur le token. `operator-admin` (realm `master`) et `svc-npc`
+> le reçoivent en default client scope par le job
+> `08-role-bootstrap-job.yaml` (section 10) ; sans lui ils prennent un 401.
 
 Les mêmes secrets client (`svc-*-client-secret`) doivent aussi exister sous les
 noms attendus par les charts applicatifs — même namespace (`dyingstar-preprod`)

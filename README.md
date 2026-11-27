@@ -288,7 +288,7 @@ Both the operator and our CRs are declared by a single infra Application,
 [`argocd/dev/infra/core/keycloak-app.yaml`](argocd/dev/infra/core/keycloak-app.yaml)
 (name `keycloak`, project `infra`), with two sources:
 
-- `github.com/keycloak/keycloak-k8s-resources` @ `26.7.0`, path `kubernetes` —
+- `github.com/keycloak/keycloak-k8s-resources` @ `26.8.2`, path `kubernetes` —
   the operator and its CRDs
 - this repo, path [`keycloak-managed/dev/`](keycloak-managed/dev) — our own resources:
 
@@ -432,7 +432,7 @@ universesimulator API itself is called by `svc-game` / `svc-admin` (audience
 
 #### Which CRD does what (verified against the deployed operator)
 
-The operator is `keycloak-k8s-resources` @ `26.7.0`; its CRDs are:
+The operator is `keycloak-k8s-resources` @ `26.8.2`; its CRDs are:
 
 ```bash
 kubectl api-resources | grep keycloak
