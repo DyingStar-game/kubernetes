@@ -17,3 +17,6 @@ configMapGenerator:
   - name: grafana-dashboard-nodes
     files:
       - nodes.json
+  - name: grafana-dashboard-horizon
+    files:
+      - horizon.json

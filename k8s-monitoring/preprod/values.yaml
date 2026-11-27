@@ -32,6 +32,15 @@ destinations:
     url: http://tempo.observability.svc.cluster.local:4318/v1/traces
 
 # Activation et configuration de la collecte
+# Collecte des Pods / Services annotés `k8s.grafana.com/scrape: "true"`
+# (port via `k8s.grafana.com/metrics.portNumber` ou portName, chemin
+# `/metrics` par défaut). Utilisé par service-monitoring (métriques
+# horizon_*) et service-weather (weather_*), qui portent l'annotation dans
+# leur values-preprod.yaml.
+annotationAutodiscovery:
+  enabled: true
+  collector: metrics-collector
+
 clusterMetrics:
   enabled: true
   collector: metrics-collector # References the collector defined above
