@@ -7,7 +7,12 @@ image:
 serviceMonitor:
   enabled: true
 
-podAnnotations: 
+# Collecté par le job `kubernetes-pods` du Prometheus d'observability (annotations
+# prometheus.io/*, chemin /metrics par défaut). k8s.grafana.com/scrape est l'équivalent
+# pour Alloy (annotationAutodiscovery, désactivé tant qu'Alloy ne livre pas ses métriques).
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9300"
   k8s.grafana.com/scrape: "true"
 
 resources:
