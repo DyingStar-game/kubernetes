@@ -1,0 +1,38 @@
+# metrics-server — serves the metrics.k8s.io API (kubectl top, dashboards
+# showing pod CPU/memory, any future HPA).
+#
+# It used to come with the manual `monitoring` Helm release (kube-prometheus-
+# stack + metrics-server), removed in favour of the observability stack
+# (prometheus, k8s-monitoring, grafana). Same chart version and settings as
+# there; upgrade it separately.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: metrics-server
+  namespace: argocd
+spec:
+  project: infra
+  source:
+    repoURL: 'https://kubernetes-sigs.github.io/metrics-server/'
+    chart: metrics-server
+    targetRevision: 3.13.0
+    helm:
+      valuesObject:
+        args:
+          # kubeadm cluster: the kubelet serving certificates do not carry
+          # the node IPs in their SANs.
+          - --kubelet-insecure-tls
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            memory: 128Mi
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: kube-system
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
