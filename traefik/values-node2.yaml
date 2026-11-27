@@ -127,8 +127,7 @@ persistence:
   path: /data
   size: 128Mi
 
-logs:
-  general:
-    level: INFO
-  access:
-    enabled: true
+log:
+  level: INFO
+accessLog:
+  enabled: true
