@@ -22,6 +22,19 @@ extraObjects:
             - name: grafana
               port: 80
 
+# Compte admin lu dans un Secret créé hors-bande (jamais commité) :
+#   kubectl -n observability create secret generic grafana-admin \
+#     --from-literal=admin-user=admin \
+#     --from-literal=admin-password="$(openssl rand -base64 24)"
+# Sans lui, le chart génère `adminPassword` avec randAlphaNum : Argo CD rend
+# avec `helm template` sans accès au cluster (pas de `lookup`), donc chaque
+# nouveau rendu (chaque commit sur main) changeait le mot de passe et, via le
+# checksum du Secret, redémarrait Grafana.
+admin:
+  existingSecret: grafana-admin
+  userKey: admin-user
+  passwordKey: admin-password
+
 # Configuration de Grafana
 grafana.ini:
   server:
