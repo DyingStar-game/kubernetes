@@ -1,7 +1,7 @@
 ﻿<#
 .SYNOPSIS
     Build une image DyingStar depuis les sources locales et la deploie dans la
-    stack minikube/ArgoCD. Equivalent Windows de
+    stack k3d/ArgoCD. Equivalent Windows de
     build-and-deploy.sh.
 
 .DESCRIPTION
@@ -47,14 +47,15 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # PowerShell 7.3+ peut transformer le stderr des commandes natives en erreurs
-# terminantes. kubectl et minikube ecrivent des avertissements benins sur stderr :
+# terminantes. kubectl et k3d ecrivent des avertissements benins sur stderr :
 # on desactive ce comportement et on controle $LASTEXITCODE explicitement.
 if (Test-Path 'variable:PSNativeCommandUseErrorActionPreference') {
     $PSNativeCommandUseErrorActionPreference = $false
 }
 
 $ConfigFile      = 'dev-projects.yaml'
-$ExpectedContext = 'minikube'
+$K3dCluster = if ($env:K3D_CLUSTER) { $env:K3D_CLUSTER } else { 'dyingstar' }
+$ExpectedContext = "k3d-$K3dCluster"
 
 # --- Helpers d'affichage -----------------------------------------------------
 
@@ -239,6 +240,9 @@ function Invoke-BuildAndDeploy {
         Write-Step "Build de l'image $imageRef..."
         docker build @buildOpts -t $imageRef -f $dockerfilePath $Project.Path
         Assert-LastExitCode "Le build de l'image $imageRef a echoue"
+        Write-Step "Import de $imageRef dans le cluster k3d '$K3dCluster'..."
+        k3d image import $imageRef -c $K3dCluster
+        Assert-LastExitCode "L'import de l'image $imageRef dans k3d a echoue"
     }
     finally {
         if ($hookScript) {
@@ -390,7 +394,7 @@ try {
         }
     }
 
-    # --- 3. Garde-fou : uniquement le cluster minikube local -----------------
+    # --- 3. Garde-fou : uniquement le cluster k3d local -----------------
     # Le script force imagePullPolicy: Never - l'executer sur preprod/prod
     # casserait les deploiements (aucune image locale sur ces noeuds).
     $currentContext = (kubectl config current-context 2>$null | Out-String).Trim()
@@ -402,11 +406,8 @@ try {
         exit 1
     }
 
-    # --- 4. Build dans le daemon Docker de minikube --------------------------
-    Write-Step "Connexion au daemon Docker de Minikube..."
-    $dockerEnv = minikube -p minikube docker-env --shell powershell
-    Assert-LastExitCode "Impossible de recuperer l'environnement Docker de Minikube"
-    $dockerEnv | Invoke-Expression
+    # --- 4. Build avec le Docker de l'hote, puis import dans le cluster k3d --
+    # (voir Invoke-BuildAndDeploy : `k3d image import` apres chaque docker build).
 
     # Requis : .docker/Dockerfile.plugins utilise --mount=type=cache et le
     # Dockerfile de resourcesDynamic declare une directive « # syntax= ».

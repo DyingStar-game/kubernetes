@@ -239,9 +239,9 @@ function repoScriptCommand(cfg, script, args = []) {
 /** start-dev: creates the cluster when there is none, installs ArgoCD, hands it the applications. */
 function stackStartCommand(cfg, extraArgs = [], sets = null) {
   const setArgs = sets && sets.length ? ['--sets', sets.join(',')] : [];
-  // The tunnel (sudo) and the hosts file are what the panel's own network layer replaces: unless
-  // the user chose the tunnel mode, start-dev is told to stop once the cluster and ArgoCD are up.
-  const tunnelArgs = (cfg.network && cfg.network.mode) === 'tunnel' || extraArgs.includes('--no-tunnel') ? [] : ['--no-tunnel'];
+  // The hosts file (sudo) is what the panel's own network layer writes: start-dev is told to stop
+  // once the cluster and ArgoCD are up.
+  const tunnelArgs = extraArgs.includes('--no-tunnel') ? [] : ['--no-tunnel'];
   return repoScriptCommand(cfg, 'start-dev', [...extraArgs, ...tunnelArgs, ...setArgs]);
 }
 
@@ -261,7 +261,7 @@ function setsCommand(cfg, args) {
   return repoScriptCommand(cfg, 'sets-dev', args);
 }
 
-/** build-and-deploy: builds ONE target of dev-projects.yaml inside minikube's docker. */
+/** build-and-deploy: builds ONE target of dev-projects.yaml and imports it into the k3d cluster. */
 function buildAndDeployCommand(cfg, target) {
   return repoScriptCommand(cfg, 'build-and-deploy', [target]);
 }

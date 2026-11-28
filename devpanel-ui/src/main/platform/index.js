@@ -4,7 +4,7 @@
  * The only place the panel knows which OS it is running on.
  *
  * Everything else -- the whole UI, the start chain, the k8s actions, the log bus -- is portable:
- * docker, minikube and kubectl are the same binaries everywhere, and
+ * docker, k3d and kubectl are the same binaries everywhere, and
  * GODOT_EDITOR_CUSTOM_FEATURES is a Godot mechanism, not a Windows one. Only a handful of
  * operations genuinely differ, and they all live behind this module:
  *

@@ -16,8 +16,8 @@
 #
 # L'ecoute se fait par defaut sur 0.0.0.0, pour que d'autres machines du LAN
 # puissent se connecter en utilisant l'IP de cet hote. C'est le seul chemin
-# possible pour une machine distante : ni l'IP du tunnel minikube ni l'IP du
-# node (192.168.49.2) ne sont routables depuis le reste du reseau.
+# possible pour une machine distante : ni l'IP du noeud k3d ni l'IP du
+# tunnel Docker ne sont routables depuis le reste du reseau.
 #
 # Usage :
 #   ./scripts_linux/expose-horizon.sh                  # horizon, port lu depuis le Service
@@ -30,7 +30,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 NAMESPACE="dyingstar"
-EXPECTED_CONTEXT="minikube"
+EXPECTED_CONTEXT="k3d-${K3D_CLUSTER:-dyingstar}"
 SERVICE="horizon"
 PORT=""
 ADDRESS="0.0.0.0"
@@ -48,7 +48,7 @@ done
 [ ${#POSITIONAL[@]} -ge 1 ] && SERVICE="${POSITIONAL[0]}"
 [ ${#POSITIONAL[@]} -ge 2 ] && PORT="${POSITIONAL[1]}"
 
-# --- Garde-fou : uniquement le cluster minikube local ------------------------
+# --- Garde-fou : uniquement le cluster k3d local ------------------------
 CURRENT_CONTEXT=$(kubectl config current-context 2>/dev/null || true)
 if [ "$CURRENT_CONTEXT" != "$EXPECTED_CONTEXT" ]; then
   echo "❌ Erreur : le contexte kube courant est '${CURRENT_CONTEXT:-<aucun>}', attendu '$EXPECTED_CONTEXT'."

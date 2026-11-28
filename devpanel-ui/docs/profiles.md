@@ -38,7 +38,7 @@ cluster deploys. The modules change what the panel shows, watches and starts; th
   too (see the table below); a shipped profile must not ask for a module it blocks.
 - `sets`: optional. The service sets to deploy besides `core`, which is always there (what Godot and
   horizon need to run): `gameplay`, `voice` (LiveKit, proximity voice), `admin`, `observability`. The Telepresence traffic manager is part of `core`. One game server set is always deployed: `server` (the real image, the default) or `server-idle` (a tiny placeholder pod instead of the Godot image, for a server run from your sources behind a Telepresence intercept; saves ~1 Gi). `[]` is the minimum,
-  for people who only need the game to run. Absent means every set. It only applies when the panel starts the stack;
+  for people who only need the game to run. Absent means every set except `observability` (heavy, ~1.5 Gi). It only applies when the panel starts the stack;
   a running cluster is changed with `scripts_*/sets-dev`.
 - `settings`: optional. Any setting of the settings screen, as the profile's preference. The
   user's own choice still wins.

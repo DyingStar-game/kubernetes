@@ -65,7 +65,7 @@ check_tool() {
 }
 
 check_tool "kubectl"  "1.25.0"  "kubectl version --client --short 2>/dev/null || kubectl version --client"
-check_tool "minikube" "1.30.0"  "minikube version"
+check_tool "k3d"     "5.0.0"   "k3d version"
 check_tool "helm"     "3.10.0"  "helm version --short"
 check_tool "docker"   "20.10.0" "docker --version"
 check_tool "git"      "2.30.0"  "git --version"
@@ -74,7 +74,7 @@ check_tool "git"      "2.30.0"  "git --version"
 if command -v sudo &>/dev/null; then
     ok "sudo : disponible"
 else
-    warn "sudo : non trouvé — requis pour minikube tunnel et /etc/hosts"
+    warn "sudo : non trouvé — requis pour /etc/hosts"
 fi
 
 # ----------------------------------------------------------
@@ -89,7 +89,7 @@ if [ -n "$TOTAL_RAM_KB" ]; then
     if [ "$TOTAL_RAM_GB" -ge 8 ]; then
         ok "RAM : ${TOTAL_RAM_GB} Go"
     elif [ "$TOTAL_RAM_GB" -ge 4 ]; then
-        warn "RAM : ${TOTAL_RAM_GB} Go — 8 Go recommandés pour Minikube + ArgoCD"
+        warn "RAM : ${TOTAL_RAM_GB} Go — 8 Go recommandés pour le cluster local + ArgoCD"
     else
         fail "RAM : ${TOTAL_RAM_GB} Go — minimum 4 Go requis"
     fi
@@ -145,7 +145,7 @@ section "Virtualisation"
 if grep -qE 'vmx|svm' /proc/cpuinfo 2>/dev/null; then
     ok "Virtualisation matérielle : activée (vmx/svm)"
 else
-    warn "Virtualisation matérielle : non détectée — Minikube utilisera le driver docker"
+    warn "Virtualisation matérielle : non détectée — le cluster utilisera Docker"
 fi
 
 # ----------------------------------------------------------

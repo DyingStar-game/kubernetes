@@ -15,7 +15,7 @@ metadata:
     helm.sh/resource-policy: keep
 spec:
   accessModes:
-    - ReadWriteMany
+    - {{ .Values.sharedCache.accessMode | default "ReadWriteMany" }}
   {{- if .Values.sharedCache.nfs.enabled }}
   # Bind to *that* PV, never to a freshly provisioned one.
   volumeName: {{ include "godotserver.sharedCachePvName" . }}

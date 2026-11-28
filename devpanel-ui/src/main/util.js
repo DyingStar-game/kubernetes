@@ -149,4 +149,15 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-module.exports = { stripAnsi, redactText, redactArgs, run, tcpProbe, waitFor, sleep };
+/**
+ * The kube context the panel works on: k3d-<cluster>. The saved setting only counts when it is
+ * itself a k3d context -- a config saved before the move from minikube still says "minikube", and
+ * the guard would then never match the cluster the panel just created.
+ */
+function kubeContextName(cfg) {
+  const cluster = (cfg.k3d && cfg.k3d.cluster) || 'dyingstar';
+  const saved = cfg.k8s && cfg.k8s.expectedContext;
+  return typeof saved === 'string' && saved.startsWith('k3d-') ? saved : 'k3d-' + cluster;
+}
+
+module.exports = { kubeContextName, stripAnsi, redactText, redactArgs, run, tcpProbe, waitFor, sleep };

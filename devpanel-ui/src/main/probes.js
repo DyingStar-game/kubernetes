@@ -1,12 +1,8 @@
 'use strict';
 
-const { run, tcpProbe } = require('./util');
+const { run, tcpProbe, kubeContextName } = require('./util');
 const { portInfo, processCpuSeconds, processStartTime } = require('./platform');
 const { t } = require('./i18n');
-
-// The Docker container that relays Horizon's WebTransport UDP port from the Windows host into
-// minikube's network (see Probes._webTransportDoor).
-const RELAY_CONTAINER = 'horizon-wt-relay';
 
 /**
  * Read-only health checks. Nothing here ever starts or stops anything -- the panel
@@ -43,7 +39,7 @@ class Probes {
    *
    * Most probes here spawn a process, and process creation is expensive (especially
    * on Windows). Without this, the 5 s status poll and the 2 s relink loop between
-   * them ran docker/minikube/kubectl well over a hundred times a minute, which is
+   * them ran docker/k3d/kubectl well over a hundred times a minute, which is
    * enough to make the whole panel feel sluggish.
    *
    * It also de-duplicates concurrent callers: the relink watcher and the status poll
@@ -81,36 +77,41 @@ class Probes {
     });
   }
 
-  /** minikube reports Host / Kubelet / APIServer separately; all three must be Running. */
-  minikube() {
-    return this._cached('minikube', 8000, () => this._minikube());
+  /**
+   * The k3d cluster: its server node(s) must all be running. `k3d cluster list <name> -o json`
+   * gives one object per cluster, with serversRunning / serversCount.
+   */
+  k3d() {
+    return this._cached('k3d', 8000, () => this._k3d());
   }
 
-  async _minikube() {
-    const r = await run('minikube', ['status', '--output=json'], { timeoutMs: 20000 });
+  async _k3d() {
+    const name = (this.cfg.k3d && this.cfg.k3d.cluster) || 'dyingstar';
+    const r = await run('k3d', ['cluster', 'list', name, '-o', 'json'], { timeoutMs: 20000 });
     if (r.code !== 0 || !r.stdout.trim()) {
       return { ok: false, detail: t('probe.stopped') };
     }
     try {
-      // `minikube status --output=json` emits one JSON object per node; with a
-      // single node it is one object, but parse defensively either way.
-      const text = r.stdout.trim();
-      const objs = text.startsWith('[') ? JSON.parse(text) : [JSON.parse(text)];
-      const node = objs[0] || {};
-      const ok = node.Host === 'Running' && node.Kubelet === 'Running' && node.APIServer === 'Running';
-      return {
-        ok,
-        detail: ok
-          ? 'Running'
-          : ['Host ' + node.Host, 'Kubelet ' + node.Kubelet, 'API ' + node.APIServer].join(' / '),
-      };
+      const list = JSON.parse(r.stdout);
+      const c = (Array.isArray(list) ? list : [list]).find((x) => x && x.name === name);
+      if (!c) return { ok: false, detail: t('probe.stopped') };
+      const up = c.serversCount > 0 && c.serversRunning === c.serversCount;
+      if (!up) return { ok: false, detail: 'servers ' + c.serversRunning + '/' + c.serversCount };
+      // A running server node is not a usable cluster: during `k3d cluster create` the node is up
+      // well before the load balancer and the kubeconfig context exist (measured 2026-11-28: the
+      // chain went on 10 s too early, with no kube context). The API must answer on this context.
+      const api = await run('kubectl', ['--context', 'k3d-' + name, 'get', '--raw', '/version',
+        '--request-timeout=5s'], { timeoutMs: 12000 });
+      return api.code === 0
+        ? { ok: true, detail: 'Running' }
+        : { ok: false, detail: 'API not answering yet: ' + ((api.stderr || '').trim().split(/\r?\n/).pop() || 'code ' + api.code) };
     } catch {
-      return { ok: /Running/.test(r.stdout), detail: t('probe.unreadable') };
+      return { ok: false, detail: t('probe.unreadable') };
     }
   }
 
   /**
-   * The repository's scripts refuse to run unless the active kube-context is minikube (a guard
+   * The repository's scripts refuse to run unless the active kube-context is the k3d one (a guard
    * against ever deploying dev images to a real cluster), so it is a first-class light.
    */
   kubeContext() {
@@ -118,7 +119,7 @@ class Probes {
     return this._cached('kubeContext', 15000, async () => {
       const r = await run('kubectl', ['config', 'current-context'], { timeoutMs: 12000 });
       const current = r.stdout.trim();
-      const expected = this.cfg.k8s.expectedContext;
+      const expected = kubeContextName(this.cfg);
       return { ok: current === expected, detail: current || t('probe.none'), expected };
     });
   }
@@ -182,7 +183,7 @@ class Probes {
    *
    * Since the ArgoCD migration the client no longer goes through a kubectl
    * port-forward but through Traefik (horizon.dyingstar.local:80, the hosts entry
-   * written by start-dev, served by minikube tunnel). That kills a whole class of
+   * written by start-dev, served by the ports k3d publishes on localhost). That kills a whole class of
    * false green: a Service follows its endpoints, so it cannot stay pinned to a pod
    * that no longer exists -- which is exactly what cost three sessions.
    *
@@ -195,9 +196,9 @@ class Probes {
    * the expose-horizon relay on 7040 (the only one reachable from another machine).
    *
    * Since the client moved to WebTransport (DyingStar#462, kubernetes#51) it reaches horizon
-   * through a THIRD door: the UDP NodePort of the horizon Service (30101 on minikube), at
-   * https://<minikube ip>:<nodePort> -- Traefik cannot relay QUIC. UDP cannot be probed by a
-   * connect, so the door is read off the Service: a UDP port with a nodePort, and the node's IP.
+   * through a THIRD door: the UDP NodePort of the horizon Service (30101), which k3d publishes on
+   * 127.0.0.1, at https://127.0.0.1:<nodePort> -- Traefik cannot relay QUIC. UDP cannot be probed
+   * by a connect, so the door is read off the Service: a UDP port with a nodePort.
    */
   horizonRoute() {
     return this._cached('horizonRoute', 2500, async () => {
@@ -239,7 +240,7 @@ class Probes {
         return {
           ok: false,
           ready, viaTraefik, viaRelay, viaWebTransport,
-          detail: t('probe.hzNoDoor', { relay: RELAY_CONTAINER, port: relayPort }),
+          detail: t('probe.hzNoDoor', { port: relayPort }),
         };
       }
       // A door that ACCEPTS is not a door that delivers. _forwardIsStale answers the only
@@ -268,16 +269,14 @@ class Probes {
   }
 
   /**
-   * The WebTransport door of the horizon Service `name` in `ns`: { url, nodePort, relayed } when the
+   * The WebTransport door of the horizon Service `name` in `ns`: { url, nodePort } when the
    * Service exposes a UDP port on a nodePort (values-dev webTransport.nodePort), null otherwise. The
    * URL is the one client.ini's horizon_url must hold.
    *
-   * On Windows (minikube's docker driver) the node's IP lives inside Docker's own network: a client
-   * on the host never reaches it, and kubectl port-forward relays TCP only. So the door is the UDP
-   * relay container RELAY_CONTAINER (docker run --network minikube -p 127.0.0.1:<port>:<port>/udp
-   * alpine/socat UDP4-LISTEN:<port>,fork UDP4:<node ip>:<port>), at https://127.0.0.1:<port>; with no
-   * relay running there, the door is reported missing. Elsewhere the node's IP answers as it is. The
-   * node's IP is cached a minute: it changes only when minikube is recreated.
+   * k3d publishes that UDP port on the host's loopback (start-dev: -p 30101:30101/udp), on every
+   * platform, so the door is always https://127.0.0.1:<nodePort>. If the cluster was created
+   * without that mapping the door is not really there: UDP cannot be probed by a connect, so it is
+   * checked against what the load balancer container publishes.
    */
   async _webTransportDoor(name, ns) {
     const svc = await run('kubectl', ['get', 'service', name, '-n', ns, '-o', 'json'], { timeoutMs: 12000 });
@@ -289,17 +288,10 @@ class Probes {
       }
     } catch { return null; }
     if (nodePort == null) return null;
-    if (process.platform === 'win32') {
-      const ps = await run('docker', ['ps', '--filter', 'name=' + RELAY_CONTAINER, '--format', '{{.Ports}}'],
-        { timeoutMs: 12000 });
-      const relayed = ps.code === 0 && ps.stdout.includes('->' + nodePort + '/udp');
-      return relayed ? { url: 'https://127.0.0.1:' + nodePort, nodePort, relayed: true } : null;
-    }
-    const ip = await this._cached('minikubeIp', 60000, async () => {
-      const r = await run('minikube', ['ip'], { timeoutMs: 15000 });
-      return r.code === 0 ? r.stdout.trim() : '';
-    });
-    return ip ? { url: 'https://' + ip + ':' + nodePort, nodePort } : null;
+    const lb = 'k3d-' + ((this.cfg.k3d && this.cfg.k3d.cluster) || 'dyingstar') + '-serverlb';
+    const ports = await run('docker', ['port', lb], { timeoutMs: 12000 });
+    if (ports.code !== 0 || !ports.stdout.includes(nodePort + '/udp')) return null;
+    return { url: 'https://127.0.0.1:' + nodePort, nodePort };
   }
 
   /**
@@ -418,13 +410,13 @@ class Probes {
 
   /**
    * Everything at once, for the status bar. A module that is switched off is not probed at all
-   * (a panel without the cluster module never starts `minikube status`): its entry says `off`.
+   * (a panel without the cluster module never starts `k3d cluster list`): its entry says `off`.
    */
   async all() {
     const off = { ok: false, off: true, detail: '' };
-    const [docker, minikube, kubeContext, horizonRoute, gameServer] = await Promise.all([
+    const [docker, k3d, kubeContext, horizonRoute, gameServer] = await Promise.all([
       this._on('docker') ? this.docker() : off,
-      this._on('cluster') ? this.minikube() : off,
+      this._on('cluster') ? this.k3d() : off,
       this._on('cluster') ? this.kubeContext() : off,
       this._on('horizon') ? this.horizonRoute() : off,
       this._on('gameServer') ? this.gameServer() : off,
@@ -433,12 +425,12 @@ class Probes {
     // Only ask the cluster for pods when it can actually answer.
     let pods = { ...off, pods: [] };
     if (this._on('cluster')) {
-      pods = minikube.ok && kubeContext.ok
+      pods = k3d.ok && kubeContext.ok
         ? await this.pods()
         : { ok: false, detail: t('probe.clusterDown'), pods: [] };
     }
 
-    return { docker, minikube, kubeContext, pods, horizonRoute, gameServer, at: Date.now() };
+    return { docker, k3d, kubeContext, pods, horizonRoute, gameServer, at: Date.now() };
   }
 }
 

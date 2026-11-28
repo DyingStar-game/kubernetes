@@ -36,15 +36,15 @@ const MODULES = [
     id: 'cluster', requires: ['docker'],
     label: { en: 'Local cluster', fr: 'Cluster local' },
     help: {
-      en: 'minikube and the stack ArgoCD deploys in it: start, state of the pods, their logs.',
-      fr: 'minikube et la stack qu\'ArgoCD y déploie : démarrage, état des pods, leurs journaux.',
+      en: 'k3d and the stack ArgoCD deploys in it: start, state of the pods, their logs.',
+      fr: 'k3d et la stack qu\'ArgoCD y déploie : démarrage, état des pods, leurs journaux.',
     },
   },
   {
     id: 'network', requires: ['cluster'],
     label: { en: 'Network', fr: 'Réseau' },
     help: {
-      en: 'Keeps this machine able to reach the cluster: the relay containers and the hosts file.',
+      en: 'Keeps this machine able to reach the cluster: the published ports and the hosts file.',
       fr: 'Garde cette machine capable de joindre le cluster : les conteneurs relais et le fichier hosts.',
     },
   },
@@ -182,7 +182,7 @@ function validateProfile(raw, fallbackId) {
     if (typeof value !== 'boolean') return { ok: false, error: 'module "' + key + '" must be true or false' };
     modules[key] = value;
   }
-  // `sets` is optional: absent means every set, which is what start-dev did before sets existed.
+  // `sets` is optional: absent (null) lets start-dev pick its default, every set but observability.
   let sets = null;
   if (raw.sets !== undefined) {
     if (!Array.isArray(raw.sets)) return { ok: false, error: '"sets" must be a list' };

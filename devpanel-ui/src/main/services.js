@@ -9,7 +9,7 @@ const { t } = require('./i18n');
  * The start chain.
  *
  * Each step has a readiness gate that tests the thing that actually matters, not
- * "did the command return". That distinction is the whole point: `minikube start`
+ * "did the command return". That distinction is the whole point: `k3d cluster start`
  * exiting does not mean the API server answers, and Docker Desktop's window opening
  * does not mean the engine accepts connections.
  *
@@ -22,7 +22,7 @@ const { t } = require('./i18n');
 // screen, so it goes through t() too. What goes to the log does not.
 const STEPS = [
   { id: 'docker', module: 'docker' },
-  { id: 'minikube', module: 'cluster' },
+  { id: 'k3d', module: 'cluster' },
   { id: 'context', module: 'cluster' },
   { id: 'stack', module: 'cluster' },
   { id: 'network', module: 'network' },
@@ -76,7 +76,7 @@ class Services extends EventEmitter {
    * thing it describes had been started by hand. Sitting next to genuinely live indicators, it read
    * as one -- and sent us hunting a server that was running perfectly well.
    *
-   * The same mistake in reverse hurts just as much: reopening the panel showed Docker, minikube,
+   * The same mistake in reverse hurts just as much: reopening the panel showed Docker, k3d,
    * the context and the k8s stack all grey, as if nothing were up, while twelve pods were serving
    * happily. A step is only worth reading if it says what IS, so every one of them is now derived
    * from a probe rather than from what the panel happens to remember doing.
@@ -91,8 +91,8 @@ class Services extends EventEmitter {
 
     this._set('docker', ok(probes.docker) ? 'ok' : 'idle',
       detail(probes.docker, t('msg.dockerDown')));
-    this._set('minikube', ok(probes.minikube) ? 'ok' : 'idle',
-      detail(probes.minikube, t('msg.clusterStopped')));
+    this._set('k3d', ok(probes.k3d) ? 'ok' : 'idle',
+      detail(probes.k3d, t('msg.clusterStopped')));
     this._set('context', ok(probes.kubeContext) ? 'ok' : 'idle',
       detail(probes.kubeContext, t('msg.wrongContext')));
 
@@ -190,111 +190,117 @@ class Services extends EventEmitter {
     return true;
   }
 
-  /**
-   * Arguments of the panel's own `minikube start`. When the cluster does not exist yet this call
-   * CREATES it, and Docker cannot add a mount to an existing container afterwards: start-dev then
-   * dies with GUEST_MOUNT_CONFLICT and ArgoCD's file:///mnt/local-repo.git is empty. So the
-   * repository mount (and the size, taken at creation only) are given here exactly as start-dev does.
-   */
-  minikubeStartArgs() {
-    const args = [...this.cfg.minikube.startArgs];
-    const repo = this.cfg.paths.kubernetesRepo;
-    if (repo && !args.some((a) => String(a).startsWith('--mount'))) {
-      args.push('--mount-string', repo + ':/mnt/local-repo.git');
-    }
-    if (!args.some((a) => String(a).startsWith('--disk-size'))) args.push('--disk-size=150g');
-    if (this.cfg.minikube.cpus && !args.some((a) => String(a).startsWith('--cpus'))) args.push('--cpus=' + this.cfg.minikube.cpus);
-    if (this.cfg.minikube.memory && !args.some((a) => String(a).startsWith('--memory'))) args.push('--memory=' + this.cfg.minikube.memory);
-    return args;
+  /** Name of the k3d cluster (setting k3d.cluster, as start-dev's K3D_CLUSTER). */
+  clusterName() {
+    return (this.cfg.k3d && this.cfg.k3d.cluster) || 'dyingstar';
   }
 
-  async startMinikube(signal) {
-    let probe = await this.probes.minikube();
+  /**
+   * Arguments of `k3d cluster create`, exactly as start-dev gives them: the repository mount (a
+   * volume cannot be added to an existing cluster, and ArgoCD's file:///mnt/local-repo.git would
+   * be empty), the published ports, and k3s's own Traefik switched off (ArgoCD deploys its own).
+   * A Windows path (C:\x) becomes /c/x: the drive letter's colon breaks the --volume syntax.
+   */
+  k3dCreateArgs() {
+    let repo = String(this.cfg.paths.kubernetesRepo || '').replace(/\\/g, '/');
+    const m = repo.match(/^([A-Za-z]):(.*)$/);
+    if (m) repo = '/' + m[1].toLowerCase() + m[2];
+    return ['cluster', 'create', this.clusterName(), '--agents', '0', '--wait',
+      '--volume', repo + ':/mnt/local-repo.git@all',
+      '-p', '80:80@loadbalancer', '-p', '443:443@loadbalancer',
+      '-p', '8443:8443@loadbalancer', '-p', '30101:30101/udp@loadbalancer',
+      '--k3s-arg', '--disable=traefik@server:*'];
+  }
+
+  async startK3d(signal) {
+    let probe = await this.probes.k3d();
     if (probe.ok) {
-      this._set('minikube', 'ok', t('msg.alreadyRunning'));
+      this._set('k3d', 'ok', t('msg.alreadyRunning'));
       await this.raiseInotifyLimits();
       return true;
     }
 
-    // Never (re)start minikube while Telepresence is connected: it registers a DNS search domain
-    // that Docker copies into the minikube container, and in-cluster lookups then break. The
+    // Never (re)start the cluster while Telepresence is connected: it registers a DNS search domain
+    // that Docker copies into the k3d node containers, and in-cluster lookups then break. The
     // repository's start-dev does the same. Harmless when Telepresence is absent or not connected.
     await run('telepresence', ['quit', '-s'], { timeoutMs: 20000 });
 
-    this._set('minikube', 'running', t('msg.minikubeStarting'));
+    // An existing cluster is started; otherwise it is created (and started by the creation).
+    const exists = (await run('k3d', ['cluster', 'list', this.clusterName()], { timeoutMs: 20000 })).code === 0;
+    this._set('k3d', 'running', t('msg.k3dStarting'));
     this.procs.start({
-      id: 'minikube-start',
-      label: 'minikube start',
-      source: 'minikube',
-      cmd: 'minikube',
-      args: this.minikubeStartArgs(),
+      id: 'k3d-start',
+      label: exists ? 'k3d cluster start' : 'k3d cluster create',
+      source: 'k3d',
+      cmd: 'k3d',
+      args: exists ? ['cluster', 'start', this.clusterName()] : this.k3dCreateArgs(),
     });
 
-    const ready = await waitFor(async () => (await this.probes.minikube()).ok, {
-      timeoutMs: this.cfg.timeouts.minikubeReadyMs,
+    // Say what is being waited for whenever it changes: a silent wait looks like a hang.
+    let lastDetail = '';
+    const ready = await waitFor(async () => {
+      this.probes.invalidate('k3d');
+      const pr = await this.probes.k3d();
+      if (!pr.ok && pr.detail !== lastDetail) {
+        lastDetail = pr.detail;
+        this.log.note('Waiting for the k3d cluster: ' + pr.detail, 'INFO');
+      }
+      return pr.ok;
+    }, {
+      timeoutMs: this.cfg.timeouts.k3dReadyMs,
       intervalMs: 4000,
       signal,
     });
 
     if (!ready) {
-      this._set('minikube', 'error', t('msg.clusterNoAnswer'));
+      this._set('k3d', 'error', t('msg.clusterNoAnswer'));
       return false;
     }
-    probe = await this.probes.minikube();
-    this._set('minikube', 'ok', probe.detail);
+    // k3d switches the kube context itself on creation; a plain start leaves it as it was.
+    await run('kubectl', ['config', 'use-context', 'k3d-' + this.clusterName()], { timeoutMs: 15000 });
+    probe = await this.probes.k3d();
+    this._set('k3d', 'ok', probe.detail);
     await this.raiseInotifyLimits();
     return true;
   }
 
   /**
-   * Raise the inotify limits inside the minikube node, as start-dev.sh does (step 1b). The node's
-   * defaults (max_user_instances=128) are far too low once dozens of pods mount ConfigMaps/Secrets:
-   * horizon then dies with "too many open files" (fsnotify watcher). Applied through a privileged
-   * pod that nsenters the node, and written to /etc/sysctl.d; a node recreated by `minikube delete`
-   * needs it again, hence on every start. Idempotent and best-effort: never fails the chain.
+   * Raise the inotify limits, as start-dev does (step 1b). The defaults (max_user_instances=128) are
+   * far too low once dozens of pods mount ConfigMaps/Secrets: horizon then dies with "too many open
+   * files" (fsnotify watcher). The k3d nodes are privileged containers, so `docker exec` sets the
+   * sysctls at once -- no pod to schedule, no image to pull into a cold cluster (~90 s before).
+   * They are the kernel's own and are lost on a reboot, hence on every start. Idempotent and
+   * best-effort: never fails the chain.
    */
   async raiseInotifyLimits() {
-    const script = 'sysctl -w fs.inotify.max_user_watches=1048576 && sysctl -w fs.inotify.max_user_instances=8192'
-      + " && printf 'fs.inotify.max_user_watches=1048576\\nfs.inotify.max_user_instances=8192\\n'"
-      + ' > /etc/sysctl.d/99-inotify.conf';
-    const overrides = JSON.stringify({
-      spec: {
-        hostPID: true,
-        tolerations: [{ operator: 'Exists' }],
-        containers: [{
-          name: 'fix',
-          image: 'busybox:1.37',
-          securityContext: { privileged: true },
-          command: ['nsenter', '-t', '1', '-m', '-u', '-i', '-n', '--', 'sh', '-c'],
-          args: [script],
-        }],
-      },
-    });
-    const kc = (args, ms) => run('kubectl', ['-n', 'kube-system', ...args], { timeoutMs: ms });
-    await kc(['delete', 'pod', 'inotify-fix', '--ignore-not-found', '--wait=true'], 30000);
-    const created = await run('kubectl', ['run', 'inotify-fix', '-n', 'kube-system', '--image=busybox:1.37',
-      '--restart=Never', '--overrides=' + overrides], { timeoutMs: 30000 });
-    if (created.code !== 0) {
-      this.log.note('Could not raise the inotify limits: ' + (created.stderr || '').trim(), 'WARN');
+    const listed = await run('docker', ['ps', '--format', '{{.Names}}', '--filter',
+      'name=^k3d-' + this.clusterName() + '-(server|agent)-'], { timeoutMs: 15000 });
+    const nodes = listed.code === 0 ? listed.stdout.split(/\r?\n/).map((n) => n.trim()).filter(Boolean) : [];
+    if (!nodes.length) {
+      this.log.note('Could not raise the inotify limits: no k3d node container found.', 'WARN');
       return false;
     }
-    const done = await kc(['wait', '--for=jsonpath={.status.phase}=Succeeded', 'pod/inotify-fix', '--timeout=90s'], 100000);
-    await kc(['delete', 'pod', 'inotify-fix', '--wait=false'], 15000);
-    if (done.code !== 0) {
-      this.log.note('The inotify limits may not have been raised (pod did not finish).', 'WARN');
-      return false;
+    let ok = true;
+    for (const node of nodes) {
+      const r = await run('docker', ['exec', node, 'sh', '-c',
+        'sysctl -w fs.inotify.max_user_watches=1048576 && sysctl -w fs.inotify.max_user_instances=8192'],
+      { timeoutMs: 20000 });
+      if (r.code !== 0) {
+        ok = false;
+        this.log.note('Could not raise the inotify limits on ' + node + ': ' + (r.stderr || '').trim(), 'WARN');
+      }
     }
-    this.log.note('inotify limits raised in the minikube node.', 'INFO');
-    return true;
+    if (ok) this.log.note('inotify limits raised in the k3d node(s).', 'INFO');
+    return ok;
   }
 
   /**
-   * The repository's scripts refuse to run on any context other than minikube -- a deliberate
+   * The repository's scripts refuse to run on any context other than the k3d one -- a deliberate
    * guard against deploying dev images to a real cluster. Fix it automatically rather than failing
    * the chain, but say so out loud.
    */
   async ensureContext() {
-    this.probes.invalidate('kubeContext'); // minikube start has just rewritten it
+    this.probes.invalidate('kubeContext'); // the cluster start has just rewritten it
     let ctx = await this.probes.kubeContext();
     if (ctx.ok) {
       this._set('context', 'ok', ctx.detail);
@@ -315,10 +321,9 @@ class Services extends EventEmitter {
    */
   startStack(extraArgs = []) {
     const { cmd, args } = platform.stackStartCommand(this.cfg, extraArgs, this.wantedSets());
-    // minikube's size is only taken at creation, which is start-dev's job: hand it over by env.
-    const env = {};
-    if (this.cfg.minikube.cpus) env.MINIKUBE_CPUS = String(this.cfg.minikube.cpus);
-    if (this.cfg.minikube.memory) env.MINIKUBE_MEMORY = String(this.cfg.minikube.memory);
+    // The cluster's name is start-dev's K3D_CLUSTER. Its size is Docker's own (Docker Desktop:
+    // Settings > Resources): there is nothing to hand over.
+    const env = { K3D_CLUSTER: this.clusterName() };
     return this.procs.start({
       id: 'stack',
       label: 'k8s stack (start-dev)',
@@ -326,7 +331,7 @@ class Services extends EventEmitter {
       cmd,
       args,
       env,
-      // start-dev mounts $PWD into minikube (--mount-string $PWD:/mnt/local-repo.git): without the
+      // start-dev mounts $PWD into the k3d nodes (--volume $PWD:/mnt/local-repo.git): without the
       // repository as cwd, ArgoCD's "local-repo" volume points at the wrong folder.
       cwd: this.cfg.paths.kubernetesRepo,
     });
@@ -355,7 +360,7 @@ class Services extends EventEmitter {
   /**
    * Is the stack INSTALLED in this cluster, whether or not its pods are up yet?
    *
-   * The difference matters right after the machine restarts: minikube is back in seconds, its
+   * The difference matters right after the machine restarts: the cluster is back in seconds, its
    * thirty pods take minutes. "Not ready" then means "wait", not "install" -- and running
    * start-dev there fails for want of administrator rights, taking the whole sequence with it.
    * ArgoCD's own server is the marker: it is the first thing start-dev installs.
@@ -372,6 +377,7 @@ class Services extends EventEmitter {
    * and there is no process to watch.
    */
   async waitStackReady(signal, { watchProcess = true } = {}) {
+    let lastWaitKey = '';
     const ready = await waitFor(async () => {
       // Bail out early if start-dev died: no point waiting the full timeout.
       // start-dev ending cleanly (code 0) is NORMAL: with --no-tunnel it exits as soon as the
@@ -383,6 +389,19 @@ class Services extends EventEmitter {
       const pods = await this.probes.pods();
       const port = this._on('horizon') ? await this.probes.horizonRoute() : { ok: true };
       if (port.ok && pods.ok) return 'ready';
+      // Say WHAT is awaited whenever it changes: a silent wait looks like a hang. A pod that
+      // never gets ready (crashloop, image not pulled, dependency down) is named here.
+      const waiting = (pods.pods || []).filter((x) => !x.done && !x.allReady)
+        .map((x) => x.name + ' (' + x.phase + (x.restarts ? ', ' + x.restarts + ' restarts' : '') + ')');
+      const key = waiting.join('|') + (port.ok ? '' : '|horizon:' + port.detail);
+      if (key !== lastWaitKey) {
+        lastWaitKey = key;
+        const parts = [];
+        if (!pods.ok) parts.push(pods.detail + (waiting.length ? ' -- waiting for: ' + waiting.slice(0, 8).join(', ')
+          + (waiting.length > 8 ? ' (+' + (waiting.length - 8) + ')' : '') : ''));
+        if (!port.ok) parts.push('horizon: ' + port.detail);
+        if (parts.length) this.log.note('Waiting for the stack: ' + parts.join(' / '), 'INFO');
+      }
       return null;
     }, { timeoutMs: this.cfg.timeouts.stackReadyMs, intervalMs: 4000, signal });
 
@@ -400,7 +419,7 @@ class Services extends EventEmitter {
   }
 
   /**
-   * Delete the cluster (the repository's clean-dev script): minikube and everything in it, the
+   * Delete the cluster (the repository's clean-dev script): k3d and everything in it, the
    * databases included. Never called on panel shutdown -- closing the panel must not destroy the
    * cluster. This is the explicit, confirmed, red button.
    */
@@ -411,11 +430,11 @@ class Services extends EventEmitter {
 
   /**
    * Clean the whole environment: everything stopAll stops, plus orphan game servers, the
-   * Telepresence session and a stale relay, then the cluster itself (clean-dev). Irreversible.
+   * Telepresence session and a stale port-forward, then the cluster itself (clean-dev). Irreversible.
    */
   async cleanEnv() {
     this.log.note('=== Cleaning the environment ===');
-    await this.stopAll({ stopMinikube: false });
+    await this.stopAll({ stopCluster: false });
     await this.godot.killOrphanServers();
     await run('telepresence', ['quit', '-s'], { timeoutMs: 20000 }).catch(() => {});
     this.deleteCluster();
@@ -458,7 +477,7 @@ class Services extends EventEmitter {
       }
 
       if (this._on('cluster')) {
-        if (!await this.startMinikube(signal)) return fail('minikube unavailable');
+        if (!await this.startK3d(signal)) return fail('k3d cluster unavailable');
         if (signal.aborted) return fail('cancelled');
 
         if (!await this.ensureContext()) return fail('wrong kube context');
@@ -489,11 +508,11 @@ class Services extends EventEmitter {
         if (signal.aborted) return fail('cancelled');
       }
 
-      // The way in, once the cluster answers: relays that match it. (The hosts file is not written
+      // The way in, once the cluster answers: the ports it publishes. (The hosts file is not written
       // here: it needs a permission prompt, which belongs to a button, not to a start sequence.)
       if (this._on('network') && this.network) {
-        this._set('network', 'running', t('msg.netRepairing'));
-        const repaired = await this.network.ensureRelays();
+        this._set('network', 'running', t('msg.netChecking'));
+        const repaired = await this.network.ensurePorts();
         const state = await this.network.status();
         this._set('network', state.ok ? 'ok' : (repaired.ok ? 'warn' : 'error'), state.ok ? state.detail : (repaired.ok ? state.detail : repaired.detail));
         if (!repaired.ok) return fail('network: ' + repaired.detail);
@@ -501,7 +520,7 @@ class Services extends EventEmitter {
       }
 
       // Telepresence, the documented way to run the game server locally: connect once the cluster
-      // answers (never before -- and the minikube step above quits any earlier session), intercept
+      // answers (never before -- and the cluster step above quits any earlier session), intercept
       // once the local server listens, so the traffic never lands on a closed port.
       const useTelepresence = this._on('telepresence') && !!this.telepresence;
       if (useTelepresence) {
@@ -612,10 +631,10 @@ class Services extends EventEmitter {
   }
 
   /**
-   * Shut down in reverse order. minikube is left running by default: stopping it is
+   * Shut down in reverse order. The cluster is left running by default: stopping it is
    * slow to undo and rarely what you want between two work sessions.
    */
-  async stopAll({ stopMinikube = false } = {}) {
+  async stopAll({ stopCluster = false } = {}) {
     this.log.note('=== Stopping the environment ===');
     this.relink.stop();
     await this.godot.stopClients();
@@ -624,9 +643,9 @@ class Services extends EventEmitter {
     await this.procs.stop('port-forward');
     await this.stopStack();
 
-    if (stopMinikube) {
-      this.log.note('Stopping minikube...');
-      await run('minikube', ['stop'], { timeoutMs: 180000 });
+    if (stopCluster) {
+      this.log.note('Stopping the k3d cluster...');
+      await run('k3d', ['cluster', 'stop', this.clusterName()], { timeoutMs: 180000 });
     }
 
     this._reset();

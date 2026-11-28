@@ -203,21 +203,21 @@ test('the chain only shows the steps of modules that are on', () => {
   // Telepresence connects after the stack and intercepts after the local server listens.
   assert.deepStrictEqual(
     chain({ docker: true, cluster: true, telepresence: true, gameServer: true, relink: true }),
-    ['docker', 'minikube', 'context', 'stack', 'network', 'telepresence', 'godot-server', 'intercept', 'relink']);
+    ['docker', 'k3d', 'context', 'stack', 'network', 'telepresence', 'godot-server', 'intercept', 'relink']);
   // No local server to send the traffic to: connecting still makes sense, intercepting does not.
   assert.deepStrictEqual(
     chain({ docker: true, cluster: true, network: false, telepresence: true, gameServer: false, relink: false }),
-    ['docker', 'minikube', 'context', 'stack', 'telepresence']);
+    ['docker', 'k3d', 'context', 'stack', 'telepresence']);
 });
 
 test('a module that is off is not probed at all', async () => {
   const modules = { docker: false, cluster: false, horizon: false, gameServer: false };
   const probes = new Probes({ k8s: {}, ports: {} }, modules);
-  for (const name of ['docker', 'minikube', 'kubeContext', 'pods', 'horizonRoute', 'gameServer']) {
+  for (const name of ['docker', 'k3d', 'kubeContext', 'pods', 'horizonRoute', 'gameServer']) {
     probes[name] = () => { throw new Error(name + ' was probed'); };
   }
   const all = await probes.all();
-  for (const name of ['docker', 'minikube', 'kubeContext', 'pods', 'horizonRoute', 'gameServer']) {
+  for (const name of ['docker', 'k3d', 'kubeContext', 'pods', 'horizonRoute', 'gameServer']) {
     assert.strictEqual(all[name].off, true, name);
   }
 });

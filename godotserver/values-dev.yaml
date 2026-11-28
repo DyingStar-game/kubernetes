@@ -38,9 +38,12 @@ env:
   - name: DS_MOVEMENT
     value: "0"
 
-# Tiles + prebaked collision shared by every pod (minikube is single-node, so the
-# hostpath `standard` class happily hands out a ReadWriteMany PV).
+# Tiles + prebaked collision shared by every pod. The dev cluster (k3d) has ONE node and its
+# `standard` class is local-path, which only hands out ReadWriteOnce volumes (a ReadWriteMany
+# claim stays Pending, and with it godotserver and everything that waits for it, horizon first).
+# On a single node every pod can still mount a ReadWriteOnce volume.
 sharedCache:
   enabled: true
   storageClassName: standard
+  accessMode: ReadWriteOnce
   size: 20Gi

@@ -18,8 +18,8 @@
 
     L'ecoute se fait par defaut sur 0.0.0.0, pour que d'autres machines du
     reseau puissent se connecter en utilisant l'IP de cet hote. C'est le seul
-    chemin possible pour une machine distante : ni l'IP du tunnel minikube ni
-    l'IP du node minikube ne sont routables depuis le reste du reseau.
+    chemin possible pour une machine distante : ni l'IP du noeud k3d ni
+    le reseau interne de Docker ne sont routables depuis le reste du reseau.
 
     Note Windows : le pare-feu bloque par defaut les connexions entrantes. Pour
     autoriser les autres machines, en console admin :
@@ -67,10 +67,10 @@ if (Test-Path 'variable:PSNativeCommandUseErrorActionPreference') {
 Set-Location -LiteralPath (Join-Path $PSScriptRoot '..')
 
 $Namespace       = 'dyingstar'
-$ExpectedContext = 'minikube'
+$ExpectedContext = "k3d-$(if ($env:K3D_CLUSTER) { $env:K3D_CLUSTER } else { 'dyingstar' })"
 $Address = if ($Local) { '127.0.0.1' } else { '0.0.0.0' }
 
-# --- Garde-fou : uniquement le cluster minikube local ------------------------
+# --- Garde-fou : uniquement le cluster k3d local ------------------------
 $currentContext = (kubectl config current-context 2>$null | Out-String).Trim()
 if ($LASTEXITCODE -ne 0) { $currentContext = '' }
 if ($currentContext -ne $ExpectedContext) {

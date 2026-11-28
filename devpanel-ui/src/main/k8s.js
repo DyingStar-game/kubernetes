@@ -2,7 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { run, waitFor } = require('./util');
+const { run, waitFor, kubeContextName } = require('./util');
 const { portInfo, killTree, exposeHorizonCommand, buildAndDeployCommand, setsCommand } = require('./platform');
 const { SET_IDS } = require('./modules');
 
@@ -21,8 +21,8 @@ class K8s {
     return this.cfg.k8s.namespace;
   }
 
-  async useMinikubeContext() {
-    const ctx = this.cfg.k8s.expectedContext;
+  async useK3dContext() {
+    const ctx = kubeContextName(this.cfg);
     const r = await run('kubectl', ['config', 'use-context', ctx], { timeoutMs: 15000 });
     const ok = r.code === 0;
     this.log.note(
@@ -176,7 +176,7 @@ class K8s {
   // --- build targets (dev-projects.yaml) -----------------------------------
   //
   // The repository's dev-projects.yaml lists the images that can be built locally. Building one
-  // compiles it inside minikube's docker and repoints its Deployment at it. Nothing goes through
+  // builds it with the host's docker, imports it into the k3d cluster and repoints its Deployment at it. Nothing goes through
   // git, and the Applications' ignoreDifferences keep selfHeal from undoing the patch.
   //
   // Read by a small line parser rather than a YAML dependency: only the list of targets is

@@ -15,7 +15,7 @@ const catalog = require('./repos.json');
  * about the window.
  *
  * What it will and will not do by itself:
- *   - single binaries (kubectl, minikube, helm): fetched, checksum verified (installer.js);
+ *   - single binaries (kubectl, k3d, helm): fetched, checksum verified (installer.js);
  *   - the project's repositories: `git clone`, into ONE workspace folder, under the names the
  *     kubernetes repository expects. An existing clone is never pulled, switched or touched:
  *     ArgoCD deploys what that clone has checked out;

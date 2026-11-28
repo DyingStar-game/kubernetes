@@ -190,6 +190,10 @@ sharedCache:
   # With nfs.enabled this is a dummy class (no provisioner answers to it, so
   # nothing else can hijack the PV): the same value goes on the PV and the PVC.
   storageClassName: ""
+  # Access mode of the claim. ReadWriteMany by default (several nodes). A single-node dev cluster
+  # (k3d: local-path is ReadWriteOnce only) sets ReadWriteOnce: every pod on that one node can
+  # still mount it.
+  accessMode: ReadWriteMany
   size: 20Gi
   # Static NFS PersistentVolume (TrueNAS export), same pattern as the nextcloud
   # chart: the cluster's only dynamic class (local-path) is RWO only, so on
