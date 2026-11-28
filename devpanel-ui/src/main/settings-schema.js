@@ -199,7 +199,7 @@ const SCHEMA = [
     },
   },
   {
-    key: 'k8s.expectedContext', type: 'string', section: 'cluster', default: 'minikube', advanced: true,
+    key: 'k8s.expectedContext', type: 'string', section: 'cluster', default: 'k3d-dyingstar', advanced: true,
     label: { en: 'Kube context', fr: 'Contexte kube' },
     help: {
       en: 'The context kubectl must be on. A guard: the panel never acts on another cluster.',
@@ -221,54 +221,18 @@ const SCHEMA = [
     },
   },
   {
-    key: 'minikube.startArgs', type: 'list', section: 'cluster', default: ['start'], advanced: true,
-    label: { en: 'minikube arguments', fr: 'Arguments de minikube' },
+    key: 'k3d.cluster', type: 'string', section: 'cluster', default: 'dyingstar', advanced: true,
+    pattern: '^[a-z0-9][a-z0-9-]{0,30}$',
+    label: { en: 'k3d cluster name', fr: 'Nom du cluster k3d' },
     help: {
-      en: 'How the panel restarts an EXISTING cluster, one argument per line. Creating a cluster is '
-        + 'the job of the repository\'s start-dev script.',
-      fr: 'Comment le panneau relance un cluster EXISTANT, un argument par ligne. Créer un cluster '
-        + 'est le travail du script start-dev du dépôt.',
-    },
-  },
-
-  {
-    key: 'minikube.cpus', type: 'string', section: 'cluster', default: '', advanced: true,
-    pattern: '^(max|[0-9]+)$',
-    label: { en: 'Cluster CPUs', fr: 'CPU du cluster' },
-    help: {
-      en: 'CPUs given to minikube (a number, or "max"). Empty: minikube\'s own choice. Only used when '
-        + 'the cluster is CREATED (start-dev); an existing cluster keeps its size until it is deleted.',
-      fr: 'CPU donnés à minikube (un nombre, ou « max »). Vide : le choix de minikube. Utilisé seulement '
-        + 'à la CRÉATION du cluster (start-dev) ; un cluster existant garde sa taille jusqu\'à sa suppression.',
-    },
-  },
-  {
-    key: 'minikube.memory', type: 'string', section: 'cluster', default: '', advanced: true,
-    pattern: '^(max|[0-9]+([kKmMgG][bB]?)?)$',
-    label: { en: 'Cluster memory', fr: 'Mémoire du cluster' },
-    help: {
-      en: 'Memory given to minikube, e.g. 8g or 8192mb (or "max"). Empty: minikube\'s own choice. Only '
-        + 'used when the cluster is CREATED (start-dev).',
-      fr: 'Mémoire donnée à minikube, ex. 8g ou 8192mb (ou « max »). Vide : le choix de minikube. '
-        + 'Utilisée seulement à la CRÉATION du cluster (start-dev).',
+      en: 'Name of the local k3d cluster (start-dev\'s K3D_CLUSTER). The kube context is k3d-<name>. Its size '
+        + 'is Docker\'s own (Docker Desktop: Settings > Resources).',
+      fr: 'Nom du cluster k3d local (K3D_CLUSTER de start-dev). Le contexte kube est k3d-<nom>. Sa taille '
+        + 'est celle de Docker (Docker Desktop : Settings > Resources).',
     },
   },
 
   // ── network and accounts ────────────────────────────────────────────────
-  {
-    key: 'network.mode', type: 'enum', section: 'network', options: ['relays', 'tunnel'], default: 'relays',
-    label: { en: 'Network path', fr: 'Chemin réseau' },
-    help: {
-      en: 'How this machine reaches the cluster. "relays": the hosts file points at 127.0.0.1 (written '
-        + 'once) and small relay containers forward to the cluster, with no console to keep open. '
-        + '"tunnel": the repository\'s way, minikube tunnel in an administrator console left open by '
-        + 'start-dev. The two cannot run together.',
-      fr: 'Comment cette machine joint le cluster. « relays » : le fichier hosts pointe sur 127.0.0.1 '
-        + '(écrit une fois) et de petits conteneurs relais font suivre vers le cluster, sans console à '
-        + 'garder ouverte. « tunnel » : la façon du dépôt, minikube tunnel dans une console '
-        + 'administrateur laissée ouverte par start-dev. Les deux ne peuvent pas tourner ensemble.',
-    },
-  },
   {
     key: 'ports.gameServer', type: 'number', section: 'network', default: 8980, min: 1, max: 65535,
     label: { en: 'Local game server port', fr: 'Port du serveur de jeu local' },
@@ -376,7 +340,7 @@ const SCHEMA = [
   // ── timeouts ────────────────────────────────────────────────────────────
   ...[
     ['timeouts.dockerReadyMs', 240000, 'Docker engine', 'Moteur Docker'],
-    ['timeouts.minikubeReadyMs', 300000, 'minikube', 'minikube'],
+    ['timeouts.k3dReadyMs', 300000, 'k3d cluster', 'Cluster k3d'],
     ['timeouts.stackReadyMs', 900000, 'k8s stack', 'Stack k8s'],
     ['timeouts.gameServerReadyMs', 300000, 'Local game server', 'Serveur de jeu local'],
     ['timeouts.relinkMs', 180000, 'Horizon link', 'Lien horizon'],

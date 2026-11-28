@@ -23,12 +23,6 @@
     "build": true,
     "danger": true
   },
-  "settings": {
-    "minikube": {
-      "cpus": "8",
-      "memory": "16g"
-    }
-  },
   "sets": [
     "server",
     "gameplay",

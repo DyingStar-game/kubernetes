@@ -51,7 +51,7 @@ function which(command, { env = process.env, platform = process.platform } = {})
 }
 
 /** The command-line tools the panel (and the repository's scripts) call. */
-const TOOLS = ['docker', 'minikube', 'kubectl', 'helm', 'git'];
+const TOOLS = ['docker', 'k3d', 'kubectl', 'helm', 'git'];
 
 function detectTools(opts) {
   const out = {};

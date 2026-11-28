@@ -294,7 +294,7 @@ const LEGACY = {
     kubernetesRepo: 'X:\\ws\\kubernetes',
     devShCwdPosix: '/x/ws/kubernetes',
   },
-  k8s: { namespace: 'dyingstar', expectedContext: 'minikube', traefikNamespace: 'traefik', argoNamespace: 'argocd' },
+  k8s: { namespace: 'dyingstar', expectedContext: 'k3d-dyingstar', traefikNamespace: 'traefik', argoNamespace: 'argocd' },
   ports: { horizon: 7040, gameServer: 8980, api: 7788 },
   godot: { clientWidth: 1720, clientHeight: 1440, clientCount: 2, clientArgs: [] },
   timeouts: { skaffoldReadyMs: 600000, dockerReadyMs: 240000 },
@@ -340,15 +340,15 @@ function touch(file, content = '') {
 test('which() finds a tool on PATH, with the extensions Windows expects', () => {
   const bin = tmpDir();
   touch(path.join(bin, 'kubectl'));
-  touch(path.join(bin, 'minikube.exe'));
+  touch(path.join(bin, 'k3d.exe'));
   touch(path.join(bin, 'helm.cmd'));
   const posix = { env: { PATH: bin }, platform: 'linux' };
   const win = { env: { PATH: bin, PATHEXT: '.COM;.EXE;.BAT;.CMD' }, platform: 'win32' };
 
   assert.strictEqual(detect.which('kubectl', posix).path, path.join(bin, 'kubectl'));
   assert.strictEqual(detect.which('docker', posix), null);
-  assert.strictEqual(detect.which('minikube', win).path, path.join(bin, 'minikube.exe'));
-  assert.strictEqual(detect.which('minikube', win).shim, false);
+  assert.strictEqual(detect.which('k3d', win).path, path.join(bin, 'k3d.exe'));
+  assert.strictEqual(detect.which('k3d', win).shim, false);
   assert.strictEqual(detect.which('helm', win).shim, true, 'a .cmd wrapper must be flagged');
 });
 

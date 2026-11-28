@@ -47,7 +47,7 @@ Write-Section "1. Outils requis"
 
 $tools = @(
     @{ Cmd = "kubectl";  Args = "version --client"; Min = "1.25.0" },
-    @{ Cmd = "minikube"; Args = "version";          Min = "1.30.0" },
+    @{ Cmd = "k3d";      Args = "version";          Min = "5.0.0" },
     @{ Cmd = "helm";     Args = "version --short";  Min = "3.10.0" },
     @{ Cmd = "docker";   Args = "--version";        Min = "20.10.0" },
     @{ Cmd = "git";      Args = "--version";        Min = "2.30.0" }
@@ -83,7 +83,7 @@ if ($ram) {
     if ($ramGB -ge 8) {
         Write-Ok "RAM : $ramGB Go"
     } elseif ($ramGB -ge 4) {
-        Write-Warn "RAM : $ramGB Go - 8 Go recommandes pour Minikube + ArgoCD"
+        Write-Warn "RAM : $ramGB Go - 8 Go recommandes pour le cluster local + ArgoCD"
     } else {
         Write-Fail "RAM : $ramGB Go - minimum 4 Go requis"
     }
@@ -143,14 +143,14 @@ $hypervFeature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper
 if ($hypervFeature -and $hypervFeature.State -eq 'Enabled') {
     Write-Ok "Hyper-V : active"
 } else {
-    Write-Warn "Hyper-V : non active - Minikube utilisera le driver docker (WSL2 requis)"
+    Write-Warn "Hyper-V : non active - Docker Desktop utilisera WSL2"
 }
 
 wsl --status 2>$null | Out-Null
 if ($LASTEXITCODE -eq 0) {
     Write-Ok "WSL2 : disponible"
 } else {
-    Write-Warn "WSL2 : non detecte - recommande pour le driver docker de Minikube"
+    Write-Warn "WSL2 : non detecte - requis par Docker Desktop (k3d)"
 }
 
 # ----------------------------------------------------------
@@ -164,7 +164,7 @@ $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIden
 if ($isAdmin) {
     Write-Ok "Session administrateur : oui"
 } else {
-    Write-Fail "Session administrateur : non - .\scripts_windows\start-dev.ps1 requiert des droits admin (minikube tunnel + hosts)"
+    Write-Fail "Session administrateur : non - .\scripts_windows\start-dev.ps1 requiert des droits admin (fichier hosts)"
 }
 
 # ----------------------------------------------------------

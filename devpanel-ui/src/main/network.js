@@ -6,107 +6,22 @@ const { run } = require('./util');
 const { t } = require('./i18n');
 
 /**
- * Reaching the cluster from this machine without `minikube tunnel`.
+ * Reaching the cluster from this machine.
  *
- * The repository's way is the tunnel: an elevated console that must stay open, and the hosts file
- * pointing the *.dyingstar.local names at Traefik's LoadBalancer address. It works, and it stays
- * available (the `network.mode` setting).
+ * k3d publishes the cluster's ports on the loopback address when it is created (start-dev):
  *
- * The other way, this module's, needs elevated rights exactly ONCE:
+ *         127.0.0.1:80         -> Traefik (HTTP)
+ *         127.0.0.1:443        -> Traefik (HTTPS)
+ *         127.0.0.1:8443       -> Traefik (telepresence entry point)
+ *         127.0.0.1:30101/udp  -> horizon's WebTransport NodePort
  *
- *   - the hosts file points the names at 127.0.0.1 -- written once, it never changes again,
- *     whatever happens to the cluster;
- *   - three small relay containers, on minikube's own Docker network, forward loopback ports to
- *     the node:
- *         127.0.0.1:80         -> Traefik's HTTP NodePort
- *         127.0.0.1:443        -> Traefik's HTTPS NodePort
- *         127.0.0.1:<p>/udp    -> horizon's WebTransport NodePort
- *     They restart with Docker, so there is nothing to keep open.
- *
- * Two traps the relays are built around:
- *   - each gets a FIXED address at the top of the network's range. Docker restarts them BEFORE
- *     minikube, and a relay without a fixed address takes the first free one -- the node's own --
- *     after which `minikube start` fails with "address already in use";
- *   - the NodePorts are READ, never assumed: Traefik's are allocated when it is installed and
- *     differ from one machine to the next. A recreated cluster means recreated relays.
- *
- * The two ways cannot run together: both want port 80.
+ * So there is nothing to relay and no tunnel to keep open. What remains is the hosts file: the
+ * *.dyingstar.local names must point at 127.0.0.1 -- written once (it needs elevated rights),
+ * it never changes again, whatever happens to the cluster.
  */
-const IMAGE = 'alpine/socat:1.8.0.3';
-const DOCKER_NETWORK = 'minikube';
 const LOOPBACK = '127.0.0.1';
-
-/** "192.168.49.0/24" -> the three addresses kept for the relays, at the top of the range. */
-function relayAddresses(subnet) {
-  const m = String(subnet || '').match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)\/(\d+)$/);
-  if (!m) return null;
-  const bits = Number(m[5]);
-  if (bits < 16 || bits > 28) return null;
-  const base = ((Number(m[1]) << 24) | (Number(m[2]) << 16) | (Number(m[3]) << 8) | Number(m[4])) >>> 0;
-  const broadcast = (base | ((1 << (32 - bits)) - 1)) >>> 0;
-  const dotted = (n) => [n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.');
-  return { udp: dotted(broadcast - 5), http: dotted(broadcast - 4), https: dotted(broadcast - 3) };
-}
-
-/**
- * The relays this cluster needs. A relay whose port could not be read is left out, so a cluster
- * with no WebTransport port simply has no such relay.
- *
- * @param {object} facts { subnet, nodeIp, httpNodePort, httpsNodePort, udpNodePort }
- */
-function buildRelaySpecs(facts) {
-  const ips = relayAddresses(facts.subnet);
-  if (!ips || !facts.nodeIp) return [];
-  const specs = [];
-  const tcp = (name, ip, port, nodePort) => specs.push({
-    name, ip, image: IMAGE,
-    bind: { container: port + '/tcp', hostPort: String(port) },
-    cmd: ['TCP-LISTEN:' + port + ',fork,reuseaddr', 'TCP:' + facts.nodeIp + ':' + nodePort],
-  });
-  if (facts.httpNodePort) tcp('traefik-http-relay', ips.http, 80, facts.httpNodePort);
-  if (facts.httpsNodePort) tcp('traefik-https-relay', ips.https, 443, facts.httpsNodePort);
-  if (facts.udpNodePort) {
-    const p = facts.udpNodePort;
-    specs.push({
-      name: 'horizon-wt-relay', ip: ips.udp, image: IMAGE,
-      bind: { container: p + '/udp', hostPort: String(p) },
-      cmd: ['-d', 'UDP4-LISTEN:' + p + ',fork,reuseaddr', 'UDP4:' + facts.nodeIp + ':' + p],
-    });
-  }
-  return specs;
-}
-
-/** The `docker run` arguments that create a relay. Bound to loopback only, always. */
-function dockerRunArgs(spec) {
-  return [
-    'run', '-d', '--name', spec.name, '--restart', 'unless-stopped',
-    '--network', DOCKER_NETWORK, '--ip', spec.ip,
-    '-p', LOOPBACK + ':' + spec.bind.hostPort + ':' + spec.bind.container,
-    spec.image, ...spec.cmd,
-  ];
-}
-
-/**
- * What to do about one relay, given what `docker inspect` says of the container of that name
- * (null when there is none): 'keep', 'start', 'create' or 'recreate'.
- *
- * Compared field by field, so a relay made by hand the same way is adopted as it is, and one that
- * points at a node or a port that no longer exists is replaced.
- */
-function diffRelay(inspect, spec) {
-  if (!inspect) return 'create';
-  const cfg = inspect.Config || {};
-  const host = inspect.HostConfig || {};
-  const net = ((inspect.NetworkSettings || {}).Networks || {})[DOCKER_NETWORK] || null;
-  const binding = ((host.PortBindings || {})[spec.bind.container] || [])[0] || null;
-  const same = cfg.Image === spec.image
-    && JSON.stringify(cfg.Cmd || []) === JSON.stringify(spec.cmd)
-    && !!net && ((net.IPAMConfig || {}).IPv4Address === spec.ip)
-    && !!binding && binding.HostIp === LOOPBACK && binding.HostPort === spec.bind.hostPort
-    && Object.keys(host.PortBindings || {}).length === 1;
-  if (!same) return 'recreate';
-  return (inspect.State || {}).Running ? 'keep' : 'start';
-}
+/** The ports k3d must publish on the host (see start-dev). */
+const PUBLISHED_PORTS = ['80/tcp', '443/tcp', '8443/tcp', '30101/udp'];
 
 /**
  * Read a hosts file against the names the stack needs.
@@ -175,10 +90,6 @@ class Network {
     this.scriptsDir = scriptsDir;
   }
 
-  mode() {
-    return (this.cfg.network && this.cfg.network.mode) === 'tunnel' ? 'tunnel' : 'relays';
-  }
-
   /** The names the stack is served under, from the repository's own list. */
   hostNames() {
     try {
@@ -189,19 +100,6 @@ class Network {
     }
   }
 
-  /**
-   * The address the hosts file must give the names. Relays mode: loopback. Tunnel mode (the
-   * repository's way, and the one Linux uses): Traefik's LoadBalancer address, which is what
-   * `minikube tunnel` serves -- loopback leads nowhere there. '' while the tunnel has not
-   * handed Traefik an address yet.
-   */
-  async hostsIp() {
-    if (this.mode() !== 'tunnel') return LOOPBACK;
-    const r = await run('kubectl', ['get', 'svc', 'traefik', '-n', 'traefik', '-o',
-      'jsonpath={.status.loadBalancer.ingress[0].ip}'], { timeoutMs: 12000 });
-    return r.code === 0 ? r.stdout.trim() : '';
-  }
-
   hostsState(ip = LOOPBACK) {
     const names = this.hostNames();
     let text = '';
@@ -209,93 +107,60 @@ class Network {
     return { names, ip, missing: ip ? planHosts(text, names, ip).missing : names };
   }
 
-  /** What the cluster looks like from Docker and kubectl; null fields when it cannot be read. */
-  async facts() {
-    const ns = this.cfg.k8s.namespace;
-    const [subnet, nodeIp, traefik, horizon] = await Promise.all([
-      run('docker', ['network', 'inspect', DOCKER_NETWORK, '--format', '{{range .IPAM.Config}}{{.Subnet}}{{end}}'], { timeoutMs: 12000 }),
-      run('minikube', ['ip'], { timeoutMs: 15000 }),
-      run('kubectl', ['get', 'service', 'traefik', '-n', 'traefik', '-o', 'json'], { timeoutMs: 12000 }),
-      run('kubectl', ['get', 'service', this.cfg.k8s.horizonDeployment || 'horizon', '-n', ns, '-o', 'json'], { timeoutMs: 12000 }),
-    ]);
-    const ports = (r) => { try { return JSON.parse(r.stdout).spec.ports || []; } catch { return []; } };
-    const nodePort = (list, match) => (list.find(match) || {}).nodePort || null;
-    return {
-      subnet: subnet.code === 0 ? subnet.stdout.trim() : '',
-      nodeIp: nodeIp.code === 0 ? nodeIp.stdout.trim() : '',
-      httpNodePort: nodePort(ports(traefik), (p) => p.port === 80),
-      httpsNodePort: nodePort(ports(traefik), (p) => p.port === 443),
-      udpNodePort: nodePort(ports(horizon), (p) => (p.protocol || 'TCP') === 'UDP'),
-    };
+  /** The name of the cluster's load balancer container (k3d-<cluster>-serverlb). */
+  lbContainer() {
+    return 'k3d-' + ((this.cfg.k3d && this.cfg.k3d.cluster) || 'dyingstar') + '-serverlb';
   }
 
-  async _inspect(name) {
-    const r = await run('docker', ['inspect', name], { timeoutMs: 12000 });
+  /**
+   * The published ports the load balancer is missing (empty when all are there), or null when it
+   * cannot be read (no such container: the cluster does not exist or Docker is down).
+   */
+  async missingPorts() {
+    const r = await run('docker', ['port', this.lbContainer()], { timeoutMs: 12000 });
     if (r.code !== 0) return null;
-    try { return JSON.parse(r.stdout)[0] || null; } catch { return null; }
+    // "80/tcp -> 0.0.0.0:80" lines; the container's side is what we compare.
+    const have = new Set(r.stdout.split(/\r?\n/).map((l) => l.split(/\s+->/)[0].trim()).filter(Boolean));
+    return PUBLISHED_PORTS.filter((p) => !have.has(p));
   }
 
-  /** For the status light and the card: the relays, the hosts file, and one line that sums it up. */
+  /** For the status light and the card: the published ports, the hosts file, and a one-line summary. */
   async status() {
-    const mode = this.mode();
-    if (mode === 'tunnel') {
-      const hosts = this.hostsState(await this.hostsIp());
-      return { mode, ok: hosts.missing.length === hosts.names.length ? false : true, hosts, relays: [], detail: t('net.tunnelMode'),
-        hostsOk: !!hosts.ip && hosts.names.length > 0 && hosts.missing.length === 0,
-        hostsCommand: hosts.ip && hosts.missing.length ? hostsCommand(hosts.missing, hosts.ip) : '' };
-    }
     const hosts = this.hostsState();
-    const specs = buildRelaySpecs(await this.facts());
-    const relays = [];
-    for (const spec of specs) relays.push({ name: spec.name, action: diffRelay(await this._inspect(spec.name), spec) });
-    const relaysOk = specs.length > 0 && relays.every((r) => r.action === 'keep');
+    const missing = await this.missingPorts();
+    const portsOk = missing !== null && missing.length === 0;
     const hostsOk = hosts.names.length > 0 && hosts.missing.length === 0;
-    let detail = t('net.ok', { n: relays.length });
-    if (!specs.length) detail = t('net.noCluster');
-    else if (!relaysOk) detail = t('net.relaysOff', { names: relays.filter((r) => r.action !== 'keep').map((r) => r.name).join(', ') });
+    let detail = t('net.ok', { n: PUBLISHED_PORTS.length });
+    if (missing === null) detail = t('net.noCluster');
+    else if (!portsOk) detail = t('net.portsMissing', { ports: missing.join(', ') });
     else if (!hostsOk) detail = t('net.hostsMissing', { n: hosts.missing.length });
-    return { mode, ok: relaysOk && hostsOk, relaysOk, hostsOk, hosts, relays, detail,
+    return { ok: portsOk && hostsOk, portsOk, hostsOk, hosts, detail,
       hostsCommand: hostsOk ? '' : hostsCommand(hosts.missing, LOOPBACK) };
   }
 
   /**
-   * Create, start or replace the relays so they match the cluster as it is now.
-   * Returns { ok, done: [{ name, action }], detail }.
+   * Check that the cluster publishes the ports the stack needs. Nothing to repair from here: the
+   * ports are fixed when the cluster is created, so a missing one means recreating it (start-dev
+   * does it, on a cluster created without them).
+   * Returns { ok, done, detail } (the shape the start chain already reads).
    */
-  async ensureRelays() {
-    if (this.mode() !== 'relays') return { ok: true, done: [], detail: 'tunnel mode: no relay' };
-    const specs = buildRelaySpecs(await this.facts());
-    if (!specs.length) return { ok: false, done: [], detail: 'the cluster cannot be read: is minikube running?' };
-    const done = [];
-    for (const spec of specs) {
-      const action = diffRelay(await this._inspect(spec.name), spec);
-      if (action === 'keep') continue;
-      let r = { code: 0, stderr: '' };
-      if (action === 'start') {
-        r = await run('docker', ['start', spec.name], { timeoutMs: 30000 });
-      } else {
-        if (action === 'recreate') await run('docker', ['rm', '-f', spec.name], { timeoutMs: 30000 });
-        r = await run('docker', dockerRunArgs(spec), { timeoutMs: 120000 });
-      }
-      if (r.code !== 0) {
-        const why = (r.stderr || r.stdout || '').trim().split(/\r?\n/).pop();
-        this.log.note('Network: relay ' + spec.name + ' could not be ' + action + 'd: ' + why, 'ERROR');
-        return { ok: false, done, detail: spec.name + ': ' + why };
-      }
-      this.log.note('Network: relay ' + spec.name + ' ' + action + 'd (' + spec.cmd[spec.cmd.length - 1] + ').');
-      done.push({ name: spec.name, action });
+  async ensurePorts() {
+    const missing = await this.missingPorts();
+    if (missing === null) return { ok: false, done: [], detail: 'the cluster cannot be read: is it running?' };
+    if (missing.length) {
+      return { ok: false, done: [], detail: 'the cluster does not publish ' + missing.join(', ')
+        + ': delete it and run start-dev again so it is created with them' };
     }
-    return { ok: true, done, detail: done.length ? done.map((d) => d.name + ' ' + d.action + 'd').join(', ') : 'nothing to do' };
+    return { ok: true, done: [], detail: 'ports published' };
   }
 
   /**
-   * Point the stack's names at the right address (see hostsIp) in the hosts file. The ONE thing that needs elevated
+   * Point the stack's names at 127.0.0.1 in the hosts file. The ONE thing that needs elevated
    * rights: it is run through the system's own prompt, as a tracked process, and does nothing
    * when the file is already right.
    */
   async writeHosts() {
-    const ip = await this.hostsIp();
-    if (!ip) return { ok: false, detail: 'Traefik has no address yet: is `minikube tunnel` running?' };
+    const ip = LOOPBACK;
     const { names, missing } = this.hostsState(ip);
     if (!names.length) return { ok: false, detail: 'hosts_config.txt not found in the kubernetes repository' };
     if (!missing.length) return { ok: true, detail: 'the hosts file is already right' };
@@ -317,5 +182,5 @@ class Network {
 }
 
 module.exports = {
-  Network, IMAGE, relayAddresses, buildRelaySpecs, dockerRunArgs, diffRelay, planHosts, isHostName, hostsFilePath, hostsBody, hostsCommand,
+  Network, PUBLISHED_PORTS, planHosts, isHostName, hostsFilePath, hostsBody, hostsCommand,
 };

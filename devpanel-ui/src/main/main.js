@@ -247,7 +247,7 @@ async function buildState({ withProbes = true } = {}) {
         lastProbes.npc = { ok: false, detail: String(err && err.message) };
       }
     }
-    if (lastProbes && !lastProbes.error && modules.cluster && lastProbes.minikube && lastProbes.minikube.ok) {
+    if (lastProbes && !lastProbes.error && modules.cluster && lastProbes.k3d && lastProbes.k3d.ok) {
       try {
         lastProbes.sets = await k8s.setsState();
       } catch (err) {
@@ -320,8 +320,8 @@ const ACTION_ALIASES = {
 // the window and for the local API alike. Actions not listed here are always available.
 const ACTION_MODULE = {
   'start-docker': 'docker',
-  'start-minikube': 'cluster', 'start-stack': 'cluster', 'stop-stack': 'cluster',
-  'use-minikube-context': 'cluster', 'restart-deployment': 'cluster', 'delete-pod': 'cluster',
+  'start-k3d': 'cluster', 'start-stack': 'cluster', 'stop-stack': 'cluster',
+  'use-k3d-context': 'cluster', 'restart-deployment': 'cluster', 'delete-pod': 'cluster',
   'list-deployments': 'cluster',
   'port-forward': 'horizon',
   'start-godot-server': 'gameServer', 'stop-godot-server': 'gameServer', 'kill-orphan-godot': 'gameServer',
@@ -354,14 +354,14 @@ async function doAction(requested, payload = {}) {
       return { ok: true };
 
     case 'stop-all':
-      await services.stopAll({ stopMinikube: !!payload.stopMinikube });
+      await services.stopAll({ stopCluster: !!payload.stopCluster });
       return { ok: true };
 
     case 'start-docker':
       return { ok: await services.startDocker() };
 
-    case 'start-minikube':
-      return { ok: await services.startMinikube() };
+    case 'start-k3d':
+      return { ok: await services.startK3d() };
 
     case 'start-stack': {
       if (await services.stackInstalled() && !(await services.stackAlreadyUp())) {
@@ -377,18 +377,15 @@ async function doAction(requested, payload = {}) {
         return { ok: true, detail: deployed };
       }
       logBus.note(
-        (config.network && config.network.mode) === 'tunnel'
-          ? 'Tunnel mode: start-dev needs elevated rights (minikube tunnel + the hosts file). If it fails '
-            + 'here, run it ONCE from an elevated terminal, then come back to the panel.'
-          : 'start-dev runs without the tunnel (the panel\'s network layer reaches the cluster): no '
-            + 'administrator rights needed.'
+        'start-dev runs without touching the hosts file (the panel\'s network layer writes it): no '
+        + 'administrator rights needed.'
       );
       services.startStack();
       return { ok: true };
     }
 
     case 'delete-cluster':
-      // Irreversible: minikube and every database in it. The renderer asks for the confirmation;
+      // Irreversible: the k3d cluster and every database in it. The renderer asks for the confirmation;
       // a script has to say it means it.
       if (payload.confirm !== true) {
         return { ok: false, detail: 'delete-cluster destroys the cluster and its data: pass "confirm": true' };
@@ -418,7 +415,7 @@ async function doAction(requested, payload = {}) {
       return { ok: true };
 
     case 'network-repair':
-      return await network.ensureRelays();
+      return await network.ensurePorts();
 
     case 'network-hosts':
       return network.writeHosts();
@@ -507,8 +504,8 @@ async function doAction(requested, payload = {}) {
       }
       return { ok: true };
 
-    case 'use-minikube-context':
-      return await k8s.useMinikubeContext();
+    case 'use-k3d-context':
+      return await k8s.useK3dContext();
 
     case 'read-build-targets':
       return k8s.readBuildTargets();

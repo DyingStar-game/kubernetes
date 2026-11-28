@@ -23,12 +23,6 @@
     "build": false,
     "danger": false
   },
-  "settings": {
-    "minikube": {
-      "cpus": "4",
-      "memory": "8g"
-    }
-  },
   "sets": [
     "server-idle"
   ]

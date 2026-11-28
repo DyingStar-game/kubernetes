@@ -26,21 +26,21 @@
       }
     },
     {
-      "id": "minikube",
-      "version": "1.38.1",
-      "minVersion": "1.30.0",
-      "versionArgs": ["version", "--short"],
+      "id": "k3d",
+      "version": "5.9.0",
+      "minVersion": "5.0.0",
+      "versionArgs": ["version"],
       "versionPattern": "v?(\\d+\\.\\d+\\.\\d+)",
       "assets": {
         "win32-x64": {
-          "url": "https://github.com/kubernetes/minikube/releases/download/v1.38.1/minikube-windows-amd64.exe",
-          "sha256": "04215bec5632a976b48eb632856b50f1eaaa183b9c2a5904e11d1bacc4961ff7",
-          "file": "minikube.exe"
+          "url": "https://github.com/k3d-io/k3d/releases/download/v5.9.0/k3d-windows-amd64.exe",
+          "sha256": "49d0b9c796f5b8ba6f58a1dd5469e8b7b34bf9b6ce9078633eedb2789680a034",
+          "file": "k3d.exe"
         },
         "linux-x64": {
-          "url": "https://github.com/kubernetes/minikube/releases/download/v1.38.1/minikube-linux-amd64",
-          "sha256": "099477eaf248bcb5bcea8ce78a2898e93ac01461c35189da1848c3de82ecd22e",
-          "file": "minikube"
+          "url": "https://github.com/k3d-io/k3d/releases/download/v5.9.0/k3d-linux-amd64",
+          "sha256": "06d8f25bc3a971c4eb29e0ff08429b180402db0f4dec838c9eac427e296800a0",
+          "file": "k3d"
         }
       }
     },

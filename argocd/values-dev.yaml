@@ -28,6 +28,15 @@ server:
 
 repoServer:
   replicas: 1
+  # Depot local monte depuis l'hote (uid different de celui du repo-server, surtout sous k3d) :
+  # sans cela git refuse de le lire ("detected dubious ownership").
+  env:
+    - name: GIT_CONFIG_COUNT
+      value: "1"
+    - name: GIT_CONFIG_KEY_0
+      value: safe.directory
+    - name: GIT_CONFIG_VALUE_0
+      value: "*"
   volumes:
     - name: local-repo
       hostPath:

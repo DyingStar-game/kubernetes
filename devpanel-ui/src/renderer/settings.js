@@ -337,7 +337,7 @@
     return h('section', { class: 'settings-section' },
       h('h2', null, t('prerequisites')),
       h('div', { class: 'field' },
-        h('div', { class: 'field-label' }, 'docker, minikube…'),
+        h('div', { class: 'field-label' }, 'docker, k3d…'),
         h('div', { class: 'field-main' },
           h('div', { class: 'tool-row' }, tools),
           h('div', { class: 'field-help' }, t('toolsHelp')),

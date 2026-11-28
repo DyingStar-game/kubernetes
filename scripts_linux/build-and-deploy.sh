@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # build-and-deploy.sh — Build une image DyingStar depuis les sources locales et
-#                       la déploie dans la stack minikube/ArgoCD.
+#                       la déploie dans la stack k3d/ArgoCD.
 #
 # Les cibles sont décrites dans dev-projects.yaml. Une cible vise soit le container
 # principal d'un Deployment, soit un de ses init containers (champ `initContainer`,
@@ -27,7 +27,8 @@ set -e
 cd "$(dirname "$0")/.."
 
 CONFIG_FILE="dev-projects.yaml"
-EXPECTED_CONTEXT="minikube"
+K3D_CLUSTER="${K3D_CLUSTER:-dyingstar}"
+EXPECTED_CONTEXT="k3d-$K3D_CLUSTER"
 
 if [ ! -f "$CONFIG_FILE" ]; then
   echo "❌ Erreur : Le fichier de configuration '$CONFIG_FILE' est introuvable."
@@ -140,6 +141,8 @@ build_and_deploy() {
 
   echo "📦 Build de l'image $image:$tag..."
   docker build "${build_opts[@]}" -t "$image:$tag" -f "$proj_dir/$dockerfile" "$proj_dir"
+  echo "🚚 Import de $image:$tag dans le cluster k3d '$K3D_CLUSTER'..."
+  k3d image import "$image:$tag" -c "$K3D_CLUSTER"
 
   if [ -n "$hook" ]; then
     hook_cleanup
@@ -260,7 +263,7 @@ elif [ $PARSE_RC -ne 0 ]; then
   exit 1
 fi
 
-# --- 3. Garde-fou : uniquement le cluster minikube local ---------------------
+# --- 3. Garde-fou : uniquement le cluster k3d local ---------------------
 # Le script force imagePullPolicy: Never — l'exécuter sur preprod/prod casserait
 # les déploiements (aucune image locale sur ces nœuds).
 CURRENT_CONTEXT=$(kubectl config current-context 2>/dev/null || true)
@@ -270,9 +273,8 @@ if [ "$CURRENT_CONTEXT" != "$EXPECTED_CONTEXT" ]; then
   exit 1
 fi
 
-# --- 4. Build dans le daemon Docker de minikube ------------------------------
-echo "🔌 Connexion au daemon Docker de Minikube..."
-eval "$(minikube -p minikube docker-env)"
+# --- 4. Build avec le Docker de l'hote, puis import dans le cluster k3d ------
+# (voir build_and_deploy : `k3d image import` apres chaque docker build).
 # Requis : .docker/Dockerfile.plugins utilise --mount=type=cache et le Dockerfile
 # de resourcesDynamic déclare une directive « # syntax= ».
 export DOCKER_BUILDKIT=1

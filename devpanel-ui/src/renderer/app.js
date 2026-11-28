@@ -561,11 +561,11 @@ function renderButtonStates(state) {
       pr.gameServer?.alive === false ? t('ui.gate.relinkFrozen') : t('ui.gate.relinkNeeds', { port: gsPort })],
     ['#btnPurge', clusterReady, t('ui.gate.purge')],
     ['#btnPortFwd', clusterReady, t('ui.gate.relay')],
-    // "Démarrer la stack" is not gated on minikube: creating the cluster when there is none is
+    // "Démarrer la stack" is not gated on the cluster: creating the cluster when there is none is
     // precisely that script's job.
     ['#btnDeleteCluster', !!pr.docker?.ok, t('ui.gate.delete')],
     ['#btnCleanEnv', !!pr.docker?.ok, t('ui.gate.delete')],
-    ['[data-action="network-repair"]', p_net(pr).mode !== 'tunnel' && p_net(pr).relaysOk === false,
+    ['[data-action="network-repair"]', p_net(pr).portsOk === false,
       p_net(pr).mode === 'tunnel' ? t('ui.gate.netTunnel') : t('ui.gate.netOk')],
     ['[data-action="network-hosts"]', p_net(pr).mode !== 'tunnel' && p_net(pr).hostsOk === false,
       p_net(pr).mode === 'tunnel' ? t('ui.gate.netTunnel') : t('ui.gate.hostsOk')],
@@ -687,7 +687,7 @@ function renderState(state) {
   // One light per thing watched, each owned by a module: [module, html].
   el.lights.innerHTML = [
     ['docker', light('Docker', p.docker?.ok, p.docker?.detail)],
-    ['cluster', light('minikube', p.minikube?.ok, p.minikube?.detail)],
+    ['cluster', light('k3d', p.k3d?.ok, p.k3d?.detail)],
     ['cluster', light(t('ui.light.context', { name: p.kubeContext?.detail || '?' }), p.kubeContext?.ok,
       t('ui.light.expected', { name: p.kubeContext?.expected || '' }))],
     ['cluster', light(t('ui.light.pods', { detail: p.pods?.detail || '' }), p.pods?.ok, p.pods?.detail, true)],
@@ -1084,7 +1084,7 @@ if (window.panel.onOpen) {
 
 /* Deleting the cluster destroys every database in it. One click must never be enough: the button
  * only reveals a field, and the delete button stays off until the cluster's name is typed. */
-const DELETE_WORD = 'minikube';
+const DELETE_WORD = 'k3d';
 $('btnDeleteCluster').addEventListener('click', () => {
   const row = $('deleteClusterConfirm');
   row.classList.toggle('hidden');

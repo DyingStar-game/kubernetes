@@ -5,7 +5,7 @@
 cd "$(dirname "$0")/.."
 
 # --no-tunnel : s'arreter une fois le cluster et ArgoCD en place, sans lancer
-# `minikube tunnel` ni toucher a /etc/hosts. Rien ne demande alors sudo. Pour qui
+# toucher a /etc/hosts. Rien ne demande alors sudo. Pour qui
 # joint le cluster autrement (relais, port-forward) ou veut seulement l'installer.
 NO_TUNNEL=0
 # --sets a,b : ensembles de services a deployer (voir argocd/dev/root/sets/). `core` est
@@ -44,15 +44,18 @@ for set in $SETS; do
     esac
 done
 
+# Cluster local : k3d (k3s dans Docker). Nom modifiable : K3D_CLUSTER.
+K3D_CLUSTER="${K3D_CLUSTER:-dyingstar}"
+
 # Configuration
 DOMAINS_FILE="hosts_config.txt"
 TRAEFIK_NS="traefik"
 ROOT_APP_NAME="root-dev" # Ensure this matches your app name in ArgoCD
 ROOT_APP_NS="argocd"
 
-# 0. Disconnect Telepresence before starting Minikube
+# 0. Disconnect Telepresence before starting the cluster
 # While connected, Telepresence registers a "tel2-search" DNS search domain on
-# the host. Docker copies the host search list into the Minikube container when
+# the host. Docker copies the host search list into the k3d node containers when
 # it is created, and kubelet (dnsPolicy: ClusterFirst) then appends it to every
 # pod. With ndots:5, in-cluster lookups such as
 # traffic-manager.telepresence.svc.cluster.local are expanded to
@@ -64,24 +67,56 @@ if command -v telepresence > /dev/null 2>&1; then
     telepresence quit -s > /dev/null 2>&1
 fi
 
-# 1. Start Minikube
-echo "--- Starting Minikube ---"
-# MINIKUBE_CPUS / MINIKUBE_MEMORY (ex. 4 / 8g) bornent la taille du cluster ; vides : choix de
-# minikube. Pris en compte a la CREATION seulement (un cluster existant garde sa taille).
-SIZE_ARGS=()
-[ -n "$MINIKUBE_CPUS" ] && SIZE_ARGS+=("--cpus=$MINIKUBE_CPUS")
-[ -n "$MINIKUBE_MEMORY" ] && SIZE_ARGS+=("--memory=$MINIKUBE_MEMORY")
-minikube start --disk-size=150g --mount-string $PWD:/mnt/local-repo.git "${SIZE_ARGS[@]}"
+# 1. Start the k3d cluster
+echo "--- Starting cluster (k3d: $K3D_CLUSTER) ---"
+# k3d (k3s dans Docker) : demarrage ~15 s, pas de VM. Traefik est deploye par ArgoCD
+# (argocd/dev/infra/core/traefik-app.yaml) : on desactive celui embarque par k3s.
+# Les ports 80/443/8443 (telepresence) et 30101 (horizon, UDP/QUIC) sont publies sur
+# localhost : ni tunnel ni sudo, /etc/hosts pointe sur 127.0.0.1.
+# Le depot est monte dans chaque noeud sur /mnt/local-repo.git : la source ArgoCD
+# file:///mnt/local-repo.git y est lue telle quelle (aucun push, aucun serveur git).
+# La taille du cluster est celle de Docker (Docker Desktop : Settings > Resources).
+if k3d cluster list "$K3D_CLUSTER" > /dev/null 2>&1; then
+    k3d cluster start "$K3D_CLUSTER" || true
+else
+    k3d cluster create "$K3D_CLUSTER" \
+        --agents 0 --wait \
+        --volume "$PWD:/mnt/local-repo.git@all" \
+        -p "80:80@loadbalancer" -p "443:443@loadbalancer" \
+        -p "8443:8443@loadbalancer" -p "30101:30101/udp@loadbalancer" \
+        --k3s-arg "--disable=traefik@server:*" \
+        || { echo "ERREUR : creation du cluster k3d impossible (port 80/443/8443/30101 deja pris ? voir : docker ps)." >&2; exit 1; }
+fi
+kubectl config use-context "k3d-$K3D_CLUSTER"
+# Les values dev reclament la StorageClass "standard" ; k3s fournit "local-path" :
+# on cree un alias pointant sur le meme provisioner.
+kubectl apply -f - <<'EOF' > /dev/null
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: standard
+provisioner: rancher.io/local-path
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
+EOF
 
-# 1b. Raise inotify limits inside the node. minikube's defaults
+# Garde-fou : sans API joignable, tout ce qui suit echoue en cascade (helm, kubectl, attente
+# infinie de Traefik). On s'arrete ici avec un message clair.
+if ! kubectl get --raw /version --request-timeout=20s > /dev/null 2>&1; then
+    echo "ERREUR : l'API Kubernetes (k3d) est injoignable (contexte : $(kubectl config current-context 2>/dev/null))." >&2
+    exit 1
+fi
+
+# 1b. Raise inotify limits inside the node. The default limits
 # (fs.inotify.max_user_watches=65536/8192, max_user_instances=128) are far too
 # low once several dozen pods mount ConfigMaps/Secrets (each mount consumes
 # watches) — horizon then panics with "to create fsnotify watcher: too many
 # open files" and exits (139). Applied at runtime via a privileged pod + nsenter
-# (we do not assume `minikube ssh` works everywhere); /etc/sysctl.d is inside
-# the node's writable overlay and survives pod restarts, but a `minikube
+# (nodes are privileged k3d containers); /etc/sysctl.d is inside
+# the node's writable overlay and survives pod restarts, but a `k3d cluster
 # delete` / node recreate needs this step again — hence right after start.
 echo "--- Raising inotify limits inside the node ---"
+# Les sysctl inotify sont ceux du noyau hote / de la VM Docker.
 kubectl apply -f - <<'EOF' >/dev/null
 apiVersion: v1
 kind: Pod
@@ -178,21 +213,7 @@ if [ "$NO_TUNNEL" = "1" ]; then
     exit 0
 fi
 
-# 4. Launch tunnel
-echo "--- Launching tunnel ---"
-# Note: minikube tunnel requires sudo
-sudo HOME=$HOME minikube tunnel > /dev/null 2>&1 &
-
-# 5. Get Traefik IP
-echo "--- Retrieving Traefik IP ---"
-IP=""
-while [ -z "$IP" ]; do
-  sleep 2
-  IP=$(kubectl get svc traefik -n $TRAEFIK_NS -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
-done
-echo "Traefik IP detected: $IP"
-
-# 6. Wait for Traefik IP
+# 4. Wait for the Traefik service to get an address
 echo "--- Waiting for Traefik IP ---"
 IP=""
 while [ -z "$IP" ]; do
@@ -200,8 +221,11 @@ while [ -z "$IP" ]; do
   IP=$(kubectl get svc traefik -n $TRAEFIK_NS -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
 done
 echo "Traefik IP detected: $IP"
+# Le LoadBalancer porte une IP de noeud Docker, mais l'acces hote passe par les
+# ports publies sur localhost.
+IP=127.0.0.1
 
-# 7. Update /etc/hosts
+# 5. Update /etc/hosts
 if [ -f "$DOMAINS_FILE" ]; then
     echo "--- Updating /etc/hosts ---"
     while IFS= read -r domain || [ -n "$domain" ]; do

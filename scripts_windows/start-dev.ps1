@@ -1,6 +1,5 @@
 param(
-    # S'arreter une fois le cluster et ArgoCD en place, sans lancer `minikube tunnel`
-    # ni toucher au fichier hosts. Rien ne demande alors les droits administrateur.
+    # S'arreter une fois le cluster et ArgoCD en place, sans toucher au fichier hosts. Rien ne demande alors les droits administrateur.
     # Pour qui joint le cluster autrement (relais, port-forward) ou veut seulement l'installer.
     [switch]$NoTunnel,
 
@@ -21,14 +20,14 @@ foreach ($set in $Sets) {
     }
 }
 
-# Le tunnel et le fichier hosts exigent les droits administrateur ; le reste, non.
+# Le fichier hosts exige les droits administrateur ; le reste, non.
 # (Avant, `#Requires -RunAsAdministrator` les imposait a tout le script.)
 if (-not $NoTunnel) {
     $principal = New-Object Security.Principal.WindowsPrincipal(
         [Security.Principal.WindowsIdentity]::GetCurrent())
     if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
         Write-Error ("start-dev.ps1 doit etre lance dans une console administrateur " +
-            "(minikube tunnel et fichier hosts). Sans tunnel : start-dev.ps1 -NoTunnel")
+            "(fichier hosts). Sans toucher au fichier hosts : start-dev.ps1 -NoTunnel")
         exit 1
     }
 }
@@ -42,11 +41,13 @@ $DOMAINS_FILE = "hosts_config.txt"
 $TRAEFIK_NS = "traefik"
 $ROOT_APP_NAME = "root-dev"
 $ROOT_APP_NS = "argocd"
+# Cluster local : k3d (k3s dans Docker Desktop / WSL2). Nom modifiable : $env:K3D_CLUSTER.
+$K3D_CLUSTER = if ($env:K3D_CLUSTER) { $env:K3D_CLUSTER } else { "dyingstar" }
 
-# 0. Déconnecter Telepresence avant de démarrer Minikube
+# 0. Déconnecter Telepresence avant de démarrer le cluster
 # Lorsqu'il est connecté, Telepresence enregistre un domaine de recherche DNS
 # "tel2-search" sur la machine hôte. Docker recopie la liste de recherche de
-# l'hôte dans le conteneur Minikube à sa création, puis kubelet
+# l'hôte dans les conteneurs des noeuds k3d à leur création, puis kubelet
 # (dnsPolicy: ClusterFirst) l'ajoute à chaque pod. Avec ndots:5, les résolutions
 # internes au cluster comme traffic-manager.telepresence.svc.cluster.local sont
 # d'abord étendues en "<nom>.tel2-search", résolues par le résolveur de l'hôte
@@ -57,14 +58,48 @@ if (Get-Command telepresence -ErrorAction SilentlyContinue) {
     telepresence quit -s 2>$null | Out-Null
 }
 
-# 1. Démarrer Minikube
-Write-Host "--- Démarrage de Minikube ---"
-# MINIKUBE_CPUS / MINIKUBE_MEMORY (ex. 4 / 8g) bornent la taille du cluster ; vides : choix de
-# minikube. Pris en compte a la CREATION seulement (un cluster existant garde sa taille).
-$sizeArgs = @()
-if ($env:MINIKUBE_CPUS) { $sizeArgs += "--cpus=$($env:MINIKUBE_CPUS)" }
-if ($env:MINIKUBE_MEMORY) { $sizeArgs += "--memory=$($env:MINIKUBE_MEMORY)" }
-minikube start --disk-size=150g --mount-string "${pwd}:/mnt/local-repo.git" @sizeArgs
+# 1. Démarrer le cluster k3d
+Write-Host "--- Démarrage du cluster (k3d : $K3D_CLUSTER) ---"
+# Voir start-dev.sh : Traefik est deploye par ArgoCD (on desactive celui de k3s) ; les ports
+# 80/443/8443 et 30101 (UDP, horizon) sont publies sur localhost, donc ni tunnel ni IP de noeud.
+# La taille du cluster est celle de Docker Desktop (Settings > Resources).
+# Le depot est monte sous /mnt/local-repo.git ; le chemin Windows (C:\x) est converti en /c/x
+# car le « : » de la lettre de lecteur gene la syntaxe --volume.
+$repoPath = $pwd.Path -replace '\\', '/'
+if ($repoPath -match '^([A-Za-z]):(.*)$') { $repoPath = '/' + $Matches[1].ToLower() + $Matches[2] }
+k3d cluster list $K3D_CLUSTER 2>$null | Out-Null
+if ($LASTEXITCODE -eq 0) {
+    k3d cluster start $K3D_CLUSTER
+} else {
+    k3d cluster create $K3D_CLUSTER `
+        --agents 0 --wait `
+        --volume "${repoPath}:/mnt/local-repo.git@all" `
+        -p "80:80@loadbalancer" -p "443:443@loadbalancer" `
+        -p "8443:8443@loadbalancer" -p "30101:30101/udp@loadbalancer" `
+        --k3s-arg "--disable=traefik@server:*"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Creation du cluster k3d impossible (ports 80/443/8443/30101 deja pris ? voir : docker ps)."
+        exit 1
+    }
+}
+kubectl config use-context "k3d-$K3D_CLUSTER"
+# Les values dev reclament la StorageClass "standard" ; k3s fournit "local-path" : alias.
+@'
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: standard
+provisioner: rancher.io/local-path
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
+'@ | kubectl apply -f - | Out-Null
+
+# Garde-fou : sans API joignable, tout ce qui suit echoue en cascade.
+kubectl get --raw /version --request-timeout=20s 2>$null | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "L'API Kubernetes (k3d) est injoignable (contexte : $(kubectl config current-context 2>$null))."
+    exit 1
+}
 
 # 1b. Relever les limites inotify dans le noeud (voir start-dev.sh, etape 1b) :
 # sans cela horizon plante avec "too many open files" (fsnotify).
@@ -174,20 +209,13 @@ if ($others.Count -gt 0) {
 }
 
 if ($NoTunnel) {
-    Write-Host "--- -NoTunnel : ni tunnel ni fichier hosts ---"
+    Write-Host "--- -NoTunnel : fichier hosts non modifie ---"
     Write-Host "--- Cluster et ArgoCD prets. ---"
     exit 0
 }
 
-# 4. Lancer le tunnel
-Write-Host "--- Lancement du tunnel ---"
-# Note : minikube tunnel nécessite des droits administrateur (déjà requis en haut du script)
-$tunnelJob = Start-Job -ScriptBlock {
-    minikube tunnel
-}
-
-# 5. Récupérer l'IP de Traefik
-Write-Host "--- Récupération de l'IP de Traefik ---"
+# 4. Attendre que le service Traefik ait une adresse
+Write-Host "--- Attente de l'IP de Traefik ---"
 $IP = ""
 while ([string]::IsNullOrEmpty($IP)) {
     Start-Sleep -Seconds 2
@@ -195,8 +223,10 @@ while ([string]::IsNullOrEmpty($IP)) {
         -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>$null
 }
 Write-Host "IP Traefik détectée : $IP"
+# Le LoadBalancer porte une IP de noeud Docker, mais l'acces hote passe par les ports publies.
+$IP = "127.0.0.1"
 
-# 6. Mettre à jour le fichier hosts
+# 5. Mettre à jour le fichier hosts
 $HOSTS_FILE = "C:\Windows\System32\drivers\etc\hosts"
 
 function Read-HostsFile {
