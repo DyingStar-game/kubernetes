@@ -377,6 +377,7 @@ class Services extends EventEmitter {
    * and there is no process to watch.
    */
   async waitStackReady(signal, { watchProcess = true } = {}) {
+    let lastWaitKey = '';
     const ready = await waitFor(async () => {
       // Bail out early if start-dev died: no point waiting the full timeout.
       // start-dev ending cleanly (code 0) is NORMAL: with --no-tunnel it exits as soon as the
@@ -388,6 +389,19 @@ class Services extends EventEmitter {
       const pods = await this.probes.pods();
       const port = this._on('horizon') ? await this.probes.horizonRoute() : { ok: true };
       if (port.ok && pods.ok) return 'ready';
+      // Say WHAT is awaited whenever it changes: a silent wait looks like a hang. A pod that
+      // never gets ready (crashloop, image not pulled, dependency down) is named here.
+      const waiting = (pods.pods || []).filter((x) => !x.done && !x.allReady)
+        .map((x) => x.name + ' (' + x.phase + (x.restarts ? ', ' + x.restarts + ' restarts' : '') + ')');
+      const key = waiting.join('|') + (port.ok ? '' : '|horizon:' + port.detail);
+      if (key !== lastWaitKey) {
+        lastWaitKey = key;
+        const parts = [];
+        if (!pods.ok) parts.push(pods.detail + (waiting.length ? ' -- waiting for: ' + waiting.slice(0, 8).join(', ')
+          + (waiting.length > 8 ? ' (+' + (waiting.length - 8) + ')' : '') : ''));
+        if (!port.ok) parts.push('horizon: ' + port.detail);
+        if (parts.length) this.log.note('Waiting for the stack: ' + parts.join(' / '), 'INFO');
+      }
       return null;
     }, { timeoutMs: this.cfg.timeouts.stackReadyMs, intervalMs: 4000, signal });
 
