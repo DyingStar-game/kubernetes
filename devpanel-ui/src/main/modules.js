@@ -182,7 +182,7 @@ function validateProfile(raw, fallbackId) {
     if (typeof value !== 'boolean') return { ok: false, error: 'module "' + key + '" must be true or false' };
     modules[key] = value;
   }
-  // `sets` is optional: absent means every set, which is what start-dev did before sets existed.
+  // `sets` is optional: absent (null) lets start-dev pick its default, every set but observability.
   let sets = null;
   if (raw.sets !== undefined) {
     if (!Array.isArray(raw.sets)) return { ok: false, error: '"sets" must be a list' };

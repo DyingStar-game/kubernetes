@@ -4,8 +4,9 @@ param(
     [switch]$NoTunnel,
 
     # Ensembles de services a deployer (voir argocd\dev\root\sets\). `core` est toujours deploye.
-    # Defaut : tous. Ex. level designer : -Sets core
-    [string[]]$Sets = @('server', 'gameplay', 'voice', 'admin', 'observability')
+    # Defaut : tous sauf observability (lourde, ~1,5 Go : a ajouter a la demande via sets-dev.ps1 add observability
+    # ou -Sets ...,observability). Ex. level designer : -Sets core
+    [string[]]$Sets = @('server', 'gameplay', 'voice', 'admin')
 )
 
 $ALL_SETS = @('core', 'server', 'server-idle', 'gameplay', 'voice', 'admin', 'observability')

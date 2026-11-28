@@ -9,10 +9,11 @@ cd "$(dirname "$0")/.."
 # joint le cluster autrement (relais, port-forward) ou veut seulement l'installer.
 NO_TUNNEL=0
 # --sets a,b : ensembles de services a deployer (voir argocd/dev/root/sets/). `core` est
-# toujours deploye. Defaut : tous. Ex. level designer : --sets core
+# toujours deploye. Defaut : tous sauf `observability` (lourde, ~1,5 Go : a ajouter a la
+# demande via sets-dev.sh add observability ou --sets ...,observability). Ex. level designer : --sets core
 ALL_SETS="core server server-idle gameplay voice admin observability"
 # server / server-idle sont exclusifs (meme Application godotserver) : le defaut prend `server`.
-SETS="core server gameplay voice admin observability"
+SETS="core server gameplay voice admin"
 while [ $# -gt 0 ]; do
     case "$1" in
         --no-tunnel) NO_TUNNEL=1 ;;

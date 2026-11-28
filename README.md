@@ -181,11 +181,11 @@ applied on demand.
 | `gameplay` | inventory, economie, market, mission, social, npc, universesimulator, textchat | game-side services |
 | `voice` | livekit (+ its redis) | proximity voice: also set `livekit.enabled: true` in `horizon/values-dev.yaml` |
 | `admin` | dyingstar-admin, service-monitoring | back-office |
-| `observability` | grafana, prometheus, loki, tempo, k8s-monitoring | metrics, logs, traces |
+| `observability` | grafana, prometheus, loki, tempo, k8s-monitoring | metrics, logs, traces. Not deployed by default (~1.5 Gi): add it on demand |
 
 ```bash
 ./scripts_linux/start-dev.sh --sets core            # level designers / artists
-./scripts_linux/start-dev.sh --sets core,gameplay   # default is every set
+./scripts_linux/start-dev.sh --sets core,gameplay   # default is every set except observability
 ./scripts_linux/sets-dev.sh list                    # what is deployed
 ./scripts_linux/sets-dev.sh add observability       # add a set to a running cluster
 ./scripts_linux/sets-dev.sh remove gameplay         # remove one (its apps are pruned)
