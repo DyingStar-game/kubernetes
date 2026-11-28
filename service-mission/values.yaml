@@ -235,6 +235,11 @@ env:
   # only through the internal settle endpoint (false).
   - name: MISSION_REWARD_AUTO_SETTLE
     value: "true"
+  # What a partial turn-in (a mission handed in before it is done) loses of its
+  # pay, as a fraction: it pays reward x share done x (1 - penalty). A full
+  # completion pays 100 %.
+  - name: MISSION_PARTIAL_PENALTY
+    value: "0.25"
   # Default mission lifetime in hours (0 = never expires).
   - name: MISSION_DEFAULT_TTL_HOURS
     value: "0"
