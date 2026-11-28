@@ -265,45 +265,33 @@ class Services extends EventEmitter {
   }
 
   /**
-   * Raise the inotify limits inside the k3d node, as start-dev.sh does (step 1b). The node's
-   * defaults (max_user_instances=128) are far too low once dozens of pods mount ConfigMaps/Secrets:
-   * horizon then dies with "too many open files" (fsnotify watcher). Applied through a privileged
-   * pod that nsenters the node, and written to /etc/sysctl.d; a node recreated by `k3d cluster delete`
-   * needs it again, hence on every start. Idempotent and best-effort: never fails the chain.
+   * Raise the inotify limits, as start-dev does (step 1b). The defaults (max_user_instances=128) are
+   * far too low once dozens of pods mount ConfigMaps/Secrets: horizon then dies with "too many open
+   * files" (fsnotify watcher). The k3d nodes are privileged containers, so `docker exec` sets the
+   * sysctls at once -- no pod to schedule, no image to pull into a cold cluster (~90 s before).
+   * They are the kernel's own and are lost on a reboot, hence on every start. Idempotent and
+   * best-effort: never fails the chain.
    */
   async raiseInotifyLimits() {
-    const script = 'sysctl -w fs.inotify.max_user_watches=1048576 && sysctl -w fs.inotify.max_user_instances=8192'
-      + " && printf 'fs.inotify.max_user_watches=1048576\\nfs.inotify.max_user_instances=8192\\n'"
-      + ' > /etc/sysctl.d/99-inotify.conf';
-    const overrides = JSON.stringify({
-      spec: {
-        hostPID: true,
-        tolerations: [{ operator: 'Exists' }],
-        containers: [{
-          name: 'fix',
-          image: 'busybox:1.37',
-          securityContext: { privileged: true },
-          command: ['nsenter', '-t', '1', '-m', '-u', '-i', '-n', '--', 'sh', '-c'],
-          args: [script],
-        }],
-      },
-    });
-    const kc = (args, ms) => run('kubectl', ['-n', 'kube-system', ...args], { timeoutMs: ms });
-    await kc(['delete', 'pod', 'inotify-fix', '--ignore-not-found', '--wait=true'], 30000);
-    const created = await run('kubectl', ['run', 'inotify-fix', '-n', 'kube-system', '--image=busybox:1.37',
-      '--restart=Never', '--overrides=' + overrides], { timeoutMs: 30000 });
-    if (created.code !== 0) {
-      this.log.note('Could not raise the inotify limits: ' + (created.stderr || '').trim(), 'WARN');
+    const listed = await run('docker', ['ps', '--format', '{{.Names}}', '--filter',
+      'name=^k3d-' + this.clusterName() + '-(server|agent)-'], { timeoutMs: 15000 });
+    const nodes = listed.code === 0 ? listed.stdout.split(/\r?\n/).map((n) => n.trim()).filter(Boolean) : [];
+    if (!nodes.length) {
+      this.log.note('Could not raise the inotify limits: no k3d node container found.', 'WARN');
       return false;
     }
-    const done = await kc(['wait', '--for=jsonpath={.status.phase}=Succeeded', 'pod/inotify-fix', '--timeout=90s'], 100000);
-    await kc(['delete', 'pod', 'inotify-fix', '--wait=false'], 15000);
-    if (done.code !== 0) {
-      this.log.note('The inotify limits may not have been raised (pod did not finish).', 'WARN');
-      return false;
+    let ok = true;
+    for (const node of nodes) {
+      const r = await run('docker', ['exec', node, 'sh', '-c',
+        'sysctl -w fs.inotify.max_user_watches=1048576 && sysctl -w fs.inotify.max_user_instances=8192'],
+      { timeoutMs: 20000 });
+      if (r.code !== 0) {
+        ok = false;
+        this.log.note('Could not raise the inotify limits on ' + node + ': ' + (r.stderr || '').trim(), 'WARN');
+      }
     }
-    this.log.note('inotify limits raised in the k3d node.', 'INFO');
-    return true;
+    if (ok) this.log.note('inotify limits raised in the k3d node(s).', 'INFO');
+    return ok;
   }
 
   /**

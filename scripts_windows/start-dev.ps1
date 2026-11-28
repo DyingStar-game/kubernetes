@@ -101,36 +101,14 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# 1b. Relever les limites inotify dans le noeud (voir start-dev.sh, etape 1b) :
-# sans cela horizon plante avec "too many open files" (fsnotify).
-Write-Host "--- Relevage des limites inotify dans le noeud ---"
-kubectl -n kube-system delete pod inotify-fix --ignore-not-found 2>$null | Out-Null
-$inotifyPod = @'
-apiVersion: v1
-kind: Pod
-metadata:
-  name: inotify-fix
-  namespace: kube-system
-spec:
-  hostPID: true
-  restartPolicy: Never
-  tolerations:
-    - operator: Exists
-  containers:
-    - name: fix
-      image: busybox:1.37
-      securityContext:
-        privileged: true
-      command: ["nsenter", "-t", "1", "-m", "-u", "-i", "-n", "--", "sh", "-c"]
-      args:
-        - |
-          sysctl -w fs.inotify.max_user_watches=1048576
-          sysctl -w fs.inotify.max_user_instances=8192
-          printf 'fs.inotify.max_user_watches=1048576\nfs.inotify.max_user_instances=8192\n' > /etc/sysctl.d/99-inotify.conf
-'@
-$inotifyPod | kubectl apply -f - | Out-Null
-kubectl -n kube-system wait --for=jsonpath='{.status.phase}=Succeeded' pod/inotify-fix --timeout=90s
-kubectl -n kube-system delete pod inotify-fix --wait=false | Out-Null
+# 1b. Relever les limites inotify (voir start-dev.sh, etape 1b) : sans cela horizon plante avec
+# "too many open files" (fsnotify). Les noeuds k3d sont des conteneurs privilegies : `docker exec`
+# le fait tout de suite (un pod aurait du telecharger une image dans un cluster vide : ~90 s).
+Write-Host "--- Relevage des limites inotify ---"
+docker ps --format '{{.Names}}' --filter "name=^k3d-$K3D_CLUSTER-(server|agent)-" | ForEach-Object {
+    docker exec $_ sh -c 'sysctl -w fs.inotify.max_user_watches=1048576 && sysctl -w fs.inotify.max_user_instances=8192' | Out-Null
+    if ($LASTEXITCODE -ne 0) { Write-Warning "limites inotify non relevees sur $_ (horizon peut echouer avec 'too many open files')" }
+}
 
 # 2. Installation initiale (si absente)
 $helmList = helm list -n argocd 2>$null

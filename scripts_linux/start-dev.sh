@@ -112,43 +112,18 @@ if ! kubectl get --raw /version --request-timeout=20s > /dev/null 2>&1; then
     exit 1
 fi
 
-# 1b. Raise inotify limits inside the node. The default limits
-# (fs.inotify.max_user_watches=65536/8192, max_user_instances=128) are far too
-# low once several dozen pods mount ConfigMaps/Secrets (each mount consumes
-# watches) — horizon then panics with "to create fsnotify watcher: too many
-# open files" and exits (139). Applied at runtime via a privileged pod + nsenter
-# (nodes are privileged k3d containers); /etc/sysctl.d is inside
-# the node's writable overlay and survives pod restarts, but a `k3d cluster
-# delete` / node recreate needs this step again — hence right after start.
-echo "--- Raising inotify limits inside the node ---"
-# Les sysctl inotify sont ceux du noyau hote / de la VM Docker.
-kubectl apply -f - <<'EOF' >/dev/null
-apiVersion: v1
-kind: Pod
-metadata:
-  name: inotify-fix
-  namespace: kube-system
-spec:
-  hostPID: true
-  restartPolicy: Never
-  tolerations:
-    - operator: Exists
-  containers:
-    - name: fix
-      image: busybox:1.37
-      securityContext:
-        privileged: true
-      command: ["nsenter", "-t", "1", "-m", "-u", "-i", "-n", "--", "sh", "-c"]
-      args:
-        - |
-          sysctl -w fs.inotify.max_user_watches=1048576
-          sysctl -w fs.inotify.max_user_instances=8192
-          printf 'fs.inotify.max_user_watches=1048576\nfs.inotify.max_user_instances=8192\n' > /etc/sysctl.d/99-inotify.conf
-EOF
-kubectl -n kube-system wait --for=jsonpath='{.status.phase}=Succeeded' pod/inotify-fix --timeout=90s
-kubectl -n kube-system logs inotify-fix
-kubectl -n kube-system delete pod inotify-fix --wait=false >/dev/null
-
+# 1b. Raise inotify limits. The default limits (max_user_instances=128) are far too low once
+# several dozen pods mount ConfigMaps/Secrets (each mount consumes watches): horizon then panics
+# with "to create fsnotify watcher: too many open files" and exits (139).
+# The k3d nodes are privileged containers: `docker exec` sets the sysctls at once. (A privileged
+# pod + nsenter did the same but had to pull an image into a cold cluster first: ~90 s, twice.)
+# They are the kernel's own (host, or Docker Desktop's VM) and are not kept by the node, so this
+# runs at every start.
+echo "--- Raising inotify limits ---"
+for node in $(docker ps --format '{{.Names}}' --filter "name=^k3d-${K3D_CLUSTER}-(server|agent)-"); do
+    docker exec "$node" sh -c 'sysctl -w fs.inotify.max_user_watches=1048576 && sysctl -w fs.inotify.max_user_instances=8192' > /dev/null \
+        || echo "WARNING: inotify limits not raised on $node (horizon may hit 'too many open files')"
+done
 tick "limites inotify relevees"
 
 # 2. Initial installation (if not present)
@@ -177,6 +152,13 @@ echo "--- Checking Root Application status ---"
 
 # Wait for the Application CRD to be available
 kubectl wait --for=condition=Established crd/applications.argoproj.io --timeout=60s > /dev/null 2>&1
+
+# The repo-server must serve the local repo before the root app can sync: waiting on the root app
+# alone burned its whole 120 s timeout while the ArgoCD images were still being pulled.
+echo "--- Waiting for ArgoCD (server, repo-server) ---"
+kubectl wait --namespace argocd --for=condition=Available deployment/argocd-server deployment/argocd-repo-server --timeout=300s \
+    || echo "WARNING: ArgoCD is not available yet, continuing anyway"
+tick "ArgoCD disponible"
 
 # Get the current sync status
 SYNC_STATUS=$(kubectl get application $ROOT_APP_NAME -n $ROOT_APP_NS -o jsonpath='{.status.sync.status}' 2>/dev/null)
