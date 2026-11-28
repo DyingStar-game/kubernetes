@@ -1,6 +1,6 @@
 'use strict';
 
-const { run, tcpProbe } = require('./util');
+const { run, tcpProbe, kubeContextName } = require('./util');
 const { portInfo, processCpuSeconds, processStartTime } = require('./platform');
 const { t } = require('./i18n');
 
@@ -119,7 +119,7 @@ class Probes {
     return this._cached('kubeContext', 15000, async () => {
       const r = await run('kubectl', ['config', 'current-context'], { timeoutMs: 12000 });
       const current = r.stdout.trim();
-      const expected = this.cfg.k8s.expectedContext;
+      const expected = kubeContextName(this.cfg);
       return { ok: current === expected, detail: current || t('probe.none'), expected };
     });
   }

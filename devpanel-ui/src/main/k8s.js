@@ -2,7 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { run, waitFor } = require('./util');
+const { run, waitFor, kubeContextName } = require('./util');
 const { portInfo, killTree, exposeHorizonCommand, buildAndDeployCommand, setsCommand } = require('./platform');
 const { SET_IDS } = require('./modules');
 
@@ -22,7 +22,7 @@ class K8s {
   }
 
   async useK3dContext() {
-    const ctx = this.cfg.k8s.expectedContext;
+    const ctx = kubeContextName(this.cfg);
     const r = await run('kubectl', ['config', 'use-context', ctx], { timeoutMs: 15000 });
     const ok = r.code === 0;
     this.log.note(
