@@ -44,6 +44,10 @@ for set in $SETS; do
     esac
 done
 
+# Chronometrage : chaque phase affiche le temps ecoule depuis le lancement.
+T0=$(date +%s)
+tick() { echo "--- [$(( $(date +%s) - T0 ))s] $* ---"; }
+
 # Cluster local : k3d (k3s dans Docker). Nom modifiable : K3D_CLUSTER.
 K3D_CLUSTER="${K3D_CLUSTER:-dyingstar}"
 
@@ -88,6 +92,7 @@ else
         || { echo "ERREUR : creation du cluster k3d impossible (port 80/443/8443/30101 deja pris ? voir : docker ps)." >&2; exit 1; }
 fi
 kubectl config use-context "k3d-$K3D_CLUSTER"
+tick "cluster k3d pret"
 # Les values dev reclament la StorageClass "standard" ; k3s fournit "local-path" :
 # on cree un alias pointant sur le meme provisioner.
 kubectl apply -f - <<'EOF' > /dev/null
@@ -144,6 +149,8 @@ kubectl -n kube-system wait --for=jsonpath='{.status.phase}=Succeeded' pod/inoti
 kubectl -n kube-system logs inotify-fix
 kubectl -n kube-system delete pod inotify-fix --wait=false >/dev/null
 
+tick "limites inotify relevees"
+
 # 2. Initial installation (if not present)
 if ! helm list -n argocd | grep -q "argocd"; then
     echo "--- Installing ArgoCD and components ---"
@@ -162,6 +169,8 @@ if ! helm list -n argocd | grep -q "argocd"; then
 else
     echo "--- ArgoCD already installed, skipping installation ---"
 fi
+
+tick "ArgoCD installe"
 
 # 3. Check Root App status and Sync if necessary
 echo "--- Checking Root Application status ---"
@@ -202,6 +211,7 @@ if [ -n "$OTHERS" ]; then
     echo "--- Waiting for the core set to be healthy (up to 10 min) ---"
     kubectl wait --for=jsonpath='{.status.health.status}=Healthy' application/root-core -n argocd --timeout=600s \
         || echo "WARNING: core is not healthy yet, applying the other sets anyway"
+    tick "ensemble core sain (ou delai depasse)"
     for set in $OTHERS; do
         kubectl apply -f "argocd/dev/root/sets/$set.yaml"
     done
@@ -236,4 +246,5 @@ if [ -f "$DOMAINS_FILE" ]; then
     done < "$DOMAINS_FILE"
 fi
 
+tick "environnement pret"
 echo "--- Environment ready! ---"
