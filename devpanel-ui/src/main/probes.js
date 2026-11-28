@@ -95,8 +95,16 @@ class Probes {
       const list = JSON.parse(r.stdout);
       const c = (Array.isArray(list) ? list : [list]).find((x) => x && x.name === name);
       if (!c) return { ok: false, detail: t('probe.stopped') };
-      const ok = c.serversCount > 0 && c.serversRunning === c.serversCount;
-      return { ok, detail: ok ? 'Running' : 'servers ' + c.serversRunning + '/' + c.serversCount };
+      const up = c.serversCount > 0 && c.serversRunning === c.serversCount;
+      if (!up) return { ok: false, detail: 'servers ' + c.serversRunning + '/' + c.serversCount };
+      // A running server node is not a usable cluster: during `k3d cluster create` the node is up
+      // well before the load balancer and the kubeconfig context exist (measured 2026-11-28: the
+      // chain went on 10 s too early, with no kube context). The API must answer on this context.
+      const api = await run('kubectl', ['--context', 'k3d-' + name, 'get', '--raw', '/version',
+        '--request-timeout=5s'], { timeoutMs: 12000 });
+      return api.code === 0
+        ? { ok: true, detail: 'Running' }
+        : { ok: false, detail: 'API not answering yet' };
     } catch {
       return { ok: false, detail: t('probe.unreadable') };
     }
