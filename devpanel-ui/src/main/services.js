@@ -236,9 +236,16 @@ class Services extends EventEmitter {
       args: exists ? ['cluster', 'start', this.clusterName()] : this.k3dCreateArgs(),
     });
 
+    // Say what is being waited for whenever it changes: a silent wait looks like a hang.
+    let lastDetail = '';
     const ready = await waitFor(async () => {
       this.probes.invalidate('k3d');
-      return (await this.probes.k3d()).ok;
+      const pr = await this.probes.k3d();
+      if (!pr.ok && pr.detail !== lastDetail) {
+        lastDetail = pr.detail;
+        this.log.note('Waiting for the k3d cluster: ' + pr.detail, 'INFO');
+      }
+      return pr.ok;
     }, {
       timeoutMs: this.cfg.timeouts.k3dReadyMs,
       intervalMs: 4000,

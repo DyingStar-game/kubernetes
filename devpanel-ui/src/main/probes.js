@@ -104,7 +104,7 @@ class Probes {
         '--request-timeout=5s'], { timeoutMs: 12000 });
       return api.code === 0
         ? { ok: true, detail: 'Running' }
-        : { ok: false, detail: 'API not answering yet' };
+        : { ok: false, detail: 'API not answering yet: ' + ((api.stderr || '').trim().split(/\r?\n/).pop() || 'code ' + api.code) };
     } catch {
       return { ok: false, detail: t('probe.unreadable') };
     }
